@@ -2,14 +2,14 @@
 // project cannot auto-pause in the run-up to the event.
 //
 // Usage (run from the evening before the event until the event ends):
-//   SUPABASE_URL=https://xxxx.supabase.co SUPABASE_ANON_KEY=eyJ... npx tsx scripts/keepalive.ts
+//   SUPABASE_URL=https://xxxx.supabase.co SUPABASE_PUBLISHABLE_KEY=sb_publishable_... npx tsx scripts/keepalive.ts
 //
-// It only reads the public game-state view, so the anon key is enough.
+// It only reads public station configuration, so the publishable key is enough.
 
 const url = process.env.SUPABASE_URL;
-const key = process.env.SUPABASE_ANON_KEY;
+const key = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
 if (!url || !key) {
-  console.error("Set SUPABASE_URL and SUPABASE_ANON_KEY env vars.");
+  console.error("Set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY env vars.");
   process.exit(1);
 }
 
@@ -18,7 +18,7 @@ const INTERVAL_MS = 5 * 60 * 1000;
 async function ping(): Promise<void> {
   const started = Date.now();
   try {
-    const res = await fetch(`${url}/rest/v1/public_game_state?select=phase`, {
+    const res = await fetch(`${url}/rest/v1/stations?select=id&limit=1`, {
       headers: { apikey: key!, authorization: `Bearer ${key}` },
     });
     const body = await res.text();

@@ -27,10 +27,14 @@ begin
   assert jsonb_array_length(r -> 'feed') = 0, 'feed empty before any action';
   assert (r -> 'stats' ->> 'players')::int = 3, 'stats count excludes removed';
 
-  -- PRIVACY: no 4-digit codes anywhere in the payload
-  assert r::text not like '%7001%', 'player code must not appear on the board';
-  assert r::text not like '%7004%', 'removed player code must not appear either';
-  assert not (r -> 'players' -> 0 ? 'code'), 'players carry no code field';
+  -- PRIVACY: no player object carries a code field. Do not search the raw JSON
+  -- text for four digits: a random UUID can legitimately contain that sequence.
+  assert not exists (
+    select 1 from jsonb_array_elements(r -> 'players') p where p ? 'code'
+  ), 'players carry no code field';
+  assert not exists (
+    select 1 from jsonb_array_elements(r -> 'players') p where p ->> 'name' = '垃圾'
+  ), 'removed player is absent from the board';
 
   -- generate activity
   perform award_scores('test-staff',
@@ -66,7 +70,9 @@ begin
   assert exists (select 1 from jsonb_array_elements(v_feed) f
                  where f ->> 'kind' = 'token' and f ->> 'usage' = 'second_chance'
                    and f ->> 'station' = '音乐之声'), 'token use in feed with station';
-  assert v_feed::text not like '%7003%', 'feed carries no codes';
+  assert not exists (
+    select 1 from jsonb_array_elements(v_feed) f where f ? 'code'
+  ), 'feed carries no code field';
 
   -- a locked player is flagged so the board can call it out
   perform award_scores('test-staff', '[{"code":"7002","score":9}]'::jsonb, v_uk, 'b5');

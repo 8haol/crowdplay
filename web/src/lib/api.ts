@@ -3,7 +3,8 @@
 // (the venue network drops connections; every write is idempotent server-side).
 
 const BASE = import.meta.env.VITE_SUPABASE_URL as string;
-const ANON = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+const API_KEY = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ??
+  import.meta.env.VITE_SUPABASE_ANON_KEY) as string;
 
 export class RpcError extends Error {
   code: string; // e.g. 'LOCKED_LIFE_EVENT'
@@ -26,8 +27,8 @@ async function post(path: string, body: unknown): Promise<Response> {
     return await fetch(`${BASE}${path}`, {
       method: "POST",
       headers: {
-        apikey: ANON,
-        authorization: `Bearer ${ANON}`,
+        apikey: API_KEY,
+        authorization: `Bearer ${API_KEY}`,
         "content-type": "application/json",
       },
       body: JSON.stringify(body),
@@ -79,10 +80,10 @@ export async function rpc<T>(fn: string, args: Record<string, unknown>): Promise
   }
 }
 
-/** Read a public view (stations / leaderboard / public_game_state). */
+/** Read a deliberately exposed public table or view (currently stations). */
 export async function readView<T>(query: string): Promise<T> {
   const res = await fetch(`${BASE}/rest/v1/${query}`, {
-    headers: { apikey: ANON, authorization: `Bearer ${ANON}` },
+    headers: { apikey: API_KEY, authorization: `Bearer ${API_KEY}` },
   });
   if (!res.ok) throw new RpcError(`HTTP_${res.status}`);
   return (await res.json()) as T;

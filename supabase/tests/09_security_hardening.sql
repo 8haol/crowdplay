@@ -1,4 +1,4 @@
--- Tests: public credential surface, hashed secrets, throttling, safe leaderboard
+-- Tests: public credential surface, hashed secrets, throttling, safe RPCs
 begin;
 delete from rpc_results; delete from admin_actions; delete from token_usages;
 delete from life_events; delete from attempts; delete from players;
@@ -19,12 +19,12 @@ declare
 begin
   assert not has_table_privilege('anon', 'leaderboard', 'select'),
          'anon cannot read credential-bearing leaderboard';
-  assert has_table_privilege('anon', 'public_leaderboard', 'select'),
-         'anon can read the code-free public leaderboard';
-  assert not exists (
-    select 1 from information_schema.columns
-    where table_schema = 'public' and table_name = 'public_leaderboard' and column_name = 'code'
-  ), 'safe leaderboard contains no code';
+  assert to_regclass('public.public_leaderboard') is null,
+         'unused security-definer public leaderboard is removed';
+  assert to_regclass('public.public_game_state') is null,
+         'security-definer public game-state view is removed';
+  assert has_function_privilege('anon', 'board_snapshot()', 'execute'),
+         'anon can read the code-free board RPC';
 
   r := join_game('安全测试', 'secure-join');
   assert r ->> 'code' ~ '^\d{4}$', 'hashed join secret matches';

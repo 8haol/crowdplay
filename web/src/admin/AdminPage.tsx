@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import { rpc, readView, errorText } from "../lib/api";
+import { rpc, errorText } from "../lib/api";
 import { usePoll } from "../lib/usePoll";
-import type { AdminPlayer, Phase } from "../lib/types";
+import type { AdminPlayer, BoardSnapshot, Phase } from "../lib/types";
 import { colorOf, soloColor } from "../lib/types";
 import { ActionButton, ConnDot, ErrorBanner, SuccessBanner } from "../lib/ui";
 import { Login } from "../staff/StaffPage";
@@ -34,11 +34,11 @@ export default function AdminPage() {
 function AdminMain({ adminKey, onLogout }: { adminKey: string; onLogout: () => void }) {
   const pollFn = useMemo(
     () => async (): Promise<AdminSnapshot> => {
-      const [players, state] = await Promise.all([
+      const [players, board] = await Promise.all([
         rpc<AdminPlayer[]>("admin_list_players", { p_admin_key: adminKey }),
-        readView<{ phase: Phase }[]>("public_game_state?select=phase"),
+        rpc<BoardSnapshot>("board_snapshot", {}),
       ]);
-      return { players, phase: state[0]?.phase ?? "waiting" };
+      return { players, phase: board.phase };
     },
     [adminKey],
   );

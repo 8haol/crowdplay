@@ -12,7 +12,7 @@
       预算允许的话，活动当周临时升 Pro 最省心。
 - [ ] **跑 keepalive 心跳**（从前一天晚上跑到活动结束，别关电脑）：
       ```
-      SUPABASE_URL=https://<项目>.supabase.co SUPABASE_ANON_KEY=<anon key> npx tsx scripts/keepalive.ts
+      SUPABASE_URL=https://<项目>.supabase.co SUPABASE_PUBLISHABLE_KEY=<publishable key> npx tsx scripts/keepalive.ts
       ```
 - [ ] **改掉三个占位密钥**（在 Supabase Dashboard → SQL Editor 里执行）：
       ```sql
@@ -118,7 +118,7 @@ npx supabase db push      # 应用 migrations 到云端
 
 无需再接第二套数据库：生产环境建立独立的 Supabase 项目即可。前端推荐继续使用
 Netlify（仓库已包含 SPA rewrite、安全响应头和静态资源缓存）。Netlify 构建 `web/`，环境变量 `VITE_SUPABASE_URL`、
-`VITE_SUPABASE_ANON_KEY`。staff/admin 密钥和入场口令**只存数据库
+`VITE_SUPABASE_PUBLISHABLE_KEY`。staff/admin 密钥和入场口令**只存数据库
 app_config / game_state 表的 SHA-256 摘要**，绝不进前端 bundle；工作人员和管理端
 输入的密钥仅保存在当前浏览器标签会话中。
 
@@ -133,9 +133,8 @@ app_config / game_state 表的 SHA-256 摘要**，绝不进前端 bundle；工�
    重试请求原样返回首次结果，绝不重复记分。
 4. admin key 可通行一切 staff 操作（反之不行）。
 5. 盲盒卡片一律不触发新锁定；被卡片跳过的阈值不再补触发；阈值不因扣分复活。
-6. `game_state.join_passphrase` 不暴露给前端：anon 只能读 `public_game_state`
-   视图（phase + started_at）和不含玩家码的 `public_leaderboard` 视图；旧
-   `leaderboard` 仅数据库 owner 可读。
+6. `game_state.join_passphrase` 不暴露给前端：状态和排行榜走刻意公开且不含凭据的
+   `board_snapshot()` RPC；旧 `leaderboard` 仅数据库 owner 可读。
 7. RLS 全开且无 anon 策略，全部写操作走 security definer RPC，内部 `_` 开头
    的辅助函数不授权给 anon。
 

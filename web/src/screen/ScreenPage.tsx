@@ -68,7 +68,7 @@ function Header({ online, data }: { online: boolean; data?: BoardSnapshot }) {
   const elapsed = useElapsed(data?.started_at ?? null);
   const phase = data?.phase;
   return (
-    <header className="flex flex-col gap-3 px-4 pb-5 pt-4 lg:flex-row lg:items-end lg:justify-between lg:gap-6 lg:px-[clamp(0.75rem,1.6vw,2rem)] lg:pb-[clamp(0.5rem,1vw,1rem)] lg:pt-[clamp(0.75rem,1.4vw,1.5rem)]">
+    <header className="flex flex-col gap-3 pr-4 pl-[4.5rem] pb-5 pt-4 lg:flex-row lg:items-end lg:justify-between lg:gap-6 lg:pr-[clamp(0.75rem,1.6vw,2rem)] lg:pl-[5rem] lg:pb-[clamp(0.5rem,1vw,1rem)] lg:pt-[clamp(0.75rem,1.4vw,1.5rem)]">
       <div className="flex items-end justify-between gap-3 lg:justify-start lg:gap-[clamp(0.75rem,1.5vw,1.75rem)]">
         <div>
           <div className="text-[9px] font-black tracking-[0.36em] text-foil-dim lg:text-[clamp(0.5rem,0.75vw,0.8rem)] lg:tracking-[0.5em]">

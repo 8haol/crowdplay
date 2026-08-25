@@ -108,7 +108,7 @@ function Shell(props: {
 }) {
   return (
     <div className="min-h-dvh bg-desk text-ink">
-      <header className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 bg-foil px-4 py-3.5 text-ink shadow-[0_2px_0_#e0a800]">
+      <header className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 bg-foil py-3.5 pr-4 pl-[4.5rem] text-ink shadow-[0_2px_0_#e0a800]">
         <div className="min-w-0 flex-1">
           <div className="truncate font-bold">{props.title}</div>
           {props.subtitle && <div className="text-xs font-semibold text-foil-dim">{props.subtitle}</div>}

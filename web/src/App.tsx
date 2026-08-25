@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Link, useLocation } from "react-router-dom";
 import PlayPage from "./play/PlayPage";
 import StaffPage from "./staff/StaffPage";
 import AdminPage from "./admin/AdminPage";
@@ -68,6 +68,7 @@ function Home() {
 export default function App() {
   return (
     <BrowserRouter>
+      <RouteBack />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/play" element={<PlayPage />} />
@@ -78,6 +79,22 @@ export default function App() {
         <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>
+  );
+}
+
+function RouteBack() {
+  const { pathname } = useLocation();
+  if (pathname === "/") return null;
+
+  return (
+    <Link
+      to="/"
+      className="route-back pressable fixed z-[60] grid h-11 w-11 place-items-center rounded-full border-2 border-ink bg-card text-2xl font-black leading-none text-ink shadow-[0_3px_0_#0f0d0a]"
+      aria-label="返回入口"
+      title="返回入口"
+    >
+      <span aria-hidden="true">←</span>
+    </Link>
   );
 }
 

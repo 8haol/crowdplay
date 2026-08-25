@@ -56,7 +56,7 @@ function AdminMain({ adminKey, onLogout }: { adminKey: string; onLogout: () => v
 
   return (
     <div className="min-h-dvh bg-desk pb-24 text-ink sm:pb-16">
-      <header className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 bg-foil px-4 py-3.5 text-ink shadow-[0_2px_0_#e0a800]">
+      <header className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 bg-foil py-3.5 pr-4 pl-[4.5rem] text-ink shadow-[0_2px_0_#e0a800]">
         <div className="flex shrink-0 items-center gap-2 font-bold">
           管理端 <ConnDot online={online} />
         </div>

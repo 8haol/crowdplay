@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#ffc838" />
+    <meta name="description" content="Life Passport 人生护照产品流程与关键页面导览" />
+    <title>Life Passport · 产品导览</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --yellow: #ffc838;
+        --yellow-soft: #ffdd7a;
+        --cream: #fff9f0;
+        --paper: #ffffff;
+        --ink: #26211b;
+        --muted: #746957;
+        --line: #e7dcc7;
+        --red: #e35f43;
+        --green: #2f9e63;
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+      }
+
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body { margin: 0; background: var(--cream); color: var(--ink); }
+      button, a { font: inherit; }
+      button { color: inherit; }
+      img { display: block; max-width: 100%; }
+      :focus-visible { outline: 3px solid var(--red); outline-offset: 3px; }
+
+      .hero {
+        position: relative;
+        min-height: min(720px, 92svh);
+        display: grid;
+        align-content: center;
+        overflow: hidden;
+        background: var(--yellow);
+      }
+      .hero::before, .hero::after {
+        content: "";
+        position: absolute;
+        border-radius: 999px;
+        pointer-events: none;
+      }
+      .hero::before { width: 34rem; height: 34rem; right: -10rem; top: -16rem; background: var(--yellow-soft); }
+      .hero::after { width: 24rem; height: 24rem; left: -10rem; bottom: -13rem; background: #f2ae15; }
+      .hero-inner, .section { width: min(1180px, calc(100% - 40px)); margin: 0 auto; }
+      .hero-inner { position: relative; z-index: 1; padding: 72px 0; }
+      .eyebrow { margin: 0; font-size: 12px; font-weight: 900; letter-spacing: .36em; text-transform: uppercase; }
+      h1 { max-width: 820px; margin: 18px 0 20px; font-size: clamp(48px, 8vw, 100px); line-height: .98; letter-spacing: -.065em; }
+      .lead { max-width: 720px; margin: 0; font-size: clamp(18px, 2.3vw, 28px); line-height: 1.55; font-weight: 700; }
+      .hero-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 34px; }
+      .pill { border-radius: 999px; background: var(--paper); padding: 10px 16px; box-shadow: 0 3px 0 #dfa900; font-size: 14px; font-weight: 900; }
+      .hero-note { margin-top: 30px; color: #5d4100; font-size: 13px; font-weight: 700; }
+
+      .section { padding: 92px 0; }
+      .section + .section { border-top: 1px solid var(--line); }
+      .section-head { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 24px; margin-bottom: 34px; }
+      .section-head h2 { margin: 8px 0 0; font-size: clamp(34px, 5vw, 64px); line-height: 1; letter-spacing: -.05em; }
+      .section-head p { max-width: 620px; margin: 12px 0 0; color: var(--muted); font-weight: 650; line-height: 1.7; }
+      .mode-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+      .mode-tab, .tour-control, .thumb {
+        border: 0;
+        cursor: pointer;
+      }
+      .mode-tab { border-radius: 999px; background: #eee5d5; padding: 11px 17px; font-weight: 850; }
+      .mode-tab[aria-selected="true"] { background: var(--ink); color: #fff; }
+
+      .tour-shell { display: grid; grid-template-columns: minmax(320px, .82fr) minmax(0, 1.18fr); gap: clamp(28px, 5vw, 72px); align-items: center; }
+      .phone-wrap { min-height: 690px; display: grid; place-items: center; }
+      .phone {
+        width: min(100%, 342px);
+        aspect-ratio: 375 / 812;
+        position: relative;
+        overflow: hidden;
+        border: 10px solid var(--ink);
+        border-radius: 44px;
+        background: #fff;
+        box-shadow: 0 28px 70px rgb(38 33 27 / .18), 0 6px 0 var(--ink);
+      }
+      .phone::before {
+        content: "";
+        position: absolute;
+        z-index: 2;
+        left: 50%; top: 8px;
+        width: 84px; height: 21px;
+        transform: translateX(-50%);
+        border-radius: 999px;
+        background: var(--ink);
+      }
+      .phone img { width: 100%; height: 100%; object-fit: cover; }
+      .phone img.swap { animation: page-in .36s cubic-bezier(.16, 1, .3, 1); }
+      @keyframes page-in { from { opacity: .15; transform: translateY(18px) scale(.985); } to { opacity: 1; transform: none; } }
+
+      .tour-copy { min-width: 0; }
+      .step-count { color: var(--red); font-weight: 950; letter-spacing: .14em; }
+      .tour-copy h3 { margin: 10px 0 12px; font-size: clamp(34px, 5vw, 60px); line-height: 1; letter-spacing: -.05em; }
+      .tour-copy .summary { min-height: 88px; margin: 0; color: var(--muted); font-size: 18px; font-weight: 650; line-height: 1.75; }
+      .tag-row { min-height: 38px; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+      .tag { border-radius: 999px; background: #fff0c8; padding: 7px 11px; color: #6f4d00; font-size: 12px; font-weight: 850; }
+      .controls { display: flex; gap: 10px; margin: 26px 0 20px; }
+      .tour-control { min-height: 46px; border-radius: 999px; padding: 10px 18px; background: var(--ink); color: white; font-weight: 900; }
+      .tour-control.secondary { background: var(--paper); color: var(--ink); box-shadow: inset 0 0 0 2px var(--line); }
+      .thumbs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+      .thumb { min-height: 60px; border-radius: 14px; background: var(--paper); padding: 8px; text-align: left; box-shadow: inset 0 0 0 2px transparent; }
+      .thumb[aria-current="step"] { background: #fff0c8; box-shadow: inset 0 0 0 2px var(--yellow); }
+      .thumb b { display: block; font-size: 13px; }
+      .thumb span { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+
+      .ops-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+      .ops-card { overflow: hidden; border-radius: 26px; background: var(--paper); box-shadow: 0 4px 0 #eadab9; }
+      .ops-shot { aspect-ratio: 375 / 812; overflow: hidden; background: #eee6d8; }
+      .ops-shot img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
+      .ops-copy { padding: 22px; }
+      .ops-copy .num { color: var(--red); font-size: 12px; font-weight: 950; letter-spacing: .16em; }
+      .ops-copy h3 { margin: 7px 0 9px; font-size: 24px; }
+      .ops-copy p { margin: 0; color: var(--muted); line-height: 1.65; font-weight: 600; }
+
+      .screen-frame { overflow: hidden; border: 10px solid var(--ink); border-radius: 28px; background: var(--ink); box-shadow: 0 18px 50px rgb(38 33 27 / .18); }
+      .screen-frame img { width: 100%; }
+      .screen-caption { display: grid; grid-template-columns: 1fr auto; gap: 18px; align-items: center; margin-top: 24px; }
+      .screen-caption h3 { margin: 0; font-size: 30px; }
+      .screen-caption p { margin: 7px 0 0; color: var(--muted); line-height: 1.65; font-weight: 600; }
+      .privacy { border-radius: 18px; background: #e5f6ec; padding: 14px 16px; color: #17613b; font-size: 13px; font-weight: 850; }
+
+      .scope-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+      .scope { border-radius: 22px; background: var(--paper); padding: 24px; box-shadow: 0 3px 0 #eadab9; }
+      .scope strong { display: block; font-size: 21px; }
+      .scope p { margin: 10px 0 0; color: var(--muted); line-height: 1.65; font-weight: 600; }
+      .scope .state { display: inline-block; margin-bottom: 14px; border-radius: 999px; padding: 6px 10px; background: #e5f6ec; color: #17613b; font-size: 12px; font-weight: 900; }
+      .scope.attention .state { background: #fff0c8; color: #6f4d00; }
+
+      footer { background: var(--ink); color: #fff; }
+      .footer-inner { width: min(1180px, calc(100% - 40px)); margin: 0 auto; padding: 44px 0; display: flex; justify-content: space-between; gap: 24px; }
+      .footer-inner p { margin: 0; color: #cabfae; line-height: 1.6; }
+      .footer-inner strong { color: #fff; }
+
+      [hidden] { display: none !important; }
+      @media (max-width: 820px) {
+        .section { padding: 70px 0; }
+        .section-head, .tour-shell, .screen-caption { grid-template-columns: 1fr; }
+        .phone-wrap { min-height: auto; }
+        .tour-copy { text-align: center; }
+        .tour-copy .summary { min-height: 0; }
+        .tag-row, .controls { justify-content: center; }
+        .thumbs { grid-template-columns: repeat(2, minmax(0, 1fr)); text-align: left; }
+        .ops-grid, .scope-grid { grid-template-columns: 1fr; }
+        .ops-card { display: grid; grid-template-columns: 150px 1fr; }
+        .ops-shot { aspect-ratio: 375 / 812; }
+        .privacy { justify-self: start; }
+        .footer-inner { flex-direction: column; }
+      }
+      @media (max-width: 470px) {
+        .hero-inner, .section, .footer-inner { width: min(100% - 28px, 1180px); }
+        .hero { min-height: 690px; }
+        .hero-inner { padding: 54px 0; }
+        .ops-card { grid-template-columns: 112px 1fr; }
+        .ops-copy { padding: 18px; }
+        .ops-copy h3 { font-size: 20px; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        html { scroll-behavior: auto; }
+        .phone img.swap { animation: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="hero">
+      <div class="hero-inner">
+        <p class="eyebrow">Life Passport · Stakeholder Walkthrough</p>
+        <h1>这一程，<br />由每个人盖章。</h1>
+        <p class="lead">一场为英国华人教会迎新会设计的 60 分钟现场人生模拟游戏。这里展示当前可运行版本的真实用户流程与关键页面。</p>
+        <div class="hero-meta" aria-label="产品概览">
+          <span class="pill">约 50 名玩家</span>
+          <span class="pill">7 个实体站点</span>
+          <span class="pill">玩家 / 工作人员 / 总控 / 大屏</span>
+          <span class="pill">手机优先 · 微信可用</span>
+        </div>
+        <p class="hero-note">本页使用演示姓名和本地测试数据，不包含真实参与者信息。</p>
+      </div>
+    </header>
+
+    <main>
+      <section class="section" id="player-flow">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">01 · Player Journey</p>
+            <h2>玩家的一整段旅程</h2>
+            <p>从登记、身份揭晓、七站挑战，到人生盲盒和最终分享。点击任一步骤，也可以让页面自动播放。</p>
+          </div>
+          <div class="mode-tabs" role="tablist" aria-label="导览模式">
+            <button class="mode-tab" role="tab" aria-selected="true" data-mode="guided">逐步导览</button>
+            <button class="mode-tab" role="tab" aria-selected="false" data-mode="gallery">全部步骤</button>
+          </div>
+        </div>
+
+        <div class="tour-shell" id="guided-view">
+          <div class="phone-wrap">
+            <div class="phone"><img id="tour-image" src="screens/01-join.png" alt="玩家填写姓名与入场口令，领取人生编号" /></div>
+          </div>
+          <div class="tour-copy" aria-live="polite">
+            <div class="step-count" id="step-count">STEP 01 / 08</div>
+            <h3 id="tour-title">领取人生编号</h3>
+            <p class="summary" id="tour-summary">玩家输入姓名和现场口令。清晰的登记卡让第一次打开页面的人立刻知道要做什么。</p>
+            <div class="tag-row" id="tour-tags"><span class="tag">手机入口</span><span class="tag">现场口令</span><span class="tag">找回身份</span></div>
+            <div class="controls">
+              <button class="tour-control secondary" id="previous-step" aria-label="上一步">← 上一步</button>
+              <button class="tour-control" id="auto-play" aria-pressed="false">自动播放</button>
+              <button class="tour-control secondary" id="next-step" aria-label="下一步">下一步 →</button>
+            </div>
+            <div class="thumbs" id="step-thumbs" aria-label="玩家流程步骤"></div>
+          </div>
+        </div>
+
+        <div class="ops-grid" id="gallery-view" hidden></div>
+      </section>
+
+      <section class="section" id="operations">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">02 · Crew & Control</p>
+            <h2>现场工作人员的操作面</h2>
+            <p>工具端压低了视觉噪音，保留大按钮和明确状态。工作人员只看到自己需要完成的下一步。</p>
+          </div>
+        </div>
+        <div class="ops-grid">
+          <article class="ops-card">
+            <div class="ops-shot"><img src="screens/10-staff-stations.png" alt="工作人员选择负责站点" loading="lazy" /></div>
+            <div class="ops-copy"><span class="num">CREW 01</span><h3>选择站点</h3><p>登录一次后选择负责的实体站。主线站、盲盒站和恩典站用同一个入口。</p></div>
+          </article>
+          <article class="ops-card">
+            <div class="ops-shot"><img src="screens/11-staff-score.png" alt="工作人员录入玩家编号并计分" loading="lazy" /></div>
+            <div class="ops-copy"><span class="num">CREW 02</span><h3>整队计分</h3><p>一次录入 1 到 3 个编号，先核对人，再选择 3 / 6 / 9 分或失败。</p></div>
+          </article>
+          <article class="ops-card">
+            <div class="ops-shot"><img src="screens/13-admin-dashboard.png" alt="管理端查看玩家总表与游戏阶段" loading="lazy" /></div>
+            <div class="ops-copy"><span class="num">CONTROL</span><h3>总控与修正</h3><p>总控掌握游戏阶段、玩家状态和手动修正入口，并能独立打开投影大屏。</p></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="screen">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">03 · Live Screen</p>
+            <h2>全场共享的实时舞台</h2>
+            <p>排行榜和事件播报每 3 秒更新。大屏只展示名字、身份、进度和分数，不展示可找回玩家护照的 4 位编号。</p>
+          </div>
+        </div>
+        <div class="screen-frame"><img src="screens/09-screen-50.png" alt="人生护照 50 人投影大屏，前三名固定，其他玩家分页轮播" loading="lazy" /></div>
+        <div class="screen-caption">
+          <div><h3>50 人可读排行榜 + 实时播报</h3><p>前三名持续固定，其余玩家每 8 秒自动轮播。截图使用 50 人演示数据，1024px 以上投影布局已完成浏览器回归。</p></div>
+          <div class="privacy">公开大屏不显示 4 位身份编号</div>
+        </div>
+      </section>
+
+      <section class="section" id="scope">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">04 · Current Scope</p>
+            <h2>现在已经做到什么程度</h2>
+          </div>
+        </div>
+        <div class="scope-grid">
+          <article class="scope"><span class="state">已实现</span><strong>完整核心流程</strong><p>加入、找回、开局分组、七站计分、人生盲盒、Help Token、结算与分享图都已连通。</p></article>
+          <article class="scope"><span class="state">已验证</span><strong>安全与回归门禁</strong><p>9/9 数据库测试通过；公开编号泄漏已关闭，密钥摘要存储、失败节流、安全响应头和会话级凭证已完成。</p></article>
+          <article class="scope attention"><span class="state">上线前准备</span><strong>接入生产环境</strong><p>无需另一套数据库；建立生产 Supabase、应用全部迁移、配置正式口令，并完成一次 40–50 人真实设备彩排。</p></article>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="footer-inner">
+        <p><strong>Life Passport 人生护照</strong><br />Glasgow Chinese Gospel Church · 2026</p>
+        <p>演示页由当前可运行版本的真实截图生成。<br />You don't have to do life alone.</p>
+      </div>
+    </footer>
+
+    <script>
+      const steps = [
+        { image: "screens/01-join.png", short: "登记", title: "领取人生编号", summary: "玩家输入姓名和现场口令。清晰的登记卡让第一次打开页面的人立刻知道要做什么。", tags: ["手机入口", "现场口令", "找回身份"] },
+        { image: "screens/02-waiting.png", short: "候场", title: "保存编号，等待出发", summary: "加入成功后获得唯一 4 位编号，同时看到四条核心规则。身份会在主持人开局后自动出现。", tags: ["4 位凭证", "自动刷新", "规则预告"] },
+        { image: "screens/03-reveal.png", short: "揭晓", title: "找到同行者", summary: "全屏队伍色承担破冰任务。玩家举起手机，就能在人群中找到与自己同色的两位伙伴。", tags: ["身份揭晓", "队伍色", "破冰时刻"] },
+        { image: "screens/04-passport.png", short: "护照", title: "七站挑战的主界面", summary: "总分、下一关口、七站状态、重试机会和 Help Token 集中在同一张持续更新的人生护照里。", tags: ["实时分数", "七站进度", "Help Token"] },
+        { image: "screens/05-sick.png", short: "状态", title: "人生状态清楚可见", summary: "临时效果不会藏在角落里。重感冒等状态会出现在站点列表前，避免玩家和工作人员误判。", tags: ["状态提醒", "规则透明", "错误预防"] },
+        { image: "screens/06-lock.png", short: "盲盒", title: "人生盲盒强制锁定", summary: "跨过 15 / 35 / 45 分关口后，页面切成远处也能识别的红色锁定态，并显示需要报给工作人员的编号。", tags: ["强提示", "现场协作", "自动解锁"] },
+        { image: "screens/07-ended.png", short: "结算", title: "旅程完成", summary: "主持人结束游戏后，玩家立即看到最终总分、全场名次和活动的核心句子。", tags: ["最终分数", "全场名次", "温和信仰表达"] },
+        { image: "screens/08-badge.png", short: "分享", title: "生成可保存的纪念图", summary: "1080 × 1920 竖版分享图适合微信长按保存，也支持 PNG 下载和系统分享，不包含玩家的 4 位编号。", tags: ["朋友圈尺寸", "长按保存", "隐私保护"] }
+      ];
+
+      let current = 0;
+      let timer = null;
+      const image = document.querySelector("#tour-image");
+      const title = document.querySelector("#tour-title");
+      const summary = document.querySelector("#tour-summary");
+      const count = document.querySelector("#step-count");
+      const tags = document.querySelector("#tour-tags");
+      const thumbs = document.querySelector("#step-thumbs");
+      const autoplay = document.querySelector("#auto-play");
+
+      function renderThumbs() {
+        thumbs.innerHTML = steps.map((step, index) => `<button class="thumb" data-step="${index}" aria-current="${index === current ? "step" : "false"}"><b>${String(index + 1).padStart(2, "0")} · ${step.short}</b><span>${step.title}</span></button>`).join("");
+        thumbs.querySelectorAll("button").forEach((button) => button.addEventListener("click", () => setStep(Number(button.dataset.step))));
+      }
+
+      function renderGallery() {
+        document.querySelector("#gallery-view").innerHTML = steps.map((step, index) => `<article class="ops-card"><div class="ops-shot"><img src="${step.image}" alt="${step.title}" loading="lazy" /></div><div class="ops-copy"><span class="num">STEP ${String(index + 1).padStart(2, "0")}</span><h3>${step.title}</h3><p>${step.summary}</p></div></article>`).join("");
+      }
+
+      function setStep(index) {
+        current = (index + steps.length) % steps.length;
+        const step = steps[current];
+        image.classList.remove("swap");
+        void image.offsetWidth;
+        image.src = step.image;
+        image.alt = step.title;
+        image.classList.add("swap");
+        title.textContent = step.title;
+        summary.textContent = step.summary;
+        count.textContent = `STEP ${String(current + 1).padStart(2, "0")} / ${String(steps.length).padStart(2, "0")}`;
+        tags.innerHTML = step.tags.map((tag) => `<span class="tag">${tag}</span>`).join("");
+        renderThumbs();
+      }
+
+      function toggleAuto() {
+        if (timer) {
+          clearInterval(timer);
+          timer = null;
+          autoplay.textContent = "自动播放";
+          autoplay.setAttribute("aria-pressed", "false");
+        } else {
+          timer = setInterval(() => setStep(current + 1), 3600);
+          autoplay.textContent = "暂停播放";
+          autoplay.setAttribute("aria-pressed", "true");
+        }
+      }
+
+      document.querySelector("#previous-step").addEventListener("click", () => setStep(current - 1));
+      document.querySelector("#next-step").addEventListener("click", () => setStep(current + 1));
+      autoplay.addEventListener("click", toggleAuto);
+      document.querySelectorAll(".mode-tab").forEach((tab) => tab.addEventListener("click", () => {
+        const guided = tab.dataset.mode === "guided";
+        document.querySelector("#guided-view").hidden = !guided;
+        document.querySelector("#gallery-view").hidden = guided;
+        document.querySelectorAll(".mode-tab").forEach((item) => item.setAttribute("aria-selected", String(item === tab)));
+        if (!guided && timer) toggleAuto();
+      }));
+      document.addEventListener("visibilitychange", () => { if (document.hidden && timer) toggleAuto(); });
+      renderThumbs();
+      renderGallery();
+    </script>
+  </body>
+</html>

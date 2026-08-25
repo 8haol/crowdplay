@@ -1,0 +1,19 @@
+{
+  "name": "人生护照 Life Passport",
+  "short_name": "人生护照",
+  "description": "现场人生模拟游戏电子护照",
+  "lang": "zh-CN",
+  "start_url": "/play",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#FFF9F0",
+  "theme_color": "#FFC838",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

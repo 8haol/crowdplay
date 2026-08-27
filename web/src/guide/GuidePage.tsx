@@ -72,38 +72,51 @@ export default function GuidePage() {
 function TopBar({ active }: { active: string }) {
   return (
     <div
-      className="sticky top-0 z-30 backdrop-blur-xl"
-      style={{ background: "rgba(255,249,240,.94)", borderBottom: "1px solid #e8dcc4" }}
+      className="sticky top-0 z-30 backdrop-blur-2xl"
+      style={{
+        background: "rgba(255,249,240,.88)",
+        borderBottom: "1px solid rgba(122,82,0,.16)",
+        boxShadow: "0 10px 32px rgba(122,82,0,.06)",
+      }}
     >
       <div className={COLUMN}>
-        {/* Two rows, both sized for a thumb: 44px of chrome, then 40px of
-            section nav. The page name drops out below sm so the two controls
-            keep their full size on a 320px phone. */}
-        <div className="flex items-center gap-2.5 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 text-ink">
-          <UpLink label="入口" to="/" />
-          <span className="hidden truncate text-[14px] font-black text-ink sm:inline">同工说明</span>
+        <div className="flex min-h-[3.75rem] items-center gap-3 pt-[env(safe-area-inset-top)] text-ink">
+          <UpLink label="入口" to="/" variant="icon" className="!h-10 !w-10 !bg-ink/[.06] !text-ink" />
+          <div className="flex min-w-0 flex-1 items-center gap-2.5">
+            <span className="grid h-8 w-8 shrink-0 grid-cols-2 gap-[3px] rounded-[9px] bg-white p-[5px] shadow-[0_2px_0_#e0a800]" aria-hidden="true">
+              <span className="rounded-[2px] bg-ink" />
+              <span className="rounded-[2px] bg-seal-deep" />
+              <span className="rounded-[2px] bg-foil" />
+              <span className="rounded-[2px] bg-leaf" />
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-[14px] font-black leading-tight tracking-[-0.015em]">人生护照</span>
+              <span className="block truncate text-[10px] font-bold leading-tight tracking-[0.12em] text-ink-dim">同工说明</span>
+            </span>
+          </div>
           <Link
             to="/library"
-            className="pressable ml-auto inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full bg-ink px-4 text-[13.5px] font-black text-white"
+            className="pressable inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl bg-white px-3.5 text-[13px] font-black text-ink shadow-[inset_0_0_0_1px_#e8dcc4]"
           >
-            <span aria-hidden="true" className="text-[15px]">📚</span>
-            人生事件库
+            事件库
+            <span aria-hidden="true" className="text-ink-dim">↗</span>
           </Link>
         </div>
-        {/* Section list. Scrolls sideways on a phone, fits on a laptop. */}
-        <nav className="tool-scroll -mx-5 flex gap-1.5 overflow-x-auto px-5 pb-2.5 sm:-mx-7 sm:px-7">
-          {SECTIONS.map((section) => (
+        <nav aria-label="说明页章节" className="tool-scroll -mx-5 flex overflow-x-auto px-5 sm:-mx-7 sm:px-7">
+          {SECTIONS.map((section, index) => (
             <a
               key={section.id}
               href={`#${section.id}`}
-              className="inline-flex min-h-10 shrink-0 items-center rounded-full px-4 text-[14px] font-black transition-colors"
-              style={
-                active === section.id
-                  ? { background: "#26211b", color: "#fff" }
-                  : { background: "rgba(38,33,27,.06)", color: "#5f574b" }
-              }
+              aria-current={active === section.id ? "location" : undefined}
+              className={`relative inline-flex min-h-10 shrink-0 items-center gap-1.5 px-3 text-[13px] font-black transition-colors sm:px-3.5 ${
+                active === section.id ? "text-ink" : "text-ink-dim hover:text-ink"
+              }`}
             >
+              <span className="tabular text-[9px] font-black opacity-45">{String(index + 1).padStart(2, "0")}</span>
               {section.short}
+              {active === section.id && (
+                <span className="absolute inset-x-3 bottom-0 h-[3px] rounded-t-full bg-foil sm:inset-x-3.5" />
+              )}
             </a>
           ))}
         </nav>

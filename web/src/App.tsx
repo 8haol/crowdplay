@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
+import { useLayoutEffect } from "react";
+import { BrowserRouter, Routes, Route, Link, useLocation } from "react-router-dom";
 import PlayPage from "./play/PlayPage";
 import StaffPage from "./staff/StaffPage";
 import AdminPage from "./admin/AdminPage";
@@ -77,6 +78,7 @@ function Home() {
 export default function App() {
   return (
     <BrowserRouter>
+      <RouteScrollManager />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/play" element={<PlayPage />} />
@@ -92,6 +94,23 @@ export default function App() {
       </Routes>
     </BrowserRouter>
   );
+}
+
+/**
+ * React Router keeps the old document offset when it swaps screens. The guide
+ * deliberately restores its own reading position, but every screen opened
+ * from it should start at the top — especially preview screens whose return
+ * control lives in the demo bar.
+ */
+function RouteScrollManager() {
+  const location = useLocation();
+
+  useLayoutEffect(() => {
+    if (location.pathname === "/guide" || location.pathname === "/library") return;
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [location.pathname, location.search]);
+
+  return null;
 }
 
 function NotFound() {

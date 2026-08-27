@@ -167,12 +167,20 @@ input[class*="bg-card"]:focus { border-color: transparent; box-shadow: 0 0 0 3px
 
 .lead-glow { box-shadow: inset 0 0 0 3px #ffc838, 0 2px 0 #e0a800; }
 
-/* `?preview=` screens carry a strip at the very top of the document (see
-   DemoRibbon). Scrolling pages simply start lower; the projector board is the
-   one layout measured against the viewport, so it subtracts the strip instead
-   of letting its last row fall off the bottom. */
+/* `?preview=` screens carry a sticky strip at the top of the document (see
+   DemoRibbon). Every full-viewport preview subtracts the strip so a phone demo
+   is exactly one available screen tall, rather than 100dvh plus the strip. */
 :root { --demo-strip: 0px; }
-.screen-stage, .screen-fit { min-height: calc(100dvh - var(--demo-strip)); }
+.screen-stage, .screen-fit,
+html[data-demo-preview="true"] .min-h-dvh {
+  min-height: calc(100dvh - var(--demo-strip)) !important;
+}
+html[data-demo-preview="true"] .h-dvh {
+  height: calc(100dvh - var(--demo-strip)) !important;
+}
+html[data-demo-preview="true"] .sticky.top-0 {
+  top: var(--demo-strip);
+}
 /* At projector widths the board is laid out against a definite height, so
    `h-full` inside it resolves and the row count that fits is the row count
    drawn. With min-height alone the flex children could still push the page

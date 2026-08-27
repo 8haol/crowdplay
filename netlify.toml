@@ -3,6 +3,13 @@
   command = "npm run build"
   publish = "dist"
 
+[build.environment]
+  # These are intentionally public browser credentials. Vite embeds them in
+  # the client bundle; Supabase authorization still lives in RLS/RPC grants.
+  # Without this narrow exemption Netlify's secret scanner rejects the build
+  # precisely because it finds the expected values in dist/assets/*.js.
+  SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_URL,VITE_SUPABASE_PUBLISHABLE_KEY"
+
 # SPA fallback for /play /staff /admin
 [[redirects]]
   from = "/*"

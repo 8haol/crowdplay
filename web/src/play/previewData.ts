@@ -14,6 +14,7 @@ export const PREVIEW_DATA: PollResult = {
   phase: "playing",
   started_at: "2026-08-25T12:00:00.000Z",
   rank: 3,
+  team_rank: 2,
   player: {
     player_id: "preview-player",
     name: "林沐恩",
@@ -26,7 +27,12 @@ export const PREVIEW_DATA: PollResult = {
     next_threshold: 45,
     pending_threshold: null,
     status_effect: null,
+    team_id: "preview-team",
+    team_code: "T07",
+    team_challenge_score: 35,
   },
+  team: { team_id: "preview-team", code: "T07", identity: "trio", color_group: "teal", challenge_score: 35, members: [{ name: "林沐恩", score: 38, token_available: true }, { name: "周以诺", score: 35, token_available: true }, { name: "陈思语", score: 32, token_available: true }] },
+  pending_event: null,
   attempts: [
     { station_id: 1, status: "passed", score: 9, created_at: "2026-08-25T12:20:00.000Z" },
     { station_id: 2, status: "passed", score: 6, created_at: "2026-08-25T12:28:00.000Z" },
@@ -78,6 +84,7 @@ export function previewState(state: string): PollResult {
   if (state === "lock") {
     return {
       ...PREVIEW_DATA,
+      pending_event: { id: "preview-event", threshold: 45, title: "三份完全不同的建议", prompt: "你遇到一个难题，两位队友和你自己的直觉给出三种相反答案。", emoji: "🔀", choices: [{ key: "combine", label: "找出三种建议的共同点" }, { key: "choose", label: "相信第一直觉，自己决定" }], created_at: new Date().toISOString() },
       player: {
         ...PREVIEW_DATA.player,
         score: 45,

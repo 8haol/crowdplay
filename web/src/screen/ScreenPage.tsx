@@ -2,9 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { rpc, errorText } from "../lib/api";
 import { usePoll } from "../lib/usePoll";
-import type { BoardPlayer, BoardSnapshot, FeedItem } from "../lib/types";
+import type { BoardPlayer, BoardSnapshot, FeedItem, GameLanding } from "../lib/types";
 import { colorOf, soloColor } from "../lib/types";
 import { ConnDot } from "../lib/ui";
+import { JoinQr } from "../lib/JoinQr";
+import { joinUrl } from "../lib/gameLinks";
 import { SCREEN_PREVIEW } from "./previewData";
 
 /* Projector page. No auth: it is opened on the venue laptop and shown to the
@@ -16,10 +18,16 @@ const IDENTITY_SHORT: Record<string, string> = { solo: "独行", duo: "二人", 
 
 export default function ScreenPage() {
   const [searchParams] = useSearchParams();
-  const preview = import.meta.env.DEV && searchParams.get("preview") === "1";
+  const previewMode = import.meta.env.DEV ? searchParams.get("preview") : null;
+  const preview = previewMode === "1" || previewMode === "lobby";
   const pollFn = useMemo(() => () => rpc<BoardSnapshot>("board_snapshot", {}), []);
   const poll = usePoll<BoardSnapshot>(preview ? null : pollFn, 3000);
-  const data = preview ? SCREEN_PREVIEW : poll.data;
+  const landingFn = useMemo(() => () => rpc<GameLanding>("game_landing", { p_join_token: null }), []);
+  const landingPoll = usePoll<GameLanding>(preview ? null : landingFn, 10000);
+  const data = previewMode === "lobby"
+    ? { ...SCREEN_PREVIEW, phase: "waiting" as const, started_at: null, players: [], stats: { ...SCREEN_PREVIEW.stats, players: 23, stamps: 0, life_events: 0, tokens_used: 0, top_score: 0 }, feed: [] }
+    : preview ? SCREEN_PREVIEW : poll.data;
+  const landing = preview ? ({ title: "Glasgow 新生迎新会", join_token: "preview", join_open: true, is_current: true } as GameLanding) : landingPoll.data;
   const online = preview ? true : poll.online;
   const error = poll.error;
 
@@ -39,7 +47,7 @@ export default function ScreenPage() {
   return (
     <Frame online={online} data={data}>
       {data.phase === "waiting" ? (
-        <Lobby data={data} />
+        <Lobby data={data} landing={landing} />
       ) : (
         <div className="grid grid-cols-1 gap-8 px-4 pb-24 lg:min-h-0 lg:flex-1 lg:grid-cols-[1fr_clamp(340px,26vw,460px)] lg:gap-[clamp(0.75rem,1.4vw,1.75rem)] lg:px-[clamp(0.75rem,1.6vw,2rem)] lg:pb-[clamp(0.75rem,1.4vw,1.75rem)]">
           <Board players={data.players} ended={data.phase === "ended"} />
@@ -91,11 +99,12 @@ function Header({ online, data }: { online: boolean; data?: BoardSnapshot }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-5 items-end gap-2 rounded-2xl bg-white/75 p-3 shadow-[0_2px_0_#e0a800] lg:flex lg:gap-[clamp(0.75rem,1.6vw,2rem)] lg:bg-transparent lg:p-0 lg:pb-1 lg:shadow-none">
+      <div className="grid grid-cols-6 items-end gap-2 rounded-2xl bg-white/75 p-3 shadow-[0_2px_0_#e0a800] lg:flex lg:gap-[clamp(0.75rem,1.6vw,2rem)] lg:bg-transparent lg:p-0 lg:pb-1 lg:shadow-none">
         {data && (
           <>
             <Stat label="旅客" value={data.stats.players} />
-            <Stat label="已盖章" value={data.stats.stamps} />
+            <Stat label="队伍" value={data.stats.teams ?? data.players.length} />
+            <Stat label="挑战" value={data.stats.stamps} />
             <Stat label="人生事件" value={data.stats.life_events} />
             <Stat label="最高分" value={data.stats.top_score} foil />
           </>
@@ -139,34 +148,35 @@ function PhaseTag({ phase }: { phase: BoardSnapshot["phase"] }) {
 
 /* ------------------------------------------------------------------ lobby */
 
-function Lobby({ data }: { data: BoardSnapshot }) {
+function Lobby({ data, landing }: { data: BoardSnapshot; landing: GameLanding | null }) {
+  const url = landing?.join_token ? joinUrl(landing.join_token) : null;
   return (
-    <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-[clamp(1rem,2vw,2.5rem)] px-8 pb-10">
-      <div className="text-center">
-        <div className="tabular font-serif font-black text-[clamp(4rem,14vw,16rem)] leading-none tracking-[-0.08em] text-ink">
-          {data.stats.players}
+    <div className="grid flex-1 min-h-0 items-center gap-[clamp(2rem,5vw,6rem)] px-[clamp(2rem,7vw,8rem)] pb-10 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,34rem)]">
+      <div>
+        <p className="text-[clamp(.7rem,1vw,1rem)] font-black tracking-[0.35em] text-foil-dim">SCAN TO JOIN · 扫码入场</p>
+        <h2 className="mt-3 max-w-4xl text-[clamp(3rem,7vw,8rem)] font-black leading-[0.95] tracking-[-0.06em] text-balance">
+          {landing?.title ?? "Life Passport"}
+        </h2>
+        <div className="mt-[clamp(2rem,4vw,4rem)] flex items-end gap-5">
+          <div className="tabular font-serif text-[clamp(4rem,10vw,10rem)] font-black leading-[0.78] tracking-[-0.08em] text-ink">{data.stats.players}</div>
+          <div className="pb-1 text-[clamp(1rem,1.7vw,1.8rem)] font-black text-moon-dim">位旅客<br />已到场</div>
         </div>
-        <div className="text-moon-dim text-[clamp(0.9rem,1.6vw,1.8rem)] tracking-[0.3em] mt-2">
-          位旅客已登记
-        </div>
+        <p className="mt-8 max-w-2xl text-[clamp(.9rem,1.3vw,1.3rem)] font-semibold leading-relaxed text-moon-dim">
+          微信扫码，填写姓名，领取 4 位人生编号。<br />不需要输入任何口令。
+        </p>
       </div>
 
-      <p className="text-moon-dim text-[clamp(0.8rem,1.3vw,1.4rem)] text-center leading-relaxed">
-        打开活动页面 · 输入主持人公布的入场口令 · 领取你的 4 位护照编号
-        <br />
-        <span className="dots text-moon-dim/70">
-          等待主持人宣布启程<span>.</span><span>.</span><span>.</span>
-        </span>
-      </p>
+      <div className="flex flex-col items-center rounded-[clamp(1.5rem,3vw,3rem)] bg-white p-[clamp(1.25rem,2.4vw,2.5rem)] shadow-[0_7px_0_#e0a800]">
+        {url ? <JoinQr url={url} className="aspect-square w-full rounded-2xl" /> : <div className="aspect-square w-full animate-pulse rounded-2xl bg-line" />}
+        <div className="mt-5 text-[clamp(1.1rem,1.7vw,1.8rem)] font-black">扫码加入游戏</div>
+        <div className="mt-2 text-center text-[clamp(.7rem,1vw,1rem)] font-bold text-ink-dim">镜头对准二维码 · 自动打开本场链接</div>
+        {!landing?.join_open && <div className="mt-4 rounded-lg bg-[#fff0eb] px-4 py-2 text-sm font-black text-seal">登记暂时关闭</div>}
+      </div>
 
       {data.players.length > 0 && (
-        <div className="w-full max-w-[min(92vw,1600px)] flex flex-wrap justify-center gap-[clamp(0.35rem,0.7vw,0.8rem)]">
-          {data.players.map((p, i) => (
-            <span
-              key={p.id}
-              className="rise rounded-full bg-white px-[clamp(0.6rem,1vw,1.1rem)] py-[clamp(0.2rem,0.4vw,0.5rem)] text-[clamp(0.7rem,1.1vw,1.2rem)] font-bold shadow-[0_2px_0_#e0a800]"
-              style={{ "--i": Math.min(i, 18) } as React.CSSProperties}
-            >
+        <div className="col-span-full -mt-2 flex w-full flex-wrap justify-center gap-[clamp(0.35rem,0.7vw,0.8rem)]">
+          {data.players.slice(0, 24).map((p, i) => (
+            <span key={p.id} className="rise rounded-full bg-white px-[clamp(0.6rem,1vw,1.1rem)] py-[clamp(0.2rem,0.4vw,0.5rem)] text-[clamp(0.7rem,1.1vw,1.2rem)] font-bold shadow-[0_2px_0_#e0a800]" style={{ "--i": Math.min(i, 18) } as React.CSSProperties}>
               {p.name}
             </span>
           ))}
@@ -212,7 +222,7 @@ function Board({ players, ended }: { players: BoardPlayer[]; ended: boolean }) {
     <section className="screen-board min-h-0 flex flex-col">
       <div className="flex items-baseline justify-between mb-[clamp(0.35rem,0.7vw,0.9rem)]">
         <h2 className="font-serif font-black text-[clamp(1rem,1.7vw,2rem)]">
-          {ended ? "最终成绩" : "旅程进度"}
+          {ended ? "最终个人排名" : "个人旅程排名"}
         </h2>
         <span aria-live="polite" className="font-mono text-[clamp(0.55rem,0.8vw,0.85rem)] tracking-[0.12em] text-moon-dim">
           {pageCount > 1 ? `前三名固定 · 第 ${page + 1}/${pageCount} 组` : "DEPARTURES"}
@@ -273,8 +283,8 @@ function Board({ players, ended }: { players: BoardPlayer[]; ended: boolean }) {
                     className="screen-player-meta block truncate text-moon-dim leading-tight"
                     style={{ fontSize: "clamp(0.65rem,0.78vw,0.86rem)" }}
                   >
-                    {p.identity ? IDENTITY_SHORT[p.identity] : "未分配"} · {p.stations_done}/7
-                    {p.locked && <span className="text-seal font-bold"> · 盲盒中</span>}
+                    {p.team_code ? `${p.team_code} · ` : ""}{p.identity ? IDENTITY_SHORT[p.identity] : "未分配"}{p.member_count ? ` · ${p.member_count}人` : ""} · {p.stations_done}/7
+                    {p.locked && <span className="text-seal font-bold"> · 人生事件待选</span>}
                     {p.sick && <span className="text-seal"> · 感冒</span>}
                     {!p.token_available && <span className="text-moon-dim/55"> · 无 Token</span>}
                   </span>
@@ -349,9 +359,9 @@ interface Line {
 
 function describe(item: FeedItem): Line {
   if (item.kind === "life_event") {
-    const good = item.card === "fortune_double" || item.card === "fortune_plus3";
-    const neutral = item.card === "unexpected_married";
     const delta = item.after - item.before;
+    const good = delta > 0;
+    const neutral = delta === 0;
     return {
       mark: good ? "🎉" : neutral ? "💍" : "🌧",
       tone: good ? "foil" : neutral ? "plain" : "seal",
@@ -375,7 +385,7 @@ function describe(item: FeedItem): Line {
             <b>{item.name}</b> 在「{item.station}」失手了
           </>
         ),
-        chip: `总分 ${item.total}`,
+        chip: null,
       };
     }
     const perfect = item.score >= 9; // graded max; fixed stations award 6
@@ -387,7 +397,7 @@ function describe(item: FeedItem): Line {
           <b>{item.name}</b> 在「{item.station}」{perfect ? "拿下满分" : "通过挑战"}
         </>
       ),
-      chip: `+${item.score} → ${item.total} 分`,
+      chip: `全队每人 +${item.score} 分`,
     };
   }
 

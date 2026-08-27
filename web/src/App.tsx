@@ -72,6 +72,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/play" element={<PlayPage />} />
+        <Route path="/play/:joinToken" element={<PlayPage />} />
         <Route path="/staff" element={<StaffPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/screen" element={<ScreenPage />} />

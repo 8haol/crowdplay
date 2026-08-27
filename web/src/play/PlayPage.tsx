@@ -1,24 +1,55 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { rpc, readView, errorText, RpcError } from "../lib/api";
 import { usePoll } from "../lib/usePoll";
-import type { PollResult, Station } from "../lib/types";
+import type { GameLanding, PollResult, Station } from "../lib/types";
 import { colorOf, soloColor } from "../lib/types";
 import { BrandMark, ConnDot } from "../lib/ui";
 import Join from "./Join";
 import Passport from "./Passport";
 import { PREVIEW_DATA, PREVIEW_STATIONS, previewState } from "./previewData";
 
-const LS_CODE = "lp_code";
-const LS_REVEAL = "lp_reveal_seen";
-
 export default function PlayPage() {
   const [searchParams] = useSearchParams();
+  const { joinToken: routeToken } = useParams<{ joinToken: string }>();
+  const navigate = useNavigate();
   const preview = import.meta.env.DEV ? searchParams.get("preview") : null;
-  const [code, setCode] = useState<string | null>(() => localStorage.getItem(LS_CODE));
+  const [landing, setLanding] = useState<GameLanding | null>(null);
+  const [landingError, setLandingError] = useState<unknown>(null);
+  const [joined, setJoined] = useState<{ token: string; code: string } | null>(null);
+  const [invalidCodeToken, setInvalidCodeToken] = useState<string | null>(null);
   const [joinNotice, setJoinNotice] = useState<string | null>(null);
   const [stations, setStations] = useState<Station[]>([]);
-  const [revealSeen, setRevealSeen] = useState(() => localStorage.getItem(LS_REVEAL));
+  const [revealDone, setRevealDone] = useState<{ token: string; code: string } | null>(null);
+  const [sessionArchived, setSessionArchived] = useState(false);
+  const activeToken = routeToken ?? landing?.join_token;
+  const code = activeToken
+    ? invalidCodeToken === activeToken
+      ? null
+      : joined?.token === activeToken
+        ? joined.code
+        : localStorage.getItem(`lp_code:${activeToken}`)
+    : null;
+  const revealSeen = activeToken
+    ? revealDone?.token === activeToken
+      ? revealDone.code
+      : localStorage.getItem(`lp_reveal:${activeToken}`)
+    : null;
+
+  useEffect(() => {
+    if (preview) return;
+    let cancelled = false;
+    rpc<GameLanding>("game_landing", { p_join_token: routeToken ?? null })
+      .then((result) => {
+        if (cancelled) return;
+        setLanding(result);
+        if (!routeToken && result.join_token) {
+          navigate(`/play/${result.join_token}`, { replace: true });
+        }
+      })
+      .catch((error) => { if (!cancelled) setLandingError(error); });
+    return () => { cancelled = true; };
+  }, [navigate, preview, routeToken]);
 
   useEffect(() => {
     readView<Station[]>("stations?select=*&order=sort_order").then(setStations).catch(() => {
@@ -27,30 +58,38 @@ export default function PlayPage() {
   }, []);
 
   const pollFn = useMemo(
-    () => (code ? async () => {
+    () => (code && activeToken ? async () => {
       try {
-        return await rpc<PollResult>("poll_player", { p_code: code });
+        return await rpc<PollResult>("poll_player_by_link", {
+          p_join_token: activeToken,
+          p_code: code,
+        });
       } catch (error) {
         if (error instanceof RpcError && error.code === "PLAYER_NOT_FOUND") {
-          localStorage.removeItem(LS_CODE);
-          setJoinNotice("你的编号已失效，请重新加入或找回");
-          setCode(null);
+          localStorage.removeItem(`lp_code:${activeToken}`);
+          setJoinNotice("这个编号不属于当前场次，请重新加入或找回");
+          setInvalidCodeToken(activeToken);
+        }
+        if (error instanceof RpcError && (error.code === "GAME_ARCHIVED" || error.code === "BAD_GAME_LINK")) {
+          setSessionArchived(true);
         }
         throw error;
       }
     } : null),
-    [code],
+    [activeToken, code],
   );
   const { data, online, error } = usePoll<PollResult>(pollFn, 3000);
 
   const onJoined = useCallback((newCode: string) => {
-    localStorage.setItem(LS_CODE, newCode);
+    if (!activeToken) return;
+    localStorage.setItem(`lp_code:${activeToken}`, newCode);
+    setInvalidCodeToken(null);
     setJoinNotice(null);
-    setCode(newCode);
-  }, []);
+    setJoined({ token: activeToken, code: newCode });
+  }, [activeToken]);
 
   if (preview === "join") {
-    return <Join onJoined={() => {}} notice={null} preview />;
+    return <Join onJoined={() => {}} notice={null} joinToken="preview" gameTitle="Glasgow 新生迎新会" preview />;
   }
   if (preview === "waiting") {
     return <WaitingRoom code="0427" name="林沐恩" online />;
@@ -64,27 +103,30 @@ export default function PlayPage() {
     return <Reveal data={revealData} onDone={() => {}} />;
   }
   if (["passport", "solo", "sick", "lock", "ended"].includes(preview ?? "")) {
-    return <Passport data={previewState(preview!)} stations={PREVIEW_STATIONS} online />;
+    return <Passport data={previewState(preview!)} stations={PREVIEW_STATIONS} online joinToken="preview" />;
+  }
+
+  if (landingError) {
+    return <PlayerMessage title="暂时无法连接活动" body={errorText(landingError)} />;
+  }
+
+  if (!landing || !activeToken) {
+    return <PlayerLoading label="正在寻找本场活动" />;
+  }
+
+  if (!landing.is_current || landing.invalid || sessionArchived || (landing.phase === "ended" && !code)) {
+    return <ArchivedSession landing={landing} />;
   }
 
   if (!code) {
-    return <Join onJoined={onJoined} notice={joinNotice} />;
+    if (!landing.join_open) {
+      return <PlayerMessage title="本场登记已关闭" body="如果你已经登记过，可以联系工作人员帮你找回编号。" />;
+    }
+    return <Join onJoined={onJoined} notice={joinNotice} joinToken={activeToken} gameTitle={landing.title} />;
   }
 
   if (!data) {
-    return (
-      <div className="relative min-h-dvh overflow-hidden">
-        <div className="night-sky" />
-        <div className="relative z-10 min-h-dvh flex flex-col items-center justify-center gap-5 p-8">
-          <BrandMark className="!w-[108px] !gap-1 !rounded-[18px] !p-2.5 !shadow-[0_3px_0_#e0a800]" />
-          <div className="font-black text-2xl">正在读取你的人生</div>
-          <div className="dots text-ink-dim font-semibold">
-            连接现场<span>.</span><span>.</span><span>.</span>
-          </div>
-          {!online && <div className="text-seal text-sm">{errorText(error)}</div>}
-        </div>
-      </div>
-    );
+    return <PlayerLoading label="正在读取你的人生" error={!online ? errorText(error) : undefined} />;
   }
 
   const { phase, player } = data;
@@ -99,21 +141,79 @@ export default function PlayPage() {
       <Reveal
         data={data}
         onDone={() => {
-          localStorage.setItem(LS_REVEAL, player.code);
-          setRevealSeen(player.code);
+          localStorage.setItem(`lp_reveal:${activeToken}`, player.code);
+          setRevealDone({ token: activeToken, code: player.code });
         }}
       />
     );
   }
 
-  return <Passport data={data} stations={stations} online={online} />;
+  return <Passport data={data} stations={stations} online={online} joinToken={activeToken} />;
+}
+
+function PlayerLoading({ label, error }: { label: string; error?: string }) {
+  return (
+    <div className="relative min-h-dvh overflow-hidden">
+      <div className="night-sky" />
+      <div className="relative z-10 flex min-h-dvh flex-col items-center justify-center gap-5 p-8 text-center">
+        <BrandMark className="!w-[108px] !gap-1 !rounded-[18px] !p-2.5 !shadow-[0_3px_0_#e0a800]" />
+        <div className="text-2xl font-black">{label}</div>
+        <div className="dots font-semibold text-ink-dim">连接现场<span>.</span><span>.</span><span>.</span></div>
+        {error && <div className="text-sm text-seal">{error}</div>}
+      </div>
+    </div>
+  );
+}
+
+function ArchivedSession({ landing }: { landing: GameLanding }) {
+  const canJoinCurrent = landing.current_join_open && landing.current_phase !== "ended" && landing.current_join_token;
+  return (
+    <div className="brand-stage relative min-h-dvh overflow-hidden">
+      <div className="night-sky" />
+      <main className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-6 py-12 text-center">
+        <p className="text-[11px] font-black tracking-[0.4em] text-foil-dim">SESSION ARCHIVED</p>
+        <h1 className="mt-3 text-[42px] font-black leading-[1.05] tracking-[-0.05em]">这一程已收好</h1>
+        <div className="ticket-notch mt-8 rounded-[28px] bg-white px-6 py-7 text-left shadow-[0_4px_0_#e0a800]">
+          <div className="text-xs font-black tracking-[0.18em] text-ink-dim">往期场次</div>
+          <div className="mt-2 text-2xl font-black">{landing.title ?? "这场活动"}</div>
+          <div className="mt-5 flex items-end justify-between border-t-2 border-dashed border-line pt-5">
+            <span className="text-sm font-bold text-ink-dim">最终到场</span>
+            <span className="tabular text-4xl font-black">{landing.player_count ?? 0}<small className="ml-1 text-sm">人</small></span>
+          </div>
+        </div>
+        <p className="mx-auto mt-5 max-w-xs text-sm font-semibold leading-6 text-foil-dim">
+          这个二维码只属于上一场活动，不会把你带进新的玩家名单。
+        </p>
+        {canJoinCurrent ? (
+          <Link to={`/play/${landing.current_join_token}`} className="pressable mt-7 rounded-full bg-ink px-6 py-4 font-black text-white shadow-[0_4px_0_#0f0d0a]">
+            加入当前场次 · {landing.current_title} →
+          </Link>
+        ) : (
+          <Link to="/" className="pressable mt-7 rounded-full bg-white px-6 py-4 font-black text-ink">回到首页</Link>
+        )}
+      </main>
+    </div>
+  );
+}
+
+function PlayerMessage({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="relative grid min-h-dvh place-items-center overflow-hidden p-6 text-center">
+      <div className="night-sky" />
+      <div className="relative z-10 max-w-sm rounded-[28px] bg-white p-7 shadow-[0_3px_0_#f0e4ce]">
+        <h1 className="text-2xl font-black">{title}</h1>
+        <p className="mt-3 text-sm font-semibold leading-6 text-ink-dim">{body}</p>
+        <Link to="/" className="pressable mt-6 inline-block rounded-full bg-ink px-6 py-3 font-black text-white">回到首页</Link>
+      </div>
+    </div>
+  );
 }
 
 const RULES: { t: string; d: string }[] = [
-  { t: "身份揭晓", d: "开场时公布：独行、二人同行或三人同行" },
-  { t: "七站挑战", d: "每站一次机会，完成后分数自动计入" },
-  { t: "人生关口", d: "跨过 15 / 35 / 45 分，前往人生盲盒站" },
-  { t: "一枚 Help Token", d: "可换提示、重来机会或纪念卡" },
+  { t: "组队揭晓", d: "开场时会显示同行方式和颜色；Duo / Trio 请寻找同色队友" },
+  { t: "整队闯七站", d: "工作人员只录一次，每位队员获得相同的挑战加分" },
+  { t: "个人的人生", d: "跨过 15 / 35 / 45 分，直接在手机上选择并揭晓随机事件" },
+  { t: "一枚 Help Token", d: "整队可换提示或重来；未使用可在结算时个人换卡" },
 ];
 
 function WaitingRoom({ code, name, online }: { code: string; name: string; online: boolean }) {
@@ -183,7 +283,7 @@ function WaitingRoom({ code, name, online }: { code: string; name: string; onlin
           <div className="dots text-ink-dim text-sm font-black">
             等待主持人开始游戏<span>.</span><span>.</span><span>.</span>
           </div>
-          <div className="text-ink-dim text-xs mt-2">身份会自动出现，不用刷新</div>
+          <div className="text-ink-dim text-xs mt-2">同行方式和组队颜色会自动出现，不用刷新</div>
         </div>
       </div>
     </div>
@@ -218,11 +318,20 @@ function Reveal({ data, onDone }: { data: PollResult; onDone: () => void }) {
   const foreground = revealForeground(background);
   const actionForeground = revealActionForeground(background);
   const identityEnglish = identity.toUpperCase();
-  const identityChinese = identity === "trio" ? "三人同行" : identity === "duo" ? "二人同行" : "独行者";
+  const identityChinese = identity === "trio" ? "三人同行" : identity === "duo" ? "二人同行" : "独立同行";
   const isTeam = identity === "duo" || identity === "trio";
-  const partnerCopy = identity === "trio"
-    ? "确认身边是与你同色的两位伙伴"
-    : "确认身边是与你同色的另一位伙伴";
+  const colorName = color?.zh ?? "未知色";
+  const revealLabel = isTeam ? "组队颜色" : "个人颜色";
+  const actionTitle = identity === "trio"
+    ? "举起手机，找 2 位同色队友"
+    : identity === "duo"
+      ? "举起手机，找 1 位同色队友"
+      : "无需组队，直接开始";
+  const actionDetail = identity === "trio"
+    ? `确认另外两人的屏幕也显示「${colorName}」`
+    : identity === "duo"
+      ? `确认对方的屏幕也显示「${colorName}」`
+      : "你将以 Solo 身份独立完成七个站点";
 
   return (
     <div
@@ -240,40 +349,40 @@ function Reveal({ data, onDone }: { data: PollResult; onDone: () => void }) {
         style={{ background: foreground }}
       />
 
-      <div className="reveal-layout relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pb-[max(5.75rem,env(safe-area-inset-bottom))] pt-[max(2rem,env(safe-area-inset-top))] text-center">
-        <div className="reveal-identity flip-in flex flex-1 flex-col items-center justify-center pb-8 pt-6">
-          <p className="text-[11px] font-black tracking-[0.48em]">你的身份</p>
+      <div className="reveal-layout relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pb-[max(2rem,env(safe-area-inset-bottom))] pt-[max(3.5rem,env(safe-area-inset-top))] text-center">
+        <div className="reveal-identity flip-in flex flex-1 flex-col items-center justify-center pb-7 pt-5">
+          <p className="text-[10px] font-black tracking-[0.36em] opacity-75">{revealLabel}</p>
           <h1
             className="reveal-title mt-3 whitespace-nowrap font-black leading-none tracking-[-0.06em]"
-            style={{ fontSize: color && color.zh.length > 4 ? "clamp(3.4rem,15vw,5rem)" : "clamp(4.5rem,21vw,6.5rem)" }}
+            style={{ fontSize: color && color.zh.length > 4 ? "clamp(3.2rem,14vw,4.8rem)" : "clamp(4.5rem,21vw,6.5rem)" }}
           >
-            {color?.zh ?? "未知色"}
+            {colorName}
           </h1>
-          <p className="reveal-english mt-3 text-[30px] font-bold leading-none tracking-[0.32em]">{identityEnglish}</p>
           <div
-            className="reveal-pill mt-6 rounded-full bg-[#fff9f0] px-7 py-2.5 text-base font-black"
+            className="reveal-pill mt-5 rounded-full bg-[#fff9f0] px-5 py-2 text-sm font-black"
             style={{ color: actionForeground }}
           >
-            {identityChinese}
+            <span className="mr-2 tracking-[0.12em]">{identityEnglish}</span>
+            <span className="opacity-45">·</span>
+            <span className="ml-2">{identityChinese}</span>
           </div>
         </div>
 
         <div className="reveal-action flip-in w-full">
-          <p className="mb-3 text-xs font-bold opacity-90">
-            {isTeam ? partnerCopy : "记住你的独行色，出发完成七个站点"}
-          </p>
+          <p className="text-[15px] font-black leading-6">{actionTitle}</p>
+          <p className="mt-0.5 text-xs font-semibold leading-5 opacity-80">{actionDetail}</p>
           <button
             type="button"
             onClick={onDone}
-            className="pressable min-h-14 w-full rounded-full bg-[#fff9f0] px-5 py-3 text-center shadow-[0_3px_0_rgba(38,33,27,.16)]"
+            className="pressable mt-4 min-h-14 w-full rounded-full bg-[#fff9f0] px-5 py-3 text-center shadow-[0_3px_0_rgba(38,33,27,.16)]"
             style={{ color: actionForeground }}
           >
-            <span className="block text-[16px] font-black">
-              {isTeam ? "已找到队友，开始你的人生 →" : "开始你的人生 →"}
+            <span className="block text-[15px] font-black">
+              {isTeam ? "队友找齐了，开始游戏 →" : "开始游戏 →"}
             </span>
           </button>
-          <p className="mx-auto mt-4 max-w-xs text-xs font-bold leading-5 opacity-90">
-            {isTeam ? "找不到队友？举起手机，让工作人员帮你" : "独行也不是孤单，恩典站永远为你开着"}
+          <p className="mx-auto mt-3 max-w-xs text-[11px] font-semibold leading-5 opacity-75">
+            {isTeam ? "没找到？继续举着手机，或请工作人员帮忙" : "独行也不是孤单，恩典站永远为你开着"}
           </p>
         </div>
       </div>

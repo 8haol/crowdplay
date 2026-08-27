@@ -1,6 +1,106 @@
 export type Phase = "waiting" | "playing" | "ended";
 export type Identity = "solo" | "duo" | "trio" | null;
 
+export interface GameSession {
+  event_id: string;
+  title: string;
+  join_token: string;
+  join_open: boolean;
+  phase: Phase;
+  created_at: string;
+  started_at: string | null;
+  ended_at: string | null;
+  player_count: number;
+}
+
+export interface GameLanding extends Partial<GameSession> {
+  is_current: boolean;
+  invalid?: boolean;
+  current_join_token?: string;
+  current_title?: string;
+  current_phase?: Phase;
+  current_join_open?: boolean;
+}
+
+export interface GameArchive {
+  event_id: string;
+  title: string;
+  phase: Phase;
+  created_at: string;
+  started_at: string | null;
+  ended_at: string | null;
+  player_count: number;
+  top_score: number;
+  stamps: number;
+  life_events?: number;
+  tokens_used?: number;
+}
+
+export interface AdminDashboardData {
+  current: GameSession;
+  stats: {
+    players: number;
+    stamps: number;
+    life_events: number;
+    top_score: number;
+  };
+  archives: GameArchive[];
+}
+
+export interface StationMetric extends Station {
+  visits: number;
+  passed: number;
+  failed: number;
+  score_awarded: number;
+  completion_pct: number;
+}
+
+export interface AdminActivity {
+  id: string;
+  kind: "attempt" | "life_event" | "token" | "admin";
+  at: string;
+  player_name: string | null;
+  player_code: string | null;
+  label: string;
+  detail: string;
+}
+
+export interface AdminConsoleData {
+  current: GameSession;
+  stats: {
+    players: number;
+    teams: number;
+    stamps: number;
+    life_events: number;
+    tokens_used: number;
+    top_score: number;
+    top_personal_score: number;
+    locked_players: number;
+    removed_players: number;
+  };
+  teams: TeamDetail[];
+  station_metrics: StationMetric[];
+  activity: AdminActivity[];
+  archives: GameArchive[];
+}
+
+export interface AdminEventDetail {
+  is_current: boolean;
+  session: GameSession;
+  players: AdminPlayerDetail[];
+  station_metrics: StationMetric[];
+  activity: AdminActivity[];
+  admin_log?: Array<{
+    id: number;
+    action: string;
+    detail: unknown;
+    reason: string | null;
+    player_name: string | null;
+    player_code: string | null;
+    created_at: string;
+  }>;
+}
+
 export interface PlayerState {
   player_id: string;
   name: string;
@@ -13,6 +113,30 @@ export interface PlayerState {
   next_threshold: number | null;
   pending_threshold: number | null;
   status_effect: { type: string; value: number } | null;
+  team_id: string | null;
+  team_code: string | null;
+  team_challenge_score?: number | null;
+}
+
+export interface TeamMemberSummary {
+  name: string;
+  score: number;
+  token_available: boolean;
+}
+
+export interface TeamSummary {
+  team_id: string;
+  code: string;
+  identity: Exclude<Identity, null>;
+  color_group: string | null;
+  challenge_score?: number;
+  members: TeamMemberSummary[];
+}
+
+export interface TeamDetail extends TeamSummary {
+  stations_done: number;
+  pending_events: number;
+  created_at: string;
 }
 
 export interface AttemptInfo {
@@ -25,18 +149,82 @@ export interface AttemptInfo {
 export interface LifeEventInfo {
   card_type: string;
   card_label: string;
+  scene_title?: string | null;
+  choice_label?: string | null;
+  outcome_detail?: string | null;
   score_before: number;
   score_after: number;
   created_at: string;
+}
+
+export interface PendingLifeEvent {
+  id: string;
+  threshold: number;
+  title: string;
+  prompt: string;
+  emoji: string;
+  choices: Array<{ key: string; label: string }>;
+  created_at: string;
+}
+
+export interface LifeEventChoiceResult {
+  event_id: string;
+  scene_title: string;
+  choice_label: string;
+  outcome_key: string;
+  outcome_label: string;
+  outcome_detail: string;
+  tone: "good" | "bad" | "neutral";
+  score_before: number;
+  score_after: number;
+  delta: number;
+  next_threshold: number | null;
 }
 
 export interface PollResult {
   phase: Phase;
   started_at: string | null;
   rank: number;
+  team_rank?: number;
   player: PlayerState;
+  team: TeamSummary | null;
+  pending_event: PendingLifeEvent | null;
   attempts: AttemptInfo[];
   life_events: LifeEventInfo[];
+}
+
+export interface StaffTeamLookup {
+  found: boolean;
+  identifier?: string;
+  phase?: Phase;
+  team_id?: string;
+  team_code?: string;
+  identity?: Exclude<Identity, null>;
+  color_group?: string | null;
+  challenge_score?: number;
+  members?: Array<PlayerState & { attempted_station_ids?: number[] }>;
+  attempted_station_ids?: number[];
+  retry_station_ids?: number[];
+  failed_station_ids?: number[];
+  all_tokens_available?: boolean;
+}
+
+export interface AwardTeamResult {
+  team_code: string;
+  identity: Exclude<Identity, null>;
+  status: "passed" | "failed";
+  awarded: number;
+  retry_used: boolean;
+  challenge_score?: number;
+  members: Array<{
+    code: string;
+    name: string;
+    awarded: number;
+    new_score: number;
+    life_event_triggered: boolean;
+    threshold: number | null;
+    event_id: string | null;
+  }>;
 }
 
 export interface Station {
@@ -81,6 +269,12 @@ export interface AdminPlayer extends PlayerState {
   is_removed: boolean;
   created_at: string;
   attempt_count: number;
+}
+
+export interface AdminPlayerDetail extends AdminPlayer {
+  attempts?: Array<AttemptInfo & { station_name?: string }>;
+  life_events?: LifeEventInfo[];
+  token_usages?: Array<{ usage_type: string; target_station_id: number | null; created_at: string }>;
 }
 
 export const CARDS: { type: string; label: string; effect: string; tone: "good" | "bad" | "neutral" }[] = [
@@ -153,9 +347,9 @@ export function soloColor(seed: string): { hex: string; zh: string } {
 }
 
 export const IDENTITY_ZH: Record<string, { name: string; desc: string }> = {
-  solo: { name: "Solo 独行者", desc: "这一程你独自上路——但记得，恩典站永远为你开着。" },
-  duo: { name: "Duo 同行二人", desc: "去找和你同色的那个人，接下来一起闯关！" },
-  trio: { name: "Trio 三人同行", desc: "去找和你同色的两位伙伴，接下来一起闯关！" },
+  solo: { name: "Solo 独立同行", desc: "无需寻找队友，独立完成七个站点。" },
+  duo: { name: "Duo 二人同行", desc: "举起手机，找到另一位组队颜色相同的玩家。" },
+  trio: { name: "Trio 三人同行", desc: "举起手机，找到另外两位组队颜色相同的玩家。" },
 };
 
 // ---------------------------------------------------------------------------
@@ -165,6 +359,8 @@ export const IDENTITY_ZH: Record<string, { name: string; desc: string }> = {
 export interface BoardPlayer {
   id: string;
   name: string;
+  team_code?: string | null;
+  member_count?: number;
   identity: Identity;
   color_group: string | null;
   score: number;
@@ -193,7 +389,7 @@ export type FeedItem =
       station: string;
       status: "passed" | "failed";
       score: number;
-      total: number;
+      total?: number;
       at: string;
     }
   | {
@@ -211,10 +407,50 @@ export interface BoardSnapshot {
   players: BoardPlayer[];
   stats: {
     players: number;
+    teams?: number;
     stamps: number;
     life_events: number;
     tokens_used: number;
     top_score: number;
   };
   feed: FeedItem[];
+}
+
+export type LifeEventAudience = "all" | "solo" | "duo" | "trio";
+
+export interface LifeEventOutcomeDefinition {
+  key: string;
+  label: string;
+  detail: string;
+  delta?: number;
+  multiplier?: number;
+  weight: number;
+  tone: "good" | "bad" | "neutral";
+}
+
+export interface LifeEventChoiceDefinition {
+  key: string;
+  label: string;
+  outcomes: LifeEventOutcomeDefinition[];
+}
+
+export interface LifeEventSceneDefinition {
+  key: string;
+  audience: LifeEventAudience;
+  title: string;
+  prompt: string;
+  emoji: string;
+  choices: LifeEventChoiceDefinition[];
+  active: boolean;
+  sort_order: number;
+}
+
+export interface LifeEventCatalog {
+  stats: {
+    scenes: number;
+    choices: number;
+    outcomes: number;
+    by_audience: Record<LifeEventAudience, number>;
+  };
+  scenes: LifeEventSceneDefinition[];
 }

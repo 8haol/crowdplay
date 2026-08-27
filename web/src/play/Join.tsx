@@ -8,10 +8,15 @@ import { ActionButton, BrandMark, ErrorBanner } from "../lib/ui";
 const cardInput =
   "mt-1.5 w-full rounded-[14px] border-2 border-transparent bg-[#fbf4e6] px-4 py-3.5 text-lg font-bold text-ink placeholder:text-[#b5a88c] outline-none transition-shadow duration-200 focus:bg-card focus:shadow-[0_0_0_3px_#ffc838]";
 
-export default function Join(props: { onJoined: (code: string) => void; notice: string | null; preview?: boolean }) {
+export default function Join(props: {
+  onJoined: (code: string) => void;
+  notice: string | null;
+  joinToken: string;
+  gameTitle?: string;
+  preview?: boolean;
+}) {
   const [mode, setMode] = useState<"join" | "recover" | "show_code">("join");
   const [name, setName] = useState("");
-  const [passphrase, setPassphrase] = useState("");
   const [code, setCode] = useState("");
   const [newCode, setNewCode] = useState("");
   const [err, setErr] = useState<string | null>(null);
@@ -23,9 +28,9 @@ export default function Join(props: { onJoined: (code: string) => void; notice: 
       return;
     }
     try {
-      const r = await rpc<{ player_id: string; code: string }>("join_game", {
+      const r = await rpc<{ player_id: string; code: string }>("join_by_link", {
         p_name: name,
-        p_passphrase: passphrase,
+        p_join_token: props.joinToken,
       });
       setNewCode(r.code);
       setMode("show_code");
@@ -41,7 +46,10 @@ export default function Join(props: { onJoined: (code: string) => void; notice: 
       return;
     }
     try {
-      const r = await rpc<{ code: string }>("recover_identity", { p_code: code });
+      const r = await rpc<{ code: string }>("recover_by_link", {
+        p_join_token: props.joinToken,
+        p_code: code,
+      });
       props.onJoined(r.code);
     } catch (e) {
       setErr(errorText(e));
@@ -91,11 +99,13 @@ export default function Join(props: { onJoined: (code: string) => void; notice: 
   return (
     <div className="relative min-h-dvh overflow-hidden">
       <div className="night-sky" />
-      <div className="relative z-10 min-h-dvh flex flex-col items-center px-6 pt-10 pb-10">
+      <div className="relative z-10 flex min-h-dvh w-[100vw] max-w-[100vw] flex-col items-center px-6 pt-10 pb-10">
         <BrandMark className="rise !w-[104px] !gap-1 !rounded-[18px] !p-2.5 !shadow-[0_3px_0_#e0a800]" />
         <p className="rise mt-7 text-foil-dim text-[11px] font-black tracking-[0.45em]" style={{ "--i": 0 } as React.CSSProperties}>LIFE PASSPORT</p>
         <h1 className="rise mt-2 text-[42px] font-black leading-tight tracking-[-0.05em] text-ink" style={{ "--i": 1 } as React.CSSProperties}>领取人生编号</h1>
-        <p className="rise mt-2 text-sm font-semibold text-ink-dim" style={{ "--i": 2 } as React.CSSProperties}>先登记，游戏开始时再揭晓你的身份</p>
+        <p className="rise mt-2 max-w-xs text-center text-sm font-semibold text-ink-dim" style={{ "--i": 2 } as React.CSSProperties}>
+          {props.gameTitle ?? "本场活动"} · 填写姓名即可入场
+        </p>
 
         {/* arrival card */}
         <div
@@ -125,17 +135,8 @@ export default function Join(props: { onJoined: (code: string) => void; notice: 
                   onChange={(e) => setName(e.target.value)}
                 />
               </label>
-              <label className="block">
-                <span className="text-[12px] font-black text-ink-dim tracking-[0.16em]">入场口令 · PASSPHRASE</span>
-                <input
-                  className={cardInput}
-                  placeholder="主持人现场公布"
-                  value={passphrase}
-                  onChange={(e) => setPassphrase(e.target.value)}
-                />
-              </label>
               <ErrorBanner text={err} />
-              <ActionButton onClick={join} disabled={!name.trim() || !passphrase.trim()}>
+              <ActionButton onClick={join} disabled={!name.trim()}>
                 领取人生编号
               </ActionButton>
             </div>

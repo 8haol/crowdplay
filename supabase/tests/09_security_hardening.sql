@@ -1,7 +1,8 @@
 -- Tests: public credential surface, hashed secrets, throttling, safe RPCs
 begin;
 delete from rpc_results; delete from admin_actions; delete from token_usages;
-delete from life_events; delete from attempts; delete from players;
+delete from life_events; delete from life_event_instances; delete from attempts;
+delete from team_attempts; delete from players; delete from teams;
 update app_config set value = '{sha256}' || encode(extensions.digest('secure-admin', 'sha256'), 'hex')
 where key = 'admin_key';
 update app_config set value = '{sha256}' || encode(extensions.digest('secure-staff', 'sha256'), 'hex')

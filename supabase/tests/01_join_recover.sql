@@ -1,7 +1,8 @@
 -- Tests: join_game / recover_identity / poll_player basics
 begin;
 delete from rpc_results; delete from admin_actions; delete from token_usages;
-delete from life_events; delete from attempts; delete from players;
+delete from life_events; delete from life_event_instances; delete from attempts;
+delete from team_attempts; delete from players; delete from teams;
 update app_config set value = 'test-admin' where key = 'admin_key';
 update app_config set value = 'test-staff' where key = 'staff_key';
 update game_state set phase = 'waiting', join_passphrase = 'pass', started_at = null where id = 1;

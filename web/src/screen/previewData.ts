@@ -15,6 +15,8 @@ const players: BoardPlayer[] = NAMES.map((name, index) => ({
   name,
   identity: index % 7 === 0 ? "solo" : index % 3 === 0 ? "trio" : "duo",
   color_group: index % 7 === 0 ? `solo-${(index % 8) + 1}` : ["red", "blue", "green", "violet", "orange"][index % 5],
+  team_code: index % 7 === 0 ? `S${String(index + 1).padStart(2, "0")}` : index % 3 === 0 ? `T${String(Math.floor(index / 3) + 1).padStart(2, "0")}` : `D${String(Math.floor(index / 2) + 1).padStart(2, "0")}`,
+  member_count: index % 7 === 0 ? 1 : index % 3 === 0 ? 3 : 2,
   score: Math.max(3, 58 - index - Math.floor(index / 4)),
   locked: index === 6 || index === 21,
   token_available: index % 6 !== 0,

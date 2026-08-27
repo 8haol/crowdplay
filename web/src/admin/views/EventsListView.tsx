@@ -1,0 +1,215 @@
+import { useState } from "react";
+import type { AdminConsoleData } from "../../lib/types";
+import { AdminIcon, Btn, EmptyState, Metric, Panel, PanelHead, PageTitle, PhaseLabel } from "../adminUi";
+import { T } from "../adminTokens";
+import { downloadCsv, formatDate } from "../adminUtils";
+
+/*
+ * Landing page of the console: every session this installation has ever run,
+ * live one first. Clicking a row opens that event's own workspace, which is
+ * where all per-event work now happens — the old build buried archives behind a
+ * tab and a slide-over, so "which event am I looking at" was never on screen.
+ */
+
+type Row = {
+  event_id: string;
+  title: string;
+  phase: AdminConsoleData["current"]["phase"];
+  created_at: string;
+  started_at: string | null;
+  ended_at: string | null;
+  player_count: number;
+  stamps: number;
+  top_score: number;
+  life_events: number;
+  tokens_used: number;
+  is_current: boolean;
+};
+
+type Filter = "all" | "live" | "archived";
+
+export function EventsListView({
+  consoleData,
+  onOpenEvent,
+  onNewGame,
+}: {
+  consoleData: AdminConsoleData;
+  onOpenEvent: (eventId: string) => void;
+  onNewGame: () => void;
+}) {
+  const [filter, setFilter] = useState<Filter>("all");
+
+  const rows: Row[] = (() => {
+    const current: Row = {
+      event_id: consoleData.current.event_id,
+      title: consoleData.current.title,
+      phase: consoleData.current.phase,
+      created_at: consoleData.current.created_at,
+      started_at: consoleData.current.started_at,
+      ended_at: consoleData.current.ended_at,
+      player_count: consoleData.stats.players,
+      stamps: consoleData.stats.stamps,
+      top_score: consoleData.stats.top_score,
+      life_events: consoleData.stats.life_events,
+      tokens_used: consoleData.stats.tokens_used,
+      is_current: true,
+    };
+    const archives: Row[] = consoleData.archives.map((archive) => ({
+      event_id: archive.event_id,
+      title: archive.title,
+      phase: archive.phase,
+      created_at: archive.created_at,
+      started_at: archive.started_at,
+      ended_at: archive.ended_at,
+      player_count: archive.player_count,
+      stamps: archive.stamps,
+      top_score: archive.top_score,
+      life_events: archive.life_events ?? 0,
+      tokens_used: archive.tokens_used ?? 0,
+      is_current: false,
+    }));
+    return [current, ...archives];
+  })();
+
+  const shown = rows.filter((row) =>
+    filter === "all" ? true : filter === "live" ? row.is_current : !row.is_current,
+  );
+  const totalPlayers = rows.reduce((sum, row) => sum + row.player_count, 0);
+
+  return (
+    <div>
+      <PageTitle
+        eyebrow="ALL EVENTS"
+        title="全部活动"
+        description="每一场活动都有独立的入场二维码、玩家名单和运营数据。点任意一行进入那一场的管理页面。"
+        actions={
+          <>
+            <Btn
+              icon="download"
+              onClick={() =>
+                downloadCsv(
+                  "Life Passport-全部活动.csv",
+                  rows.map((row) => ({
+                    活动: row.title,
+                    状态: row.is_current ? "当前场次" : "已归档",
+                    阶段: row.phase,
+                    创建: formatDate(row.created_at),
+                    开始: formatDate(row.started_at, true),
+                    结束: formatDate(row.ended_at, true),
+                    玩家: row.player_count,
+                    盖章: row.stamps,
+                    人生事件: row.life_events,
+                    最高分: row.top_score,
+                  })),
+                )
+              }
+            >
+              导出清单
+            </Btn>
+            <Btn variant="primary" icon="plus" onClick={onNewGame}>创建新场次</Btn>
+          </>
+        }
+      />
+
+      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Metric label="活动总数" value={rows.length} note={`${rows.length - 1} 场已归档`} tone="accent" />
+        <Metric label="累计到场" value={totalPlayers} note="含当前场次" />
+        <Metric label="当前场次玩家" value={consoleData.stats.players} note={`${consoleData.stats.teams} 支队伍`} />
+        <Metric
+          label="手机待选事件"
+          value={consoleData.stats.locked_players}
+          note="不影响队伍继续挑战"
+          tone={consoleData.stats.locked_players > 0 ? "danger" : "neutral"}
+        />
+      </div>
+
+      <Panel className="overflow-hidden">
+        <PanelHead
+          eyebrow="EVENT LIST"
+          title="活动列表"
+          note="当前场次固定排在最上面"
+          actions={
+            <div className="flex gap-1 rounded-lg p-1" style={{ background: "#eee8de" }}>
+              {([["all", "全部"], ["live", "当前"], ["archived", "已归档"]] as const).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setFilter(id)}
+                  className="rounded-md px-3 py-1.5 text-xs font-black"
+                  style={filter === id ? { background: "#fff", color: T.ink } : { color: T.inkSoft }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          }
+        />
+
+        {shown.length === 0 ? (
+          <EmptyState title="没有匹配的活动" detail="换一个筛选条件试试。" />
+        ) : (
+          <div className="tool-scroll overflow-x-auto">
+            <table className="w-full min-w-[860px] border-collapse text-left">
+              <thead>
+                <tr
+                  className="text-[11px] font-black tracking-[0.08em]"
+                  style={{ background: T.panelAlt, color: T.inkFaint, borderBottom: `1px solid ${T.line}` }}
+                >
+                  <th className="px-5 py-3">活动</th>
+                  <th className="px-4 py-3">状态</th>
+                  <th className="px-4 py-3">时间</th>
+                  <th className="px-4 py-3 text-right">玩家</th>
+                  <th className="px-4 py-3 text-right">盖章</th>
+                  <th className="px-4 py-3 text-right">人生事件</th>
+                  <th className="px-4 py-3 text-right">最高分</th>
+                  <th className="w-24 px-4 py-3" />
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((row) => (
+                  <tr
+                    key={row.event_id}
+                    className="cursor-pointer hover:bg-[#fffbf2]"
+                    style={{ borderBottom: `1px solid ${T.lineSoft}` }}
+                    onClick={() => onOpenEvent(row.event_id)}
+                  >
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-2">
+                        <span className="font-black">{row.title}</span>
+                        {row.is_current && (
+                          <span className="rounded-md px-1.5 py-0.5 text-[10px] font-black" style={{ background: T.accentSoft, color: T.warn }}>
+                            当前
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-0.5 font-mono text-[10px]" style={{ color: T.inkFaint }}>
+                        {row.event_id.slice(0, 8)}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4"><PhaseLabel phase={row.phase} /></td>
+                    <td className="px-4 py-4 text-xs font-semibold" style={{ color: T.inkSoft }}>
+                      <div>{formatDate(row.created_at)}</div>
+                      <div className="mt-0.5" style={{ color: T.inkFaint }}>
+                        {row.ended_at ? `结束 ${formatDate(row.ended_at, true)}` : row.started_at ? `开始 ${formatDate(row.started_at, true)}` : "尚未开始"}
+                      </div>
+                    </td>
+                    <td className="tabular px-4 py-4 text-right font-black">{row.player_count}</td>
+                    <td className="tabular px-4 py-4 text-right font-bold">{row.stamps}</td>
+                    <td className="tabular px-4 py-4 text-right font-bold">{row.life_events}</td>
+                    <td className="tabular px-4 py-4 text-right text-lg font-black">{row.top_score}</td>
+                    <td className="px-4 py-4 text-right">
+                      <span className="inline-flex items-center gap-1 text-xs font-black" style={{ color: T.inkSoft }}>
+                        进入
+                        <AdminIcon name="chevron" className="h-3.5 w-3.5" />
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
+    </div>
+  );
+}

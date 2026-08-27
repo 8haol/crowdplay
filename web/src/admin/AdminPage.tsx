@@ -3,87 +3,408 @@ import { useSearchParams } from "react-router-dom";
 import { rpc, errorText } from "../lib/api";
 import { usePoll } from "../lib/usePoll";
 import type { AdminConsoleData, AdminPlayer, StationMetric } from "../lib/types";
-import { ConnDot, SuccessBanner } from "../lib/ui";
+import { ChromeDivider, ConnDot, SuccessBanner, UpLink } from "../lib/ui";
 import { Login } from "../staff/StaffPage";
-import { AdminIcon, PhaseLabel } from "./adminUi";
-import { ADMIN_NAV, type AdminTab } from "./adminUtils";
-import { EventDetailDrawer, NewGameModal, PlayerDrawer, StationEditModal } from "./AdminDialogs";
-import { EventsView, OverviewView, PlayersView, SettingsView, StationsView } from "./AdminViews";
+import { AdminIcon, Btn, Panel, PhaseLabel } from "./adminUi";
+import { T } from "./adminTokens";
+import { ADMIN_NAV, NAV_GROUPS, type AdminSection } from "./adminUtils";
+import { NewGameModal, PlayerDrawer, StationEditModal } from "./AdminDialogs";
 import { LifeEventCatalogView } from "./LifeEventCatalogView";
+import { EventsListView } from "./views/EventsListView";
+import { EventWorkspace } from "./views/EventWorkspace";
+import { LiveView } from "./views/LiveView";
+import { PlayersView } from "./views/PlayersView";
+import { SettingsView } from "./views/SettingsView";
+import { StationsView } from "./views/StationsView";
+import { ADMIN_PREVIEW, type AdminSnapshot } from "./previewData";
+import { DemoRibbon } from "../lib/DemoRibbon";
 
 const SESSION_KEY = "lp_admin_key";
 
-interface AdminSnapshot {
-  consoleData: AdminConsoleData;
-  players: AdminPlayer[];
-}
-
+/*
+ * Operator console. Layout is a conventional dashboard on purpose — persistent
+ * left rail, one page per destination, deep links via `?view=` / `?event=` —
+ * because the previous top-tab build gave archives, the live controls and the
+ * player table equal billing and no sense of "where am I".
+ */
 export default function AdminPage() {
   const [searchParams] = useSearchParams();
-  const preview = import.meta.env.DEV && searchParams.get("preview") === "1";
-  const [adminKey, setAdminKey] = useState<string | null>(() => preview ? "preview" : sessionStorage.getItem(SESSION_KEY));
+  const preview = searchParams.get("preview") === "1";
+  const [adminKey, setAdminKey] = useState<string | null>(() =>
+    preview ? "preview" : sessionStorage.getItem(SESSION_KEY),
+  );
 
   if (!adminKey) {
-    return <Login title="管理中心" admin onOk={(key) => { sessionStorage.setItem(SESSION_KEY, key); setAdminKey(key); }} />;
+    return (
+      <Login
+        title="管理中心"
+        admin
+        onOk={(key) => { sessionStorage.setItem(SESSION_KEY, key); setAdminKey(key); }}
+      />
+    );
   }
-  return <AdminConsole adminKey={adminKey} previewData={preview ? PREVIEW_SNAPSHOT : undefined} onLogout={() => { sessionStorage.removeItem(SESSION_KEY); setAdminKey(null); }} onAdminKeyChanged={(key) => { sessionStorage.setItem(SESSION_KEY, key); setAdminKey(key); }} />;
+  return (
+    <>
+      {preview && <DemoRibbon label="管理后台演示 · 数据为示例" />}
+    <AdminConsole
+      adminKey={adminKey}
+      previewData={preview ? ADMIN_PREVIEW : undefined}
+      onLogout={() => { sessionStorage.removeItem(SESSION_KEY); setAdminKey(null); }}
+      onAdminKeyChanged={(key) => { sessionStorage.setItem(SESSION_KEY, key); setAdminKey(key); }}
+    />
+    </>
+  );
 }
 
-function AdminConsole(props: { adminKey: string; previewData?: AdminSnapshot; onLogout: () => void; onAdminKeyChanged: (key: string) => void }) {
+function AdminConsole(props: {
+  adminKey: string;
+  previewData?: AdminSnapshot;
+  onLogout: () => void;
+  onAdminKeyChanged: (key: string) => void;
+}) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const pollFn = useMemo(() => async (): Promise<AdminSnapshot> => {
-    const [consoleData, players] = await Promise.all([
-      rpc<AdminConsoleData>("admin_console", { p_admin_key: props.adminKey }),
-      rpc<AdminPlayer[]>("admin_list_players", { p_admin_key: props.adminKey }),
-    ]);
-    return { consoleData, players };
-  }, [props.adminKey]);
+  const pollFn = useMemo(
+    () => async (): Promise<AdminSnapshot> => {
+      const [consoleData, players] = await Promise.all([
+        rpc<AdminConsoleData>("admin_console", { p_admin_key: props.adminKey }),
+        rpc<AdminPlayer[]>("admin_list_players", { p_admin_key: props.adminKey }),
+      ]);
+      return { consoleData, players };
+    },
+    [props.adminKey],
+  );
   const poll = usePoll<AdminSnapshot>(props.previewData ? null : pollFn, 4000);
   const data = props.previewData ?? poll.data;
   const online = props.previewData ? true : poll.online;
-  const requestedTab = searchParams.get("view") as AdminTab | null;
-  const tab: AdminTab = ADMIN_NAV.some((item) => item.id === requestedTab) ? requestedTab! : "overview";
-  const setTab = (next: AdminTab) => {
+
+  const requestedSection = searchParams.get("view") as AdminSection | null;
+  const section: AdminSection = ADMIN_NAV.some((item) => item.id === requestedSection)
+    ? requestedSection!
+    : "events";
+  const openEventId = searchParams.get("event");
+
+  const navigate = (next: AdminSection, eventId?: string | null) => {
     const updated = new URLSearchParams(searchParams);
-    if (next === "overview") updated.delete("view"); else updated.set("view", next);
-    setSearchParams(updated, { replace: true });
+    if (next === "events") updated.delete("view"); else updated.set("view", next);
+    if (eventId) updated.set("event", eventId); else updated.delete("event");
+    setSearchParams(updated, { replace: false });
   };
+
   const [banner, setBanner] = useState<string | null>(null);
+  const [navOpen, setNavOpen] = useState(false);
   const [newGameOpen, setNewGameOpen] = useState(false);
   const [playerCode, setPlayerCode] = useState<string | null>(null);
-  const [eventId, setEventId] = useState<string | null>(null);
   const [station, setStation] = useState<StationMetric | null>(null);
 
-  const refresh = () => { setBanner(null); if (!props.previewData) poll.refresh(); };
   const done = (message: string) => { setBanner(message); if (!props.previewData) poll.refresh(); };
 
   if (!data) {
-    return <div className="min-h-dvh bg-[#f7f3ec] text-[#26211b]"><AdminTop online={online} onLogout={props.onLogout} />{poll.error ? <div className="grid min-h-[75dvh] place-items-center p-6"><div className="max-w-md rounded-[24px] border border-[#e4dac8] bg-white p-7 text-center"><span className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-[#fff0eb] text-xl font-black text-[#a63727]">!</span><h1 className="mt-4 text-2xl font-black">控制台连接失败</h1><p className="mt-2 text-sm font-semibold leading-6 text-[#7e7364]">{errorText(poll.error)}</p><button className="mt-5 rounded-xl bg-[#26211b] px-5 py-3 text-sm font-black text-white" onClick={refresh}>重新连接</button></div></div> : <ConsoleSkeleton />}</div>;
+    return (
+      <div className="tool-surface min-h-dvh" style={{ color: T.ink }}>
+        <TopBar online={online} onLogout={props.onLogout} onMenu={() => {}} />
+        {poll.error ? (
+          <div className="grid min-h-[75dvh] place-items-center p-6">
+            <Panel className="max-w-md p-7 text-center">
+              <span
+                className="mx-auto grid h-12 w-12 place-items-center rounded-xl text-xl font-black"
+                style={{ background: T.dangerSoft, color: T.danger }}
+              >
+                !
+              </span>
+              <h1 className="mt-4 text-xl font-black">无法连接管理数据</h1>
+              <p className="mt-2 text-sm font-semibold" style={{ color: T.inkSoft }}>{errorText(poll.error)}</p>
+              <div className="mt-5 flex justify-center gap-2">
+                <Btn variant="primary" onClick={poll.refresh}>重试</Btn>
+                <Btn variant="quiet" onClick={props.onLogout}>重新登录</Btn>
+              </div>
+            </Panel>
+          </div>
+        ) : (
+          <ConsoleSkeleton />
+        )}
+      </div>
+    );
   }
 
-  const common = { adminKey: props.adminKey, consoleData: data.consoleData, players: data.players, onDone: done };
   const selectedPlayer = data.players.find((player) => player.code === playerCode) ?? null;
+  const common = { adminKey: props.adminKey, consoleData: data.consoleData, players: data.players, onDone: done };
 
-  return <div className="min-h-dvh bg-[#f7f3ec] pb-16 text-[#26211b]">
-    <AdminTop online={online} session={data.consoleData.current.title} phase={data.consoleData.current.phase} onLogout={props.onLogout} />
-    <nav className="sticky top-[65px] z-20 border-b border-[#ded4c3] bg-[#f7f3ec]/96 backdrop-blur-xl"><div className="mx-auto flex max-w-[1480px] gap-1 overflow-x-auto px-4 sm:px-6 lg:px-8">{ADMIN_NAV.map((item) => <button key={item.id} className={`relative flex shrink-0 items-center gap-2 px-3 py-3.5 text-sm font-black transition-colors ${tab === item.id ? "text-[#26211b]" : "text-[#887d6d] hover:text-[#3f3931]"}`} onClick={() => setTab(item.id)}><AdminIcon name={item.id} className="h-4 w-4" /><span className="hidden sm:inline">{item.label}</span><span className="sm:hidden">{item.short}</span>{tab === item.id && <span className="absolute inset-x-2 bottom-0 h-0.5 bg-[#d19b11]" />}</button>)}</div></nav>
-    <main id="admin-main" className="mx-auto max-w-[1480px] px-4 py-6 sm:px-6 lg:px-8 lg:py-9">{banner && <div className="mb-5"><SuccessBanner text={banner} /></div>}{tab === "overview" && <OverviewView {...common} onNewGame={() => setNewGameOpen(true)} onPlayer={setPlayerCode} />}{tab === "events" && <EventsView {...common} onNewGame={() => setNewGameOpen(true)} onEvent={setEventId} />}{tab === "players" && <PlayersView {...common} onPlayer={setPlayerCode} />}{tab === "life-events" && <LifeEventCatalogView adminKey={props.adminKey} preview={Boolean(props.previewData)} />}{tab === "stations" && <StationsView {...common} onStation={setStation} />}{tab === "settings" && <SettingsView {...common} onNewGame={() => setNewGameOpen(true)} onAdminKeyChanged={props.onAdminKeyChanged} />}</main>
-    {newGameOpen && <NewGameModal adminKey={props.adminKey} current={data.consoleData.current} playerCount={data.consoleData.stats.players} onClose={() => setNewGameOpen(false)} onDone={(message) => { setNewGameOpen(false); done(message); }} />}
-    {selectedPlayer && <PlayerDrawer adminKey={props.adminKey} player={selectedPlayer} onClose={() => setPlayerCode(null)} onDone={(message) => { setPlayerCode(null); done(message); }} />}
-    {eventId && <EventDetailDrawer adminKey={props.adminKey} eventId={eventId} onClose={() => setEventId(null)} />}
-    {station && <StationEditModal adminKey={props.adminKey} station={station} onClose={() => setStation(null)} onDone={(message) => { setStation(null); done(message); }} />}
-  </div>;
+  return (
+    <div className="tool-surface min-h-dvh" style={{ color: T.ink }}>
+      <TopBar
+        online={online}
+        session={data.consoleData.current.title}
+        phase={data.consoleData.current.phase}
+        onLogout={props.onLogout}
+        onMenu={() => setNavOpen((value) => !value)}
+      />
+
+      <div className="mx-auto flex w-full max-w-[1560px]">
+        <SideNav
+          section={section}
+          open={navOpen}
+          liveCount={data.consoleData.stats.locked_players}
+          eventCount={data.consoleData.archives.length + 1}
+          onNavigate={(next) => { setNavOpen(false); navigate(next, null); }}
+          onNewGame={() => { setNavOpen(false); setNewGameOpen(true); }}
+        />
+
+        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          {banner && <div className="mb-5"><SuccessBanner text={banner} /></div>}
+
+          {openEventId ? (
+            <EventWorkspace
+              adminKey={props.adminKey}
+              eventId={openEventId}
+              onBack={() => navigate("events", null)}
+            />
+          ) : (
+            <>
+              {section === "events" && (
+                <EventsListView
+                  consoleData={data.consoleData}
+                  onOpenEvent={(eventId) => navigate("events", eventId)}
+                  onNewGame={() => setNewGameOpen(true)}
+                />
+              )}
+              {section === "live" && (
+                <LiveView
+                  {...common}
+                  onPlayer={setPlayerCode}
+                  onNewGame={() => setNewGameOpen(true)}
+                />
+              )}
+              {section === "players" && (
+                <PlayersView consoleData={data.consoleData} players={data.players} onPlayer={setPlayerCode} />
+              )}
+              {section === "stations" && (
+                <StationsView consoleData={data.consoleData} onStation={setStation} />
+              )}
+              {section === "life-events" && (
+                <LifeEventCatalogView adminKey={props.adminKey} preview={Boolean(props.previewData)} />
+              )}
+              {section === "settings" && (
+                <SettingsView
+                  adminKey={props.adminKey}
+                  consoleData={data.consoleData}
+                  onDone={done}
+                  onNewGame={() => setNewGameOpen(true)}
+                  onAdminKeyChanged={props.onAdminKeyChanged}
+                />
+              )}
+            </>
+          )}
+        </main>
+      </div>
+
+      {newGameOpen && (
+        <NewGameModal
+          adminKey={props.adminKey}
+          current={data.consoleData.current}
+          playerCount={data.consoleData.stats.players}
+          onClose={() => setNewGameOpen(false)}
+          onDone={(message) => { setNewGameOpen(false); done(message); }}
+        />
+      )}
+      {selectedPlayer && (
+        <PlayerDrawer
+          adminKey={props.adminKey}
+          player={selectedPlayer}
+          onClose={() => setPlayerCode(null)}
+          onDone={(message) => { setPlayerCode(null); done(message); }}
+        />
+      )}
+      {station && (
+        <StationEditModal
+          adminKey={props.adminKey}
+          station={station}
+          onClose={() => setStation(null)}
+          onDone={(message) => { setStation(null); done(message); }}
+        />
+      )}
+    </div>
+  );
 }
 
-function AdminTop({ online, session, phase, onLogout }: { online: boolean; session?: string; phase?: AdminConsoleData["current"]["phase"]; onLogout: () => void }) {
-  return <header className="sticky top-0 z-30 h-[65px] border-b border-[#ded4c3] bg-[#f7f3ec]/96 backdrop-blur-xl"><div className="mx-auto flex h-full max-w-[1480px] items-center justify-between gap-4 pr-4 pl-[4.5rem] sm:pr-6 sm:pl-[5rem] lg:pr-8"><div className="flex min-w-0 items-center gap-5"><div className="shrink-0"><div className="flex items-center gap-2 text-sm font-black tracking-[-0.02em]"><span className="grid grid-cols-2 gap-[2px]"><i className="h-2 w-2 rounded-[2px] bg-[#26211b]" /><i className="h-2 w-2 rounded-[2px] bg-[#d94d38]" /><i className="h-2 w-2 rounded-[2px] bg-[#f1bb2c]" /><i className="h-2 w-2 rounded-[2px] bg-[#33935d]" /></span>LIFE PASSPORT</div><div className="mt-0.5 text-[10px] font-bold text-[#8c8171]">活动管理后台</div></div>{session && <div className="hidden min-w-0 items-center gap-3 border-l border-[#d9cebc] pl-5 md:flex"><div className="min-w-0"><div className="truncate text-sm font-black">{session}</div><div className="mt-0.5 flex items-center gap-1.5 text-[10px] font-bold text-[#8c8171]"><ConnDot online={online} />{online ? "数据已同步" : "正在重连"}</div></div>{phase && <PhaseLabel phase={phase} />}</div>}</div><div className="flex shrink-0 items-center gap-2"><a href="/screen" target="_blank" rel="noreferrer" className="hidden items-center gap-2 rounded-lg border border-[#d9cebc] bg-white px-3 py-2 text-xs font-black sm:flex"><AdminIcon name="screen" className="h-4 w-4" />大屏</a><button className="rounded-lg px-3 py-2 text-xs font-black text-[#786e61] hover:bg-[#ece5da]" onClick={onLogout}>退出</button></div></div></header>;
+/* ------------------------------------------------------------------- chrome */
+
+function TopBar({
+  online,
+  session,
+  phase,
+  onLogout,
+  onMenu,
+}: {
+  online: boolean;
+  session?: string;
+  phase?: AdminConsoleData["current"]["phase"];
+  onLogout: () => void;
+  onMenu: () => void;
+}) {
+  return (
+    <header
+      className="sticky top-0 z-30 h-[62px] backdrop-blur-xl"
+      style={{ background: "rgba(247,243,236,.96)", borderBottom: `1px solid #ded4c3` }}
+    >
+      <div className="mx-auto flex h-full w-full max-w-[1560px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+        <div className="flex min-w-0 items-center gap-3">
+          <button
+            type="button"
+            className="pressable grid h-9 w-9 shrink-0 place-items-center rounded-lg lg:hidden"
+            style={{ border: `1px solid #d9cebc`, background: "#fff" }}
+            onClick={onMenu}
+            aria-label="打开导航"
+          >
+            <AdminIcon name="menu" className="h-4 w-4" />
+          </button>
+          <UpLink label="入口" to="/" className="hidden sm:inline-flex" />
+          <ChromeDivider />
+          <div className="min-w-0">
+            <div className="text-[10px] font-black tracking-[0.3em]" style={{ color: T.inkFaint }}>
+              LIFE PASSPORT
+            </div>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="truncate text-sm font-black">{session ?? "管理中心"}</span>
+              {phase && <PhaseLabel phase={phase} />}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-3">
+          <span className="hidden items-center gap-1.5 text-xs font-bold sm:flex" style={{ color: T.inkSoft }}>
+            <ConnDot online={online} />
+            {online ? "已连接" : "重连中"}
+          </span>
+          <a
+            href="/screen"
+            target="_blank"
+            rel="noreferrer"
+            className="pressable hidden items-center gap-2 rounded-lg px-3 py-2 text-xs font-black sm:inline-flex"
+            style={{ background: "#fff", border: `1px solid #d9cebc` }}
+          >
+            <AdminIcon name="screen" className="h-4 w-4" />
+            实况大屏
+          </a>
+          <button
+            type="button"
+            className="pressable inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-black"
+            style={{ color: T.inkSoft }}
+            onClick={onLogout}
+          >
+            <AdminIcon name="logout" className="h-4 w-4" />
+            退出
+          </button>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function SideNav({
+  section,
+  open,
+  liveCount,
+  eventCount,
+  onNavigate,
+  onNewGame,
+}: {
+  section: AdminSection;
+  open: boolean;
+  liveCount: number;
+  eventCount: number;
+  onNavigate: (next: AdminSection) => void;
+  onNewGame: () => void;
+}) {
+  const items = (ids: AdminSection[]) =>
+    ids.map((id) => {
+      const item = ADMIN_NAV.find((entry) => entry.id === id)!;
+      const active = section === id;
+      const badge = id === "live" ? liveCount : id === "events" ? eventCount : 0;
+      return (
+        <button
+          key={id}
+          type="button"
+          onClick={() => onNavigate(id)}
+          className="pressable flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left"
+          style={
+            active
+              ? { background: T.ink, color: "#fff" }
+              : { background: "transparent", color: T.ink }
+          }
+        >
+          <AdminIcon name={item.icon} className="h-[18px] w-[18px] shrink-0" />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-black">{item.label}</span>
+            <span
+              className="block truncate text-[11px] font-semibold"
+              style={{ color: active ? "rgba(255,255,255,.62)" : T.inkFaint }}
+            >
+              {item.note}
+            </span>
+          </span>
+          {badge > 0 && (
+            <span
+              className="tabular shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-black"
+              style={
+                active
+                  ? { background: "rgba(255,255,255,.2)", color: "#fff" }
+                  : { background: T.accentSoft, color: T.warn }
+              }
+            >
+              {badge}
+            </span>
+          )}
+        </button>
+      );
+    });
+
+  return (
+    <>
+      {open && (
+        <div
+          className="fixed inset-0 z-20 bg-[#211d18]/40 lg:hidden"
+          onClick={() => onNavigate(section)}
+          role="presentation"
+        />
+      )}
+      <nav
+        className={`fixed inset-y-0 left-0 z-30 w-[17rem] shrink-0 overflow-y-auto px-3 pb-6 pt-[76px] transition-transform lg:sticky lg:top-[62px] lg:z-0 lg:h-[calc(100dvh-62px)] lg:translate-x-0 lg:pt-5 ${
+          open ? "translate-x-0" : "-translate-x-full"
+        }`}
+        style={{ background: T.bg, borderRight: `1px solid #ded4c3` }}
+      >
+        <div className="space-y-5">
+          {NAV_GROUPS.map((ids, index) => (
+            <div key={index}>
+              <div className="px-3 pb-1.5 text-[10px] font-black tracking-[0.2em]" style={{ color: T.inkFaint }}>
+                {ADMIN_NAV.find((entry) => entry.id === ids[0])?.group}
+              </div>
+              <div className="space-y-0.5">{items(ids)}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-6 pt-5" style={{ borderTop: `1px solid ${T.line}` }}>
+          <Btn variant="primary" icon="plus" className="w-full" onClick={onNewGame}>创建新场次</Btn>
+          <p className="mt-3 px-1 text-[11px] font-semibold leading-5" style={{ color: T.inkFaint }}>
+            创建新场次会先归档当前活动，再生成新的入场二维码。
+          </p>
+        </div>
+      </nav>
+    </>
+  );
 }
 
 function ConsoleSkeleton() {
-  return <div className="mx-auto max-w-[1480px] space-y-6 px-4 py-8 sm:px-6 lg:px-8"><div className="h-10 w-72 animate-pulse rounded-xl bg-[#e8e0d4]" /><div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{Array.from({ length: 4 }).map((_, index) => <div key={index} className="h-36 animate-pulse rounded-[18px] bg-white" />)}</div><div className="grid gap-5 lg:grid-cols-2"><div className="h-96 animate-pulse rounded-[22px] bg-white" /><div className="h-96 animate-pulse rounded-[22px] bg-white" /></div></div>;
+  return (
+    <div className="mx-auto w-full max-w-[1560px] space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+      <div className="h-10 w-72 animate-pulse rounded-xl bg-[#e8e0d4]" />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div key={index} className="h-32 animate-pulse rounded-[16px] bg-white" />
+        ))}
+      </div>
+      <div className="h-80 animate-pulse rounded-[18px] bg-white" />
+    </div>
+  );
 }
-
-const previewPlayer = (name: string, code: string, score: number, attemptCount: number, extra: Partial<AdminPlayer> = {}): AdminPlayer => ({ player_id: code, name, code, identity: "solo", color_group: `solo-${Number(code) % 8 + 1}`, score, token_available: true, locked_for_life_event: false, next_threshold: score < 35 ? 35 : 45, pending_threshold: null, status_effect: null, team_id: `team-${code}`, team_code: `S${code.slice(-2)}`, team_challenge_score: null, is_removed: false, created_at: new Date().toISOString(), attempt_count: attemptCount, ...extra });
-const PREVIEW_PLAYERS = [previewPlayer("林沐恩", "0427", 48, 6), previewPlayer("周以诺", "1836", 42, 5, { identity: "duo", color_group: "navy" }), previewPlayer("陈思语", "2741", 37, 5, { identity: "trio", color_group: "coral", locked_for_life_event: true, pending_threshold: 35 }), previewPlayer("梁乐知", "5912", 31, 4, { token_available: false })];
-const PREVIEW_STATIONS: StationMetric[] = [{ id: 1, slug: "music", name_zh: "音乐之声", type: "main", scoring_mode: "graded", sort_order: 1, visits: 34, passed: 29, failed: 5, score_awarded: 198, completion_pct: 72.3 }, { id: 2, slug: "uk-life", name_zh: "英伦百事通", type: "main", scoring_mode: "graded", sort_order: 2, visits: 28, passed: 20, failed: 8, score_awarded: 147, completion_pct: 59.6 }, { id: 8, slug: "life-event", name_zh: "人生盲盒", type: "life_event", scoring_mode: null, sort_order: 8, visits: 19, passed: 0, failed: 0, score_awarded: 0, completion_pct: 0 }];
-const PREVIEW_SNAPSHOT: AdminSnapshot = { players: PREVIEW_PLAYERS, consoleData: { current: { event_id: "preview-event", title: "2026 Glasgow 新生迎新会", join_token: "8f23e7c51a9d4b60", join_open: true, phase: "playing", created_at: new Date().toISOString(), started_at: new Date().toISOString(), ended_at: null, player_count: 47 }, stats: { players: 47, teams: 23, stamps: 68, life_events: 19, tokens_used: 11, top_score: 48, top_personal_score: 48, locked_players: 1, removed_players: 2 }, teams: [{ team_id: "team-d03", code: "D03", identity: "duo", color_group: "navy", challenge_score: 42, stations_done: 6, pending_events: 0, created_at: new Date().toISOString(), members: [{ name: "林沐恩", score: 48, token_available: true }, { name: "周以诺", score: 42, token_available: true }] }, { team_id: "team-t07", code: "T07", identity: "trio", color_group: "coral", challenge_score: 36, stations_done: 5, pending_events: 1, created_at: new Date().toISOString(), members: [{ name: "陈思语", score: 37, token_available: true }, { name: "梁乐知", score: 31, token_available: false }, { name: "顾安然", score: 36, token_available: true }] }], station_metrics: PREVIEW_STATIONS, activity: [{ id: "1", kind: "attempt", at: new Date().toISOString(), player_name: "D03 · 林沐恩 / 周以诺", player_code: "D03", label: "音乐之声", detail: "全队每人 +9 分" }, { id: "2", kind: "life_event", at: new Date(Date.now() - 120000).toISOString(), player_name: "陈思语", player_code: "2741", label: "人生事件", detail: "路上捡到 £10" }], archives: [{ event_id: "archive-1", title: "2026 春季学生团契", phase: "ended", created_at: "2026-03-14T18:00:00Z", started_at: "2026-03-14T18:20:00Z", ended_at: "2026-03-14T19:35:00Z", player_count: 38, top_score: 56, stamps: 221, life_events: 16, tokens_used: 9 }] } };

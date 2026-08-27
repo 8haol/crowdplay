@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { Link } from "react-router-dom";
 
 /* Shared UI atoms. Two worlds share one component vocabulary:
    night world (player) uses foil/night variants, tool world uses ink. */
@@ -79,7 +80,7 @@ export function SuccessBanner({ text }: { text: string | null }) {
   );
 }
 
-/** 4-digit numeric input, mobile keypad friendly. Tool-world styling. */
+/** 3-digit numeric passport input, mobile keypad friendly. */
 export function CodeInput(props: {
   value: string;
   onChange: (v: string) => void;
@@ -90,12 +91,12 @@ export function CodeInput(props: {
     <input
       inputMode="numeric"
       pattern="[0-9]*"
-      maxLength={4}
+      maxLength={3}
       autoFocus={props.autoFocus}
       className="w-full rounded-[14px] border-2 border-transparent bg-card px-4 py-3.5 text-center text-3xl font-black tabular tracking-[0.35em] text-ink placeholder:text-[#c9bca1] placeholder:text-xl placeholder:tracking-normal outline-none transition-shadow duration-200 focus:shadow-[0_0_0_3px_#ffc838]"
-      placeholder={props.placeholder ?? "4 位码"}
+      placeholder={props.placeholder ?? "人生编号"}
       value={props.value}
-      onChange={(e) => props.onChange(e.target.value.replace(/\D/g, "").slice(0, 4))}
+      onChange={(e) => props.onChange(e.target.value.replace(/\D/g, "").slice(0, 3))}
     />
   );
 }
@@ -114,4 +115,68 @@ export function BrandMark({ className = "" }: { className?: string }) {
       <span /><span /><span /><span />
     </div>
   );
+}
+
+/**
+ * "Go up one level".
+ *
+ * Three things this has to be at once, learned in that order:
+ *
+ * 1. NOT A PRIMARY BUTTON. A filled pill with a hard drop shadow means "the
+ *    thing this page wants you to do", so styling the back control that way put
+ *    a bright ball in every corner. It gets a soft neutral wash instead.
+ * 2. BIG ENOUGH TO HIT. The first quiet version went too far the other way:
+ *    12px text with 6px of padding is a 28px target that a thumb misses. Every
+ *    instance is now at least 44px tall with 14px text.
+ * 3. HONEST ABOUT WHERE IT GOES. Up one level, labelled with the destination —
+ *    the station list from a station, the guide from the event library.
+ *
+ * `variant="icon"` is for the projector header only, where the click comes from
+ * a mouse and every extra mark shows up on a wall.
+ */
+export function UpLink({
+  label,
+  to,
+  onClick,
+  variant = "text",
+  className = "",
+}: {
+  label: string;
+  to?: string;
+  onClick?: () => void;
+  variant?: "text" | "icon";
+  className?: string;
+}) {
+  const shared =
+    variant === "icon"
+      ? `grid h-9 w-9 shrink-0 place-items-center rounded-full bg-current/8 text-[15px] leading-none text-current/60 transition-colors hover:bg-current/15 hover:text-current ${className}`
+      : `inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full bg-current/8 px-3.5 text-[14px] font-black text-current/75 transition-colors hover:bg-current/15 hover:text-current ${className}`;
+  const body =
+    variant === "icon" ? (
+      <span aria-hidden="true">←</span>
+    ) : (
+      <>
+        <span aria-hidden="true" className="text-[16px] leading-none">←</span>
+        <span className="truncate">{label}</span>
+      </>
+    );
+  const title = `返回${label}`;
+
+  if (to) {
+    return (
+      <Link to={to} className={shared} aria-label={title} title={title}>
+        {body}
+      </Link>
+    );
+  }
+  return (
+    <button type="button" onClick={onClick} className={shared} aria-label={title} title={title}>
+      {body}
+    </button>
+  );
+}
+
+/** Hairline separator for a row of chrome (back link · page name · actions). */
+export function ChromeDivider() {
+  return <span aria-hidden="true" className="h-3 w-px shrink-0 bg-current/15" />;
 }

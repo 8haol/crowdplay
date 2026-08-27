@@ -28,7 +28,7 @@ begin
   assert r ->> 'title' = '第一场', 'current title returned';
 
   r := join_by_link('扫码玩家', 'old-session-token');
-  assert r ->> 'code' ~ '^\d{4}$', 'QR join creates a player code';
+  assert r ->> 'code' ~ '^[1-9]\d{2}$', 'QR join creates a three-digit player code';
   assert (select count(*) from players) = 1, 'player stored in current session';
 
   begin

@@ -70,7 +70,8 @@ rollback;
 -- then 4 players, quota trio=1 duo=0 => 1 trio + 1 leftover solo.
 begin;
 delete from rpc_results; delete from admin_actions; delete from token_usages;
-delete from life_events; delete from attempts; delete from players;
+delete from life_events; delete from life_event_instances; delete from attempts;
+delete from team_attempts; delete from players; delete from teams;
 update app_config set value = 'test-admin' where key = 'admin_key';
 update game_state set phase = 'waiting', join_passphrase = 'pass' where id = 1;
 
@@ -96,7 +97,8 @@ rollback;
 -- Removed players are excluded from assignment
 begin;
 delete from rpc_results; delete from admin_actions; delete from token_usages;
-delete from life_events; delete from attempts; delete from players;
+delete from life_events; delete from life_event_instances; delete from attempts;
+delete from team_attempts; delete from players; delete from teams;
 update app_config set value = 'test-admin' where key = 'admin_key';
 update game_state set phase = 'waiting', join_passphrase = 'pass' where id = 1;
 

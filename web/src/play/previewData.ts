@@ -18,20 +18,25 @@ export const PREVIEW_DATA: PollResult = {
   player: {
     player_id: "preview-player",
     name: "林沐恩",
-    code: "0427",
+    code: "427",
     identity: "trio",
     color_group: "teal",
     score: 38,
     token_available: true,
     locked_for_life_event: false,
-    next_threshold: 45,
-    pending_threshold: null,
     status_effect: null,
     team_id: "preview-team",
-    team_code: "T07",
-    team_challenge_score: 35,
+    teammates: ["周以诺", "陈思语"],
+    stations_done: 4,
+    stations_total: 7,
+    life_events_done: 1,
+    life_events_total: 3,
+    pending_stage: null,
+    next_event_stage: 2,
+    next_event_after_station: 5,
+    next_event_score: 35,
   },
-  team: { team_id: "preview-team", code: "T07", identity: "trio", color_group: "teal", challenge_score: 35, members: [{ name: "林沐恩", score: 38, token_available: true }, { name: "周以诺", score: 35, token_available: true }, { name: "陈思语", score: 32, token_available: true }] },
+  team: { team_id: "preview-team", identity: "trio", color_group: "teal", challenge_score: 35, members: [{ name: "林沐恩", score: 38, token_available: true }, { name: "周以诺", score: 35, token_available: true }, { name: "陈思语", score: 32, token_available: true }] },
   pending_event: null,
   attempts: [
     { station_id: 1, status: "passed", score: 9, created_at: "2026-08-25T12:20:00.000Z" },
@@ -42,8 +47,12 @@ export const PREVIEW_DATA: PollResult = {
   ],
   life_events: [
     {
-      card_type: "fortune_plus3",
+      card_type: "choice_all_wallet",
       card_label: "路上捡到 £10",
+      stage: 1,
+      scene_title: "捡到钱包",
+      choice_label: "先交给失物处",
+      outcome_detail: "失主留下一句谢谢和一张 £10 的谢礼，你觉得这一天值了。",
       score_before: 15,
       score_after: 18,
       created_at: "2026-08-25T12:30:00.000Z",
@@ -84,13 +93,16 @@ export function previewState(state: string): PollResult {
   if (state === "lock") {
     return {
       ...PREVIEW_DATA,
-      pending_event: { id: "preview-event", threshold: 45, title: "三份完全不同的建议", prompt: "你遇到一个难题，两位队友和你自己的直觉给出三种相反答案。", emoji: "🔀", choices: [{ key: "combine", label: "找出三种建议的共同点" }, { key: "choose", label: "相信第一直觉，自己决定" }], created_at: new Date().toISOString() },
+      pending_event: { id: "preview-event", stage: 2, title: "三份完全不同的建议", prompt: "你遇到一个难题，两位队友和你自己的直觉给出三种相反答案。", emoji: "🔀", choices: [{ key: "combine", label: "找出三种建议的共同点" }, { key: "choose", label: "相信第一直觉，自己决定" }], created_at: new Date().toISOString() },
       player: {
         ...PREVIEW_DATA.player,
         score: 45,
         locked_for_life_event: true,
-        pending_threshold: 45,
-        next_threshold: null,
+        stations_done: 5,
+        pending_stage: 2,
+        next_event_stage: 2,
+        next_event_after_station: 5,
+        next_event_score: 35,
       },
     };
   }
@@ -99,7 +111,16 @@ export function previewState(state: string): PollResult {
       ...PREVIEW_DATA,
       phase: "ended",
       rank: 3,
-      player: { ...PREVIEW_DATA.player, score: 51, next_threshold: null, token_available: false },
+      player: {
+        ...PREVIEW_DATA.player,
+        score: 51,
+        token_available: false,
+        stations_done: 7,
+        life_events_done: 3,
+        next_event_stage: null,
+        next_event_after_station: null,
+        next_event_score: null,
+      },
     };
   }
   return PREVIEW_DATA;

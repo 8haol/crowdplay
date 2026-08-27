@@ -31,7 +31,7 @@ begin
   -- happy path: 4-digit code, never 0000, identity null while waiting
   r := join_game('小明', 'pass');
   v_code := r ->> 'code';
-  assert v_code ~ '^\d{4}$', 'code must be 4 digits, got ' || v_code;
+  assert v_code ~ '^[1-9]\d{2}$', 'code is three digits with no leading zero, got ' || v_code;
   assert v_code <> '0000', 'code must not be 0000';
   assert (select identity from players where code = v_code) is null,
          'identity must be null while waiting';

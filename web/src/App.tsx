@@ -1,9 +1,11 @@
-import { BrowserRouter, Routes, Route, Link, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 import PlayPage from "./play/PlayPage";
 import StaffPage from "./staff/StaffPage";
 import AdminPage from "./admin/AdminPage";
 import ScreenPage from "./screen/ScreenPage";
 import BadgePage from "./play/BadgePage";
+import GuidePage from "./guide/GuidePage";
+import LibraryPage from "./guide/LibraryPage";
 import { BrandMark } from "./lib/ui";
 
 function Home() {
@@ -51,6 +53,13 @@ function Home() {
               现场大屏
             </Link>
           </div>
+          <Link
+            to="/guide"
+            className="rise pressable rounded-full border-2 border-ink px-5 py-3 text-center text-sm font-black text-ink"
+            style={{ "--i": 5 } as React.CSSProperties}
+          >
+            📖 同工说明页 · 流程 / 规则 / 试玩全部效果
+          </Link>
         </div>
         </section>
 
@@ -68,7 +77,6 @@ function Home() {
 export default function App() {
   return (
     <BrowserRouter>
-      <RouteBack />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/play" element={<PlayPage />} />
@@ -76,26 +84,13 @@ export default function App() {
         <Route path="/staff" element={<StaffPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/screen" element={<ScreenPage />} />
+        <Route path="/guide" element={<GuidePage />} />
+        <Route path="/library" element={<LibraryPage />} />
         <Route path="/badge" element={<BadgePage />} />
+        <Route path="/badge/:joinToken" element={<BadgePage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>
-  );
-}
-
-function RouteBack() {
-  const { pathname } = useLocation();
-  if (pathname === "/") return null;
-
-  return (
-    <Link
-      to="/"
-      className="route-back pressable fixed z-[60] grid h-11 w-11 place-items-center rounded-full border-2 border-ink bg-card text-2xl font-black leading-none text-ink shadow-[0_3px_0_#0f0d0a]"
-      aria-label="返回入口"
-      title="返回入口"
-    >
-      <span aria-hidden="true">←</span>
-    </Link>
   );
 }
 

@@ -31,7 +31,24 @@ export function LifeEventCatalogView({ adminKey, preview }: { adminKey: string; 
   if (!catalog) return <div className="grid min-h-[55dvh] place-items-center"><div className="max-w-md text-center">{poll.error ? <><div className="text-3xl font-black">事件库读取失败</div><p className="mt-3 text-sm font-semibold leading-6 text-[#827766]">{errorText(poll.error)}</p><button className="mt-5 rounded-xl bg-[#26211b] px-5 py-3 text-sm font-black text-white" onClick={poll.refresh}>重新读取</button></> : <div className="dots text-xl font-black">正在整理全部人生事件<span>.</span><span>.</span><span>.</span></div>}</div></div>;
 
   return <div className="space-y-7">
-    <PageTitle eyebrow="内容审核" title="人生事件库" description="逐条审核玩家看到的场景与行动，以及仅管理员可见的全部随机结果、出现概率和分数影响。玩家端不会收到这张结果表。" />
+    <PageTitle
+      eyebrow="内容审核"
+      title="人生事件库"
+      description="逐条审核玩家看到的场景与行动，以及全部随机结果、出现概率和分数影响。玩家端不会收到这张结果表。"
+      actions={
+        /* Same payload, no password — the link to hand to volunteers who need
+           to proof-read the script but should not hold the admin key. */
+        <a
+          href="/library"
+          target="_blank"
+          rel="noreferrer"
+          className="rounded-lg px-3 py-2 text-xs font-black"
+          style={{ background: "#fff", border: "1px solid #d9cebc" }}
+        >
+          打开可分享的审核页 /library ↗
+        </a>
+      }
+    />
 
     <section className="grid grid-cols-3 gap-3 lg:grid-cols-6">
       <CatalogMetric label="场景" value={catalog.stats.scenes} />

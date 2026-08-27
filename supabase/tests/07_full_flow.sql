@@ -57,7 +57,8 @@ begin
   -- blind box: fortune_double -> 36, which is already past 35: skipped, next = 45
   r := apply_life_event('test-staff', c1, 'fortune_double', 'flow-le1');
   assert (r ->> 'score_after')::int = 36, 'doubled to 36';
-  assert (poll_player(c1)) -> 'player' ->> 'next_threshold' = '45', '35 skipped';
+  -- the legacy staff-card path still uses the old score gates on the table
+  assert (select next_threshold from players where code = c1) = 45, '35 skipped';
   assert (poll_player(c1)) -> 'player' ->> 'locked_for_life_event' = 'false', 'unlocked';
 
   -- game ends; leaderboard is final

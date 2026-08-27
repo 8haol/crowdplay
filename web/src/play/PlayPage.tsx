@@ -5,7 +5,9 @@ import { usePoll } from "../lib/usePoll";
 import type { GameLanding, PollResult, Station } from "../lib/types";
 import { colorOf, soloColor } from "../lib/types";
 import { BrandMark, ConnDot } from "../lib/ui";
-import Join from "./Join";
+import { inkOnCream, readableOn } from "../lib/color";
+import { DemoRibbon } from "../lib/DemoRibbon";
+import Join, { CodeIssued } from "./Join";
 import Passport from "./Passport";
 import { PREVIEW_DATA, PREVIEW_STATIONS, previewState } from "./previewData";
 
@@ -13,7 +15,7 @@ export default function PlayPage() {
   const [searchParams] = useSearchParams();
   const { joinToken: routeToken } = useParams<{ joinToken: string }>();
   const navigate = useNavigate();
-  const preview = import.meta.env.DEV ? searchParams.get("preview") : null;
+  const preview = searchParams.get("preview");
   const [landing, setLanding] = useState<GameLanding | null>(null);
   const [landingError, setLandingError] = useState<unknown>(null);
   const [joined, setJoined] = useState<{ token: string; code: string } | null>(null);
@@ -21,6 +23,7 @@ export default function PlayPage() {
   const [joinNotice, setJoinNotice] = useState<string | null>(null);
   const [stations, setStations] = useState<Station[]>([]);
   const [revealDone, setRevealDone] = useState<{ token: string; code: string } | null>(null);
+  const [issuedCode, setIssuedCode] = useState<string | null>(null);
   const [sessionArchived, setSessionArchived] = useState(false);
   const activeToken = routeToken ?? landing?.join_token;
   const code = activeToken
@@ -80,19 +83,38 @@ export default function PlayPage() {
   );
   const { data, online, error } = usePoll<PollResult>(pollFn, 3000);
 
+  /*
+   * Registration is complete the moment the server issues a code, not when the
+   * player taps "我记住了". Persisting here means polling starts straight away,
+   * so a phone left on the number screen is still carried into the identity
+   * reveal when the host starts the game (see `issuedCode` below).
+   */
+  const onCodeIssued = useCallback((newCode: string) => {
+    if (!activeToken) return;
+    localStorage.setItem(`lp_code:${activeToken}`, newCode);
+    setInvalidCodeToken(null);
+    setJoinNotice(null);
+    setJoined({ token: activeToken, code: newCode });
+    setIssuedCode(newCode);
+  }, [activeToken, setIssuedCode]);
+
   const onJoined = useCallback((newCode: string) => {
     if (!activeToken) return;
     localStorage.setItem(`lp_code:${activeToken}`, newCode);
     setInvalidCodeToken(null);
     setJoinNotice(null);
     setJoined({ token: activeToken, code: newCode });
-  }, [activeToken]);
+    setIssuedCode(null);
+  }, [activeToken, setIssuedCode]);
 
   if (preview === "join") {
-    return <Join onJoined={() => {}} notice={null} joinToken="preview" gameTitle="Glasgow 新生迎新会" preview />;
+    return <Demo><PreviewJoinFlow /></Demo>;
+  }
+  if (preview === "code") {
+    return <Demo><CodeIssued code="427" onContinue={() => {}} /></Demo>;
   }
   if (preview === "waiting") {
-    return <WaitingRoom code="0427" name="林沐恩" online />;
+    return <Demo><WaitingRoom code="0427" name="林沐恩" online /></Demo>;
   }
   if (["reveal", "reveal-duo", "reveal-solo"].includes(preview ?? "")) {
     const revealData = preview === "reveal-duo"
@@ -100,10 +122,14 @@ export default function PlayPage() {
       : preview === "reveal-solo"
         ? previewState("solo")
         : PREVIEW_DATA;
-    return <Reveal data={revealData} onDone={() => {}} />;
+    return <Demo><Reveal data={revealData} onDone={() => {}} /></Demo>;
   }
   if (["passport", "solo", "sick", "lock", "ended"].includes(preview ?? "")) {
-    return <Passport data={previewState(preview!)} stations={PREVIEW_STATIONS} online joinToken="preview" />;
+    return (
+      <Demo>
+        <Passport data={previewState(preview!)} stations={PREVIEW_STATIONS} online joinToken="preview" />
+      </Demo>
+    );
   }
 
   if (landingError) {
@@ -122,7 +148,24 @@ export default function PlayPage() {
     if (!landing.join_open) {
       return <PlayerMessage title="本场登记已关闭" body="如果你已经登记过，可以联系工作人员帮你找回编号。" />;
     }
-    return <Join onJoined={onJoined} notice={joinNotice} joinToken={activeToken} gameTitle={landing.title} />;
+    return (
+      <Join
+        onJoined={onJoined}
+        onCodeIssued={onCodeIssued}
+        notice={joinNotice}
+        joinToken={activeToken}
+        gameTitle={landing.title}
+      />
+    );
+  }
+
+  /*
+   * The number screen stays up from the moment the code is issued — including
+   * before the first poll has landed — and clears itself when the player taps
+   * or when the host starts the game, whichever comes first.
+   */
+  if (issuedCode && (!data || data.phase === "waiting")) {
+    return <CodeIssued code={issuedCode} onContinue={() => setIssuedCode(null)} />;
   }
 
   if (!data) {
@@ -149,6 +192,39 @@ export default function PlayPage() {
   }
 
   return <Passport data={data} stations={stations} online={online} joinToken={activeToken} />;
+}
+
+/** Demo wrapper: fixture screens always carry the ribbon. */
+function Demo({ children }: { children: React.ReactNode }) {
+  return <>{children}<DemoRibbon /></>;
+}
+
+/**
+ * `/play?preview=join` — the arrival flow, end to end, with no network:
+ * form → your number → waiting room. Used from /guide so volunteers can see
+ * exactly what a new person sees on their phone.
+ */
+function PreviewJoinFlow() {
+  const [step, setStep] = useState<"form" | "code" | "waiting">("form");
+  const [code, setCode] = useState("427");
+  const [name, setName] = useState("林沐恩");
+
+  if (step === "waiting") {
+    return <WaitingRoom code={code} name={name} online />;
+  }
+  if (step === "code") {
+    return <CodeIssued code={code} onContinue={() => setStep("waiting")} />;
+  }
+  return (
+    <Join
+      preview
+      joinToken="preview"
+      gameTitle="Glasgow 新生迎新会"
+      notice={null}
+      onCodeIssued={(issued, entered) => { setCode(issued); setName(entered); setStep("code"); }}
+      onJoined={(recovered) => { setCode(recovered); setName("找回的玩家"); setStep("waiting"); }}
+    />
+  );
 }
 
 function PlayerLoading({ label, error }: { label: string; error?: string }) {
@@ -211,9 +287,9 @@ function PlayerMessage({ title, body }: { title: string; body: string }) {
 
 const RULES: { t: string; d: string }[] = [
   { t: "组队揭晓", d: "开场时会显示同行方式和颜色；Duo / Trio 请寻找同色队友" },
-  { t: "整队闯七站", d: "工作人员只录一次，每位队员获得相同的挑战加分" },
-  { t: "个人的人生", d: "跨过 15 / 35 / 45 分，直接在手机上选择并揭晓随机事件" },
-  { t: "一枚 Help Token", d: "整队可换提示或重来；未使用可在结算时个人换卡" },
+  { t: "整队闯七站", d: "报你的人生编号，工作人员只录一次，每位队员获得相同加分" },
+  { t: "三段人生", d: "分数到 15 / 35 / 45，或走完第 3 / 5 / 7 站，先到就触发一段人生事件" },
+  { t: "一枚 Help Token", d: "整队可换提示或重来；不用的话，随时能在恩典站换一张纪念卡" },
 ];
 
 function WaitingRoom({ code, name, online }: { code: string; name: string; online: boolean }) {
@@ -254,7 +330,7 @@ function WaitingRoom({ code, name, online }: { code: string; name: string; onlin
         </div>
 
         <p className="rise mt-3 text-ink-dim text-xs font-semibold" style={{ "--i": 3 } as React.CSSProperties}>
-          请截图保存编号，它是找回身份的唯一凭证
+          请截图保存编号 —— 现场报分和找回护照都只用它
         </p>
 
         {/* rules as a journey timeline (real sequence) */}
@@ -315,8 +391,8 @@ function Reveal({ data, onDone }: { data: PollResult; onDone: () => void }) {
   }
 
   const background = color?.hex ?? "#26211B";
-  const foreground = revealForeground(background);
-  const actionForeground = revealActionForeground(background);
+  const foreground = readableOn(background);
+  const actionForeground = inkOnCream(background);
   const identityEnglish = identity.toUpperCase();
   const identityChinese = identity === "trio" ? "三人同行" : identity === "duo" ? "二人同行" : "独立同行";
   const isTeam = identity === "duo" || identity === "trio";
@@ -390,28 +466,4 @@ function Reveal({ data, onDone }: { data: PollResult; onDone: () => void }) {
   );
 }
 
-function revealForeground(hex: string): "#000000" | "#FFFFFF" {
-  const normalized = hex.replace("#", "");
-  if (!/^[0-9a-f]{6}$/i.test(normalized)) return "#FFFFFF";
-  const luminance = colorLuminance(normalized);
-  const blackContrast = contrastRatio(luminance, 0);
-  const whiteContrast = contrastRatio(luminance, 1);
-  return blackContrast >= whiteContrast ? "#000000" : "#FFFFFF";
-}
 
-function revealActionForeground(hex: string): string {
-  const normalized = hex.replace("#", "");
-  if (!/^[0-9a-f]{6}$/i.test(normalized)) return "#26211B";
-  const contrastOnCream = contrastRatio(colorLuminance(normalized), colorLuminance("FFF9F0"));
-  return contrastOnCream >= 4.5 ? hex : "#26211B";
-}
-
-function colorLuminance(hex: string): number {
-  const channels = [0, 2, 4].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16) / 255);
-  const linear = channels.map((value) => (value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4));
-  return linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722;
-}
-
-function contrastRatio(a: number, b: number): number {
-  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
-}

@@ -110,12 +110,38 @@ export interface PlayerState {
   score: number;
   token_available: boolean;
   locked_for_life_event: boolean;
-  next_threshold: number | null;
-  pending_threshold: number | null;
   status_effect: { type: string; value: number } | null;
   team_id: string | null;
-  team_code: string | null;
-  team_challenge_score?: number | null;
+  /** Teammate names. Replaced the short team code: a Duo/Trio is identified by
+      who is standing there, and any member's own code resolves the team. */
+  teammates: string[];
+  /* Journey progress is counted in milestones, never in points: the passport
+     bar fills across 7 stations + 3 life events. See the 20260828 migration. */
+  stations_done: number;
+  stations_total: number;
+  life_events_done: number;
+  life_events_total: number;
+  /** Stage of the event currently waiting on this player's phone, if any. */
+  pending_stage: number | null;
+  /** 1 / 2 / 3, or null once all three stages are on the record. */
+  next_event_stage: number | null;
+  /** Completed stations that unlock `next_event_stage`. */
+  next_event_after_station: number | null;
+  /** Personal score that unlocks `next_event_stage` on its own. Whichever of
+      the two gates arrives first fires the stage. */
+  next_event_score: number | null;
+}
+
+/** Milestone counters shared by the passport header and the final badge. */
+export function journeyProgress(player: PlayerState): {
+  done: number;
+  total: number;
+  ratio: number;
+  complete: boolean;
+} {
+  const total = player.stations_total + player.life_events_total;
+  const done = Math.min(total, player.stations_done + player.life_events_done);
+  return { done, total, ratio: total > 0 ? done / total : 0, complete: done >= total };
 }
 
 export interface TeamMemberSummary {
@@ -126,7 +152,6 @@ export interface TeamMemberSummary {
 
 export interface TeamSummary {
   team_id: string;
-  code: string;
   identity: Exclude<Identity, null>;
   color_group: string | null;
   challenge_score?: number;
@@ -149,6 +174,7 @@ export interface AttemptInfo {
 export interface LifeEventInfo {
   card_type: string;
   card_label: string;
+  stage?: number | null;
   scene_title?: string | null;
   choice_label?: string | null;
   outcome_detail?: string | null;
@@ -159,7 +185,7 @@ export interface LifeEventInfo {
 
 export interface PendingLifeEvent {
   id: string;
-  threshold: number;
+  stage: number;
   title: string;
   prompt: string;
   emoji: string;
@@ -169,6 +195,7 @@ export interface PendingLifeEvent {
 
 export interface LifeEventChoiceResult {
   event_id: string;
+  stage: number;
   scene_title: string;
   choice_label: string;
   outcome_key: string;
@@ -178,7 +205,8 @@ export interface LifeEventChoiceResult {
   score_before: number;
   score_after: number;
   delta: number;
-  next_threshold: number | null;
+  next_event_stage: number | null;
+  next_pending_event_id: string | null;
 }
 
 export interface PollResult {
@@ -198,6 +226,7 @@ export interface StaffTeamLookup {
   identifier?: string;
   phase?: Phase;
   team_id?: string;
+  /** Internal label only (audit rows, server error messages). Never shown. */
   team_code?: string;
   identity?: Exclude<Identity, null>;
   color_group?: string | null;
@@ -210,6 +239,7 @@ export interface StaffTeamLookup {
 }
 
 export interface AwardTeamResult {
+  /** Internal label only. The UI names the team by its members. */
   team_code: string;
   identity: Exclude<Identity, null>;
   status: "passed" | "failed";
@@ -222,7 +252,7 @@ export interface AwardTeamResult {
     awarded: number;
     new_score: number;
     life_event_triggered: boolean;
-    threshold: number | null;
+    stage: number | null;
     event_id: string | null;
   }>;
 }
@@ -262,7 +292,6 @@ export interface LifeEventResult {
   card_label: string;
   score_before: number;
   score_after: number;
-  next_threshold: number | null;
 }
 
 export interface AdminPlayer extends PlayerState {
@@ -346,6 +375,19 @@ export function soloColor(seed: string): { hex: string; zh: string } {
   return { hex: SOLO_COLORS[slot - 1], zh: `独行色 ${String(slot).padStart(2, "0")}` };
 }
 
+export const IDENTITY_SHORT: Record<string, string> = { solo: "独行", duo: "二人", trio: "三人" };
+
+/**
+ * How a team is named now that short team codes are gone from the product.
+ * A Duo/Trio is "its colour + its size" — the same two things its members see
+ * on their own phones when they hold them up to find each other.
+ */
+export function teamLabel(colorGroup: string | null, identity: Identity, seed = ""): string {
+  const color = colorOf(colorGroup) ?? (identity === "solo" ? soloColor(seed) : null);
+  const size = identity ? `${IDENTITY_SHORT[identity]}同行` : "未分配";
+  return color ? `${color.zh} · ${size}` : size;
+}
+
 export const IDENTITY_ZH: Record<string, { name: string; desc: string }> = {
   solo: { name: "Solo 独立同行", desc: "无需寻找队友，独立完成七个站点。" },
   duo: { name: "Duo 二人同行", desc: "举起手机，找到另一位组队颜色相同的玩家。" },
@@ -359,7 +401,7 @@ export const IDENTITY_ZH: Record<string, { name: string; desc: string }> = {
 export interface BoardPlayer {
   id: string;
   name: string;
-  team_code?: string | null;
+  team_id: string | null;
   member_count?: number;
   identity: Identity;
   color_group: string | null;
@@ -368,6 +410,7 @@ export interface BoardPlayer {
   token_available: boolean;
   sick: boolean;
   stations_done: number;
+  life_events_done: number;
 }
 
 export type FeedItem =
@@ -376,8 +419,14 @@ export type FeedItem =
       kind: "life_event";
       name: string;
       card: string;
+      /** Outcome headline, e.g. 「小小试验打开了新方向」 */
       label: string;
-      threshold: number | null;
+      /** Scene the player was handed, e.g. 「独自面试等待」 */
+      scene: string | null;
+      /** Action the player picked. */
+      choice: string | null;
+      outcome: string | null;
+      stage: number | null;
       before: number;
       after: number;
       at: string;
@@ -385,7 +434,10 @@ export type FeedItem =
   | {
       id: string;
       kind: "attempt";
+      /** Team member names joined with " / ", or one name for a Solo. */
       name: string;
+      color_group?: string | null;
+      identity?: Identity;
       station: string;
       status: "passed" | "failed";
       score: number;
@@ -401,9 +453,52 @@ export type FeedItem =
       at: string;
     };
 
+export interface PodiumEntry {
+  rank: number;
+  name: string;
+  score: number;
+  color_group: string | null;
+  identity: Identity;
+  stations_done: number;
+  life_events: number;
+}
+
+/** Award decided by a metric that differs between teammates. */
+export interface SpecialAward {
+  key: string;
+  emoji: string;
+  title: string;
+  subtitle: string;
+  caption: string;
+  name: string;
+  color_group: string | null;
+  identity: Identity;
+  score: number;
+}
+
+/** Award decided by the station run, which is scored once per team. */
+export interface TeamAward {
+  key: string;
+  emoji: string;
+  title: string;
+  subtitle: string;
+  caption: string;
+  members: string;
+  member_count: number;
+  color_group: string | null;
+  identity: Exclude<Identity, null>;
+}
+
+export interface BoardAwards {
+  podium: PodiumEntry[];
+  specials: SpecialAward[];
+  team_awards: TeamAward[];
+}
+
 export interface BoardSnapshot {
   phase: Phase;
   started_at: string | null;
+  stations_total: number;
   players: BoardPlayer[];
   stats: {
     players: number;
@@ -413,6 +508,7 @@ export interface BoardSnapshot {
     tokens_used: number;
     top_score: number;
   };
+  awards: BoardAwards | null;
   feed: FeedItem[];
 }
 

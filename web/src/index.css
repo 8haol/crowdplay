@@ -165,13 +165,21 @@ input[class*="bg-card"]:focus { border-color: transparent; box-shadow: 0 0 0 3px
 .row-flash { animation: row-flash 3s var(--ease-out-expo) both; }
 @keyframes row-flash { 0% { background-color: #ffefc2; } 100% { background-color: #f1e7d4; } }
 
-/* Global route escape hatch. Safe-area offsets keep it clear of iPhone/WeChat
-   browser chrome; operational headers reserve the same left-hand space. */
-.route-back {
-  top: max(0.75rem, env(safe-area-inset-top));
-  left: max(0.75rem, env(safe-area-inset-left));
-}
 .lead-glow { box-shadow: inset 0 0 0 3px #ffc838, 0 2px 0 #e0a800; }
+
+/* `?preview=` screens carry a strip at the very top of the document (see
+   DemoRibbon). Scrolling pages simply start lower; the projector board is the
+   one layout measured against the viewport, so it subtracts the strip instead
+   of letting its last row fall off the bottom. */
+:root { --demo-strip: 0px; }
+.screen-stage, .screen-fit { min-height: calc(100dvh - var(--demo-strip)); }
+/* At projector widths the board is laid out against a definite height, so
+   `h-full` inside it resolves and the row count that fits is the row count
+   drawn. With min-height alone the flex children could still push the page
+   taller than the viewport and drop the last row off the bottom. */
+@media (min-width: 1024px) {
+  .screen-stage, .screen-fit { height: calc(100dvh - var(--demo-strip)); min-height: 0; }
+}
 
 /* The live screen is also opened from phones. Below projector width it becomes
    a readable, vertically scrolling dashboard instead of a compressed board. */
@@ -219,3 +227,35 @@ input[class*="bg-card"]:focus { border-color: transparent; box-shadow: 0 0 0 3px
   .rise, .flip-in, .stamp-in, .seal-slam, .bloom, .toast-in, .feed-in { animation-name: reduced-fade !important; }
   @keyframes reduced-fade { from { opacity: 0; } to { opacity: 1; } }
 }
+
+/* ---------------------------------------------------------------- ceremony */
+/* Closing awards on the projector. Each slide enters once; the medal/emoji
+   lands first, then the winner card rises under it. */
+.ceremony { cursor: pointer; }
+.ceremony-slide { animation: ceremony-slide 420ms var(--ease-out-expo) both; }
+@keyframes ceremony-slide {
+  from { opacity: 0; transform: translateY(28px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.ceremony-pop { animation: ceremony-pop 620ms var(--ease-out-quart) 120ms both; }
+@keyframes ceremony-pop {
+  from { opacity: 0; transform: scale(0.55) rotate(-8deg); }
+  to { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+.ceremony-rise { animation: ceremony-rise 520ms var(--ease-out-expo) 260ms both; }
+@keyframes ceremony-rise {
+  from { opacity: 0; transform: translateY(34px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ceremony-slide, .ceremony-pop, .ceremony-rise { animation-name: reduced-fade !important; }
+}
+
+/* ------------------------------------------------------------------ tools */
+/* Shared by /staff and /admin: a paper-desk surface with a left rail. */
+.tool-surface { background: #f7f3ec; }
+.tool-card { background: #fff; border: 1px solid #e4dac8; border-radius: 20px; }
+.tool-scroll { scrollbar-width: thin; }
+.tool-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.tool-scroll::-webkit-scrollbar-thumb { background: #ded4c3; border-radius: 999px; }

@@ -28,7 +28,7 @@ begin
          'anon can read the code-free board RPC';
 
   r := join_game('安全测试', 'secure-join');
-  assert r ->> 'code' ~ '^\d{4}$', 'hashed join secret matches';
+  assert r ->> 'code' ~ '^[1-9]\d{2}$', 'hashed join secret matches';
   perform staff_lookup('secure-staff', array[]::text[]);
   perform admin_list_players('secure-admin');
 

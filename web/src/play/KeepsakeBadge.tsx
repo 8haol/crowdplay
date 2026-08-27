@@ -110,7 +110,7 @@ export default function KeepsakeBadge({ data }: { data: PollResult }) {
             ← 返回结算页
           </Link>
           <p className="px-4 text-center text-xs font-semibold leading-5 text-ink-dim">
-            微信中建议直接长按图片保存。分享图不包含你的 4 位人生编号。
+            微信中建议直接长按图片保存。分享图不包含你的人生编号。
           </p>
         </div>
       </div>

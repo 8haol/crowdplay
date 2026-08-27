@@ -1,27 +1,86 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { rpc, errorText } from "../lib/api";
-import { usePoll } from "../lib/usePoll";
-import type { AdminEventDetail, AdminPlayer, GameSession, StationMetric } from "../lib/types";
+import type { AdminPlayer, GameSession, StationMetric } from "../lib/types";
 import { ActionButton, ErrorBanner } from "../lib/ui";
-import { AdminIcon, Drawer, Modal, PhaseLabel } from "./adminUi";
-import { downloadCsv, formatDate } from "./adminUtils";
+import { Btn, DialogHead, Drawer, Modal } from "./adminUi";
+import { T, inputClass, inputStyle } from "./adminTokens";
 
-export function NewGameModal(props: { adminKey: string; current: GameSession; playerCount: number; onClose: () => void; onDone: (message: string) => void }) {
+export function NewGameModal(props: {
+  adminKey: string;
+  current: GameSession;
+  playerCount: number;
+  onClose: () => void;
+  onDone: (message: string) => void;
+}) {
   const [title, setTitle] = useState("");
   const [confirmed, setConfirmed] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const needsConfirm = props.current.phase !== "ended" && props.playerCount > 0;
-  return <Modal onClose={props.onClose}>
-    <div className="flex items-start justify-between gap-5"><div><div className="text-xs font-black tracking-[0.18em] text-[#8b806f]">创建场次</div><h2 className="mt-1 text-3xl font-black tracking-[-0.04em]">开始一场新的活动</h2></div><button className="rounded-lg p-2 text-[#756b5e] hover:bg-[#eee8de]" onClick={props.onClose}><AdminIcon name="close" className="h-5 w-5" /></button></div>
-    <p className="mt-4 text-sm font-semibold leading-6 text-[#746b5e]">当前场次“{props.current.title}”会完整归档，包括玩家、站点成绩、事件与管理记录。新场次将生成独立二维码。</p>
-    <label className="mt-6 block text-sm font-black">场次名称<input autoFocus className="mt-2 w-full rounded-xl border border-[#ddd2bf] bg-white px-4 py-3.5 font-bold outline-none focus:border-[#c28a00] focus:ring-3 focus:ring-[#ffc838]/35" placeholder="例如：2026 秋季新生迎新会" maxLength={60} value={title} onChange={(event) => setTitle(event.target.value)} /></label>
-    {needsConfirm && <label className="mt-4 flex items-start gap-3 rounded-xl border border-[#efc5bb] bg-[#fff3ef] p-4 text-sm font-bold text-[#a63727]"><input type="checkbox" className="mt-0.5 h-5 w-5 accent-[#c4402a]" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} /><span>当前场次仍在使用中，我确认立即归档并创建新场次。</span></label>}
-    <div className="mt-4"><ErrorBanner text={err} /></div>
-    <div className="mt-6 flex justify-end gap-2"><button className="pressable rounded-xl px-5 py-3 text-sm font-black text-[#685f53] hover:bg-[#eee8de]" onClick={props.onClose}>取消</button><button className="pressable rounded-xl bg-[#26211b] px-5 py-3 text-sm font-black text-white disabled:opacity-35" disabled={!title.trim() || (needsConfirm && !confirmed)} onClick={async () => { setErr(null); try { await rpc("admin_create_game", { p_admin_key: props.adminKey, p_title: title.trim(), p_force: needsConfirm && confirmed }); props.onDone(`已创建“${title.trim()}”，二维码和玩家名单均已更新`); } catch (error) { setErr(errorText(error)); } }}>创建场次</button></div>
-  </Modal>;
+
+  return (
+    <Modal onClose={props.onClose}>
+      <DialogHead eyebrow="创建场次" title="开始一场新的活动" onClose={props.onClose} />
+      <p className="mt-4 text-sm font-semibold leading-6" style={{ color: T.inkSoft }}>
+        当前场次「{props.current.title}」会完整归档，包括玩家、站点成绩、人生事件与管理记录。
+        新场次会生成独立的入场二维码。
+      </p>
+      <label className="mt-6 block">
+        <span className="text-sm font-black">场次名称</span>
+        <input
+          autoFocus
+          className={inputClass}
+          style={inputStyle}
+          placeholder="例如：2026 秋季新生迎新会"
+          maxLength={60}
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+        />
+      </label>
+      {needsConfirm && (
+        <label
+          className="mt-4 flex items-start gap-3 rounded-xl p-4 text-sm font-bold"
+          style={{ background: T.dangerSoft, border: "1px solid #efc5bb", color: T.danger }}
+        >
+          <input
+            type="checkbox"
+            className="mt-0.5 h-5 w-5 accent-[#c4402a]"
+            checked={confirmed}
+            onChange={(event) => setConfirmed(event.target.checked)}
+          />
+          <span>当前场次仍在使用中（{props.playerCount} 位玩家），我确认立即归档并创建新场次。</span>
+        </label>
+      )}
+      <div className="mt-4"><ErrorBanner text={err} /></div>
+      <div className="mt-6 flex justify-end gap-2">
+        <Btn variant="quiet" onClick={props.onClose}>取消</Btn>
+        <Btn
+          variant="primary"
+          disabled={!title.trim() || (needsConfirm && !confirmed)}
+          onClick={async () => {
+            setErr(null);
+            try {
+              await rpc("admin_create_game", {
+                p_admin_key: props.adminKey,
+                p_title: title.trim(),
+                p_force: needsConfirm && confirmed,
+              });
+              props.onDone(`已创建「${title.trim()}」，二维码和玩家名单均已更新`);
+            } catch (error) { setErr(errorText(error)); }
+          }}
+        >
+          创建场次
+        </Btn>
+      </div>
+    </Modal>
+  );
 }
 
-export function PlayerDrawer(props: { adminKey: string; player: AdminPlayer; onClose: () => void; onDone: (message: string) => void }) {
+export function PlayerDrawer(props: {
+  adminKey: string;
+  player: AdminPlayer;
+  onClose: () => void;
+  onDone: (message: string) => void;
+}) {
   const player = props.player;
   const [score, setScore] = useState("");
   const [reason, setReason] = useState("");
@@ -32,40 +91,217 @@ export function PlayerDrawer(props: { adminKey: string; player: AdminPlayer; onC
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const dirty = score !== "" || unlock || clearEffect || restoreToken || restore;
-  return <Drawer onClose={props.onClose}>
-    <div className="sticky top-0 z-10 flex items-start justify-between border-b border-[#e4dac8] bg-[#fcfaf6]/95 p-6 backdrop-blur"><div><div className="text-xs font-black tracking-[0.18em] text-[#8b806f]">玩家档案 · {player.code}</div><h2 className="mt-1 text-3xl font-black tracking-[-0.04em]">{player.name}</h2></div><button className="rounded-lg p-2 text-[#756b5e] hover:bg-[#eee8de]" onClick={props.onClose}><AdminIcon name="close" className="h-5 w-5" /></button></div>
-    <div className="space-y-7 p-6">
-      <section className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-[#e4dac8] bg-[#e4dac8] sm:grid-cols-4">{[["队伍码", player.team_code ?? "待分配"], ["身份", player.identity ?? "待分配"], ["个人总分", player.score], ["下一关口", player.next_threshold ?? "完成"]].map(([label, value]) => <div key={label} className="bg-white p-4"><div className="text-xs font-bold text-[#827766]">{label}</div><div className="mt-1 tabular text-xl font-black">{value}</div></div>)}</section>
-      <section><h3 className="text-lg font-black">状态处理</h3><div className="mt-3 grid gap-2 sm:grid-cols-2"><StateToggle label="取消手机待选事件" active={unlock} onChange={setUnlock} disabled={!player.locked_for_life_event} /><StateToggle label="清除旧版下一站限制" active={clearEffect} onChange={setClearEffect} disabled={!player.status_effect} /><StateToggle label="归还 Help Token" active={restoreToken} onChange={setRestoreToken} disabled={player.token_available} /><StateToggle label="恢复已删除玩家" active={restore} onChange={setRestore} disabled={!player.is_removed} /></div></section>
-      <section><h3 className="text-lg font-black">手动修正个人护照</h3><div className="mt-3 grid gap-4 sm:grid-cols-2"><label className="text-sm font-black">个人总分<input inputMode="numeric" className="mt-2 w-full rounded-xl border border-[#ddd2bf] bg-white px-4 py-3 outline-none focus:border-[#c28a00]" placeholder={String(player.score)} value={score} onChange={(event) => setScore(event.target.value.replace(/\D/g, ""))} /></label><label className="text-sm font-black">修正原因<input className="mt-2 w-full rounded-xl border border-[#ddd2bf] bg-white px-4 py-3 outline-none focus:border-[#c28a00]" placeholder="会写入审计记录" value={reason} onChange={(event) => setReason(event.target.value)} /></label></div><p className="mt-2 text-xs font-semibold text-[#8b806f]">修正只影响这名玩家；共同挑战仍会按相同分值给每位队员加分。</p><div className="mt-4"><ErrorBanner text={err} /></div><div className="mt-4 max-w-xs"><ActionButton disabled={!dirty || !reason.trim()} onClick={async () => { setErr(null); try { await rpc("admin_adjust", { p_admin_key: props.adminKey, p_player_code: player.code, p_new_score: score === "" ? null : Number(score), p_unlock: unlock, p_clear_effect: clearEffect, p_restore_token: restoreToken, p_restore: restore, p_reason: reason.trim() }); props.onDone(`已更新 ${player.name} 的玩家数据`); } catch (error) { setErr(errorText(error)); } }}>保存修改</ActionButton></div></section>
-      {!player.is_removed && <section className="border-t border-[#e4dac8] pt-6"><h3 className="text-lg font-black text-[#9d3728]">移除玩家</h3><p className="mt-1 text-sm font-semibold text-[#827766]">用于处理测试或垃圾登记。数据会保留，可随时恢复。</p>{!confirmRemove ? <button className="mt-4 rounded-xl border border-[#e5b5aa] px-4 py-2.5 text-sm font-black text-[#a63727]" onClick={() => setConfirmRemove(true)}>移除这名玩家</button> : <div className="mt-4 flex gap-2"><button className="rounded-xl bg-[#b83b2a] px-4 py-2.5 text-sm font-black text-white" onClick={async () => { try { await rpc("admin_remove_player", { p_admin_key: props.adminKey, p_player_code: player.code }); props.onDone(`已移除 ${player.name}`); } catch (error) { setErr(errorText(error)); } }}>确认移除</button><button className="rounded-xl px-4 py-2.5 text-sm font-black" onClick={() => setConfirmRemove(false)}>取消</button></div>}</section>}
-    </div>
-  </Drawer>;
+
+  const facts: Array<[string, string | number]> = [
+    ["同行", player.teammates.length > 0 ? player.teammates.join(" / ") : "独自同行"],
+    ["身份", player.identity ?? "待分配"],
+    ["个人总分", player.score],
+    ["站点", `${player.stations_done}/${player.stations_total}`],
+    ["人生事件", `${player.life_events_done}/${player.life_events_total}`],
+    ["下一段", player.next_event_stage ? `第 ${player.next_event_stage} 段（第 ${player.next_event_after_station} 站后）` : "已全部经历"],
+  ];
+
+  return (
+    <Drawer onClose={props.onClose}>
+      <div
+        className="sticky top-0 z-10 p-6 backdrop-blur"
+        style={{ background: "rgba(252,250,246,.95)", borderBottom: `1px solid ${T.line}` }}
+      >
+        <DialogHead eyebrow={`玩家档案 · ${player.code}`} title={player.name} onClose={props.onClose} />
+      </div>
+
+      <div className="space-y-7 p-6">
+        <section className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl sm:grid-cols-3" style={{ background: T.line, border: `1px solid ${T.line}` }}>
+          {facts.map(([label, value]) => (
+            <div key={label} className="bg-white p-4">
+              <div className="text-xs font-bold" style={{ color: T.inkSoft }}>{label}</div>
+              <div className="tabular mt-1 text-lg font-black">{value}</div>
+            </div>
+          ))}
+        </section>
+
+        <section>
+          <h3 className="text-lg font-black">状态处理</h3>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <StateToggle label="取消手机待选事件" active={unlock} onChange={setUnlock} disabled={!player.locked_for_life_event} />
+            <StateToggle label="清除旧版下一站限制" active={clearEffect} onChange={setClearEffect} disabled={!player.status_effect} />
+            <StateToggle label="归还 Help Token" active={restoreToken} onChange={setRestoreToken} disabled={player.token_available} />
+            <StateToggle label="恢复已删除玩家" active={restore} onChange={setRestore} disabled={!player.is_removed} />
+          </div>
+        </section>
+
+        <section>
+          <h3 className="text-lg font-black">手动修正个人护照</h3>
+          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <span className="text-sm font-black">个人总分</span>
+              <input
+                inputMode="numeric"
+                className={`${inputClass} tabular`}
+                style={inputStyle}
+                placeholder={String(player.score)}
+                value={score}
+                onChange={(event) => setScore(event.target.value.replace(/\D/g, ""))}
+              />
+            </label>
+            <label className="block">
+              <span className="text-sm font-black">修正原因</span>
+              <input
+                className={inputClass}
+                style={inputStyle}
+                placeholder="会写入审计记录"
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+              />
+            </label>
+          </div>
+          <p className="mt-2 text-xs font-semibold" style={{ color: T.inkFaint }}>
+            修正只影响这名玩家；共同挑战仍会按相同分值给每位队员加分。人生事件的触发点看的是完成站点数，
+            改分数不会额外触发或取消事件。
+          </p>
+          <div className="mt-4"><ErrorBanner text={err} /></div>
+          <div className="mt-4 max-w-xs">
+            <ActionButton
+              disabled={!dirty || !reason.trim()}
+              onClick={async () => {
+                setErr(null);
+                try {
+                  await rpc("admin_adjust", {
+                    p_admin_key: props.adminKey,
+                    p_player_code: player.code,
+                    p_new_score: score === "" ? null : Number(score),
+                    p_unlock: unlock,
+                    p_clear_effect: clearEffect,
+                    p_restore_token: restoreToken,
+                    p_restore: restore,
+                    p_reason: reason.trim(),
+                  });
+                  props.onDone(`已更新 ${player.name} 的玩家数据`);
+                } catch (error) { setErr(errorText(error)); }
+              }}
+            >
+              保存修改
+            </ActionButton>
+          </div>
+        </section>
+
+        {!player.is_removed && (
+          <section className="pt-6" style={{ borderTop: `1px solid ${T.line}` }}>
+            <h3 className="text-lg font-black" style={{ color: "#9d3728" }}>移除玩家</h3>
+            <p className="mt-1 text-sm font-semibold" style={{ color: T.inkSoft }}>
+              用于处理测试或垃圾登记。数据会保留，可随时恢复。
+            </p>
+            {!confirmRemove ? (
+              <Btn variant="danger" className="mt-4" onClick={() => setConfirmRemove(true)}>移除这名玩家</Btn>
+            ) : (
+              <div className="mt-4 flex gap-2">
+                <Btn
+                  variant="dangerSolid"
+                  onClick={async () => {
+                    try {
+                      await rpc("admin_remove_player", { p_admin_key: props.adminKey, p_player_code: player.code });
+                      props.onDone(`已移除 ${player.name}`);
+                    } catch (error) { setErr(errorText(error)); }
+                  }}
+                >
+                  确认移除
+                </Btn>
+                <Btn variant="quiet" onClick={() => setConfirmRemove(false)}>取消</Btn>
+              </div>
+            )}
+          </section>
+        )}
+      </div>
+    </Drawer>
+  );
 }
 
-function StateToggle({ label, active, onChange, disabled }: { label: string; active: boolean; onChange: (value: boolean) => void; disabled: boolean }) {
-  return <label className={`flex items-center gap-3 rounded-xl border p-3 text-sm font-bold ${disabled ? "border-[#e8e0d4] bg-[#f3efe8] text-[#aaa090]" : active ? "border-[#d6a313] bg-[#fff7d8]" : "border-[#ded4c3] bg-white"}`}><input type="checkbox" checked={active} disabled={disabled} onChange={(event) => onChange(event.target.checked)} className="h-5 w-5 accent-[#26211b]" />{label}</label>;
+function StateToggle({
+  label,
+  active,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  active: boolean;
+  onChange: (value: boolean) => void;
+  disabled: boolean;
+}) {
+  return (
+    <label
+      className="flex items-center gap-3 rounded-xl p-3 text-sm font-bold"
+      style={
+        disabled
+          ? { border: "1px solid #e8e0d4", background: "#f3efe8", color: "#aaa090" }
+          : active
+            ? { border: `1px solid ${T.accent}`, background: "#fff7d8" }
+            : { border: "1px solid #ded4c3", background: "#fff" }
+      }
+    >
+      <input
+        type="checkbox"
+        checked={active}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.checked)}
+        className="h-5 w-5 accent-[#26211b]"
+      />
+      {label}
+    </label>
+  );
 }
 
-export function StationEditModal(props: { adminKey: string; station: StationMetric; onClose: () => void; onDone: (message: string) => void }) {
+export function StationEditModal(props: {
+  adminKey: string;
+  station: StationMetric;
+  onClose: () => void;
+  onDone: (message: string) => void;
+}) {
   const [name, setName] = useState(props.station.name_zh);
   const [mode, setMode] = useState(props.station.scoring_mode ?? "graded");
   const [err, setErr] = useState<string | null>(null);
-  return <Modal onClose={props.onClose} width="max-w-md"><div className="flex justify-between gap-4"><div><div className="text-xs font-black tracking-[0.18em] text-[#8b806f]">站点设置</div><h2 className="mt-1 text-2xl font-black">编辑 {props.station.name_zh}</h2></div><button className="rounded-lg p-2 hover:bg-[#eee8de]" onClick={props.onClose}><AdminIcon name="close" className="h-5 w-5" /></button></div><label className="mt-6 block text-sm font-black">显示名称<input className="mt-2 w-full rounded-xl border border-[#ddd2bf] bg-white px-4 py-3" value={name} maxLength={30} onChange={(event) => setName(event.target.value)} /></label>{props.station.type === "main" && <label className="mt-4 block text-sm font-black">计分方式<select className="mt-2 w-full rounded-xl border border-[#ddd2bf] bg-white px-4 py-3" value={mode} onChange={(event) => setMode(event.target.value as "graded" | "fixed")}><option value="graded">分级计分（3 / 6 / 9）</option><option value="fixed">固定计分（6 分）</option></select></label>}<div className="mt-4"><ErrorBanner text={err} /></div><div className="mt-6 flex justify-end gap-2"><button className="rounded-xl px-4 py-2.5 text-sm font-black" onClick={props.onClose}>取消</button><button className="rounded-xl bg-[#26211b] px-4 py-2.5 text-sm font-black text-white" onClick={async () => { setErr(null); try { await rpc("admin_update_station", { p_admin_key: props.adminKey, p_station_id: props.station.id, p_name_zh: name.trim(), p_scoring_mode: props.station.type === "main" ? mode : null }); props.onDone(`站点“${name.trim()}”已更新`); } catch (error) { setErr(errorText(error)); } }}>保存</button></div></Modal>;
-}
 
-export function EventDetailDrawer({ adminKey, eventId, onClose }: { adminKey: string; eventId: string; onClose: () => void }) {
-  const [view, setView] = useState<"players" | "stations" | "activity">("players");
-  const pollFn = useMemo(() => () => rpc<AdminEventDetail>("admin_event_detail", { p_admin_key: adminKey, p_event_id: eventId }), [adminKey, eventId]);
-  const { data, error, refresh } = usePoll(pollFn, 60_000);
-  return <Drawer onClose={onClose}>
-    {!data ? <div className="grid min-h-dvh place-items-center p-8 text-center">{error ? <div><h2 className="text-2xl font-black">无法读取场次</h2><p className="mt-2 text-sm text-[#8a7e6c]">{errorText(error)}</p><button className="mt-5 rounded-xl bg-[#26211b] px-4 py-2.5 text-sm font-black text-white" onClick={refresh}>重试</button></div> : <div className="dots text-xl font-black">正在读取场次<span>.</span><span>.</span><span>.</span></div>}</div> : <>
-      <header className="sticky top-0 z-10 border-b border-[#e4dac8] bg-[#fcfaf6]/95 px-6 py-5 backdrop-blur"><div className="flex items-start justify-between gap-4"><div><div className="flex items-center gap-2"><PhaseLabel phase={data.session.phase} />{data.is_current && <span className="text-xs font-black text-[#8b806f]">当前场次</span>}</div><h2 className="mt-3 text-3xl font-black tracking-[-0.04em]">{data.session.title}</h2><p className="mt-2 text-sm font-semibold text-[#827766]">{formatDate(data.session.created_at)} · {data.session.player_count} 位玩家</p></div><button className="rounded-lg p-2 hover:bg-[#eee8de]" onClick={onClose}><AdminIcon name="close" className="h-5 w-5" /></button></div><div className="mt-5 flex gap-1 rounded-xl bg-[#eee8de] p-1">{([['players','玩家'],['stations','站点'],['activity','时间线']] as const).map(([id, label]) => <button key={id} className={`flex-1 rounded-lg px-3 py-2 text-sm font-black ${view === id ? "bg-white shadow-sm" : "text-[#756b5e]"}`} onClick={() => setView(id)}>{label}</button>)}</div></header>
-      <div className="p-6">{view === "players" && <><div className="mb-4 flex items-center justify-between"><h3 className="text-lg font-black">玩家成绩</h3><button className="flex items-center gap-2 rounded-lg border border-[#d9cebc] px-3 py-2 text-xs font-black" onClick={() => downloadCsv(`${data.session.title}-玩家.csv`, data.players.map((player) => ({ 姓名: player.name, 编号: player.code, 身份: player.identity, 分数: player.score, 完成站点: player.attempt_count })))}><AdminIcon name="download" className="h-4 w-4" />导出</button></div><div className="overflow-hidden rounded-xl border border-[#e4dac8]">{data.players.map((player, index) => <div key={player.code} className="grid grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-3 border-b border-[#e8e0d4] bg-white px-4 py-3 last:border-0"><span className="tabular text-sm font-black text-[#958a7a]">{index + 1}</span><div><div className="font-black">{player.name} <span className="ml-1 font-mono text-xs text-[#8b806f]">{player.code}</span></div><div className="mt-0.5 text-xs font-semibold text-[#827766]">{player.identity ?? "未分配"} · {player.attempt_count ?? 0}/7 站</div></div><span className="tabular text-xl font-black">{player.score}</span></div>)}</div></>}{view === "stations" && <StationDetailList stations={data.station_metrics} />}{view === "activity" && <div className="space-y-0">{data.activity.map((item) => <div key={item.id} className="relative border-l-2 border-[#dfd5c4] pb-5 pl-5 last:pb-0"><span className="absolute -left-[5px] top-1 h-2 w-2 rounded-full bg-[#b68b20]" /><div className="text-sm font-black">{item.player_name ?? "系统"} · {item.label}</div><div className="mt-0.5 text-sm font-semibold text-[#756b5e]">{item.detail}</div><div className="mt-1 text-xs text-[#9a8f7e]">{formatDate(item.at, true)}</div></div>)}</div>}</div>
-    </>}
-  </Drawer>;
-}
-
-function StationDetailList({ stations }: { stations: StationMetric[] }) {
-  return <div className="space-y-3">{stations.map((station) => <div key={station.id} className="rounded-xl border border-[#e4dac8] bg-white p-4"><div className="flex items-center justify-between"><div><div className="font-black">{station.name_zh}</div><div className="mt-0.5 text-xs font-semibold text-[#827766]">{station.type === "main" ? `${station.passed} 通过 · ${station.failed} 失败` : `${station.visits} 次处理`}</div></div><div className="tabular text-xl font-black">{station.type === "main" ? `${station.completion_pct}%` : station.visits}</div></div>{station.type === "main" && <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#eee8de]"><div className="h-full rounded-full bg-[#d9a51d]" style={{ width: `${Math.min(100, station.completion_pct)}%` }} /></div>}</div>)}</div>;
+  return (
+    <Modal onClose={props.onClose} width="max-w-md">
+      <DialogHead eyebrow="站点设置" title={`编辑 ${props.station.name_zh}`} onClose={props.onClose} />
+      <label className="mt-6 block">
+        <span className="text-sm font-black">显示名称</span>
+        <input className={inputClass} style={inputStyle} value={name} maxLength={30} onChange={(event) => setName(event.target.value)} />
+      </label>
+      {props.station.type === "main" && (
+        <label className="mt-4 block">
+          <span className="text-sm font-black">计分方式</span>
+          <select
+            className={inputClass}
+            style={inputStyle}
+            value={mode}
+            onChange={(event) => setMode(event.target.value as "graded" | "fixed")}
+          >
+            <option value="graded">分级计分（3 / 6 / 9）</option>
+            <option value="fixed">固定计分（6 分）</option>
+          </select>
+        </label>
+      )}
+      <div className="mt-4"><ErrorBanner text={err} /></div>
+      <div className="mt-6 flex justify-end gap-2">
+        <Btn variant="quiet" onClick={props.onClose}>取消</Btn>
+        <Btn
+          variant="primary"
+          onClick={async () => {
+            setErr(null);
+            try {
+              await rpc("admin_update_station", {
+                p_admin_key: props.adminKey,
+                p_station_id: props.station.id,
+                p_name_zh: name.trim(),
+                p_scoring_mode: props.station.type === "main" ? mode : null,
+              });
+              props.onDone(`站点「${name.trim()}」已更新`);
+            } catch (error) { setErr(errorText(error)); }
+          }}
+        >
+          保存
+        </Btn>
+      </div>
+    </Modal>
+  );
 }

@@ -48,11 +48,16 @@ begin
   r := board_snapshot();
   v_feed := r -> 'feed';
 
-  -- ranking: 甲 leads (9+9+3 = 21)
-  assert r -> 'players' -> 0 ->> 'name' = '甲', 'players sorted by score desc';
-  assert (r -> 'players' -> 0 ->> 'score')::int = 21, 'score after card';
-  assert (r -> 'players' -> 0 ->> 'stations_done')::int = 2, 'stations_done counted';
-  assert (r -> 'players' -> 0 ->> 'id') is not null, 'stable id present for keys';
+  -- Deliberately NOT ranked by score while playing: the projector groups
+  -- teammates so nobody watches a live leaderboard for an hour.
+  assert exists (select 1 from jsonb_array_elements(r -> 'players') p
+                 where p ->> 'name' = '甲' and (p ->> 'score')::int = 21
+                   and (p ->> 'stations_done')::int = 2 and p ->> 'id' is not null),
+         'score, progress and stable id present for every row';
+  assert (r ->> 'stations_total')::int = (select count(*) from stations where type = 'main'),
+         'board reports the station total the progress bar needs';
+  assert r -> 'awards' = 'null'::jsonb or r -> 'awards' is null,
+         'no awards payload while the game is still running';
 
   -- feed has every kind, newest first
   assert jsonb_array_length(v_feed) = 6,
@@ -91,6 +96,18 @@ begin
   assert exists (select 1 from jsonb_array_elements(r -> 'players') p
                  where p ->> 'name' = '乙' and (p ->> 'sick')::boolean),
          'cap_next surfaces as sick';
+
+  -- the ceremony payload only materialises once the game is over
+  perform end_game('test-admin');
+  r := board_snapshot();
+  assert jsonb_array_length(r -> 'awards' -> 'podium') = 3, 'podium has three places';
+  assert (r -> 'awards' -> 'podium' -> 0 ->> 'score')::int = 21, 'podium is ranked by final score';
+  assert (r -> 'awards' -> 'podium' -> 0 ->> 'rank')::int = 1, 'podium carries its place';
+  assert jsonb_array_length(r -> 'awards' -> 'specials') >= 1, 'at least one special award';
+  assert not exists (
+    select 1 from jsonb_array_elements(r -> 'awards' -> 'specials') a where a ? 'code'
+  ), 'awards carry no 4-digit code';
+  update game_state set phase = 'playing', ended_at = null where id = 1;
 
   -- anon can call it (it is the projector page, no auth)
   set local role anon;

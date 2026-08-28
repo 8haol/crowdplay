@@ -4,6 +4,11 @@
   publish = "dist"
 
 [build.environment]
+  # Supabase publishable credentials are intentionally shipped to browsers.
+  # Keeping them here makes Git-triggered builds deterministic; database
+  # authorization is enforced by RLS and the RPC grants, never by this key.
+  VITE_SUPABASE_URL = "https://gohrobxiznbrrncrcmjo.supabase.co"
+  VITE_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_Zac7Wd4Nyb1_-y1xl5Kb1Q_G8FBaiPA"
   # These are intentionally public browser credentials. Vite embeds them in
   # the client bundle; Supabase authorization still lives in RLS/RPC grants.
   # Without this narrow exemption Netlify's secret scanner rejects the build

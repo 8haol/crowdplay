@@ -5,10 +5,10 @@ import { usePoll } from "../lib/usePoll";
 import type { GameLanding, PollResult, Station } from "../lib/types";
 import { colorOf, soloColor } from "../lib/types";
 import { BrandMark, ConnDot } from "../lib/ui";
-import { inkOnCream, readableOn } from "../lib/color";
+import { darken, inkOnCream, lighten, readableOn } from "../lib/color";
 import { DemoRibbon } from "../lib/DemoRibbon";
 import Join, { CodeIssued } from "./Join";
-import Passport from "./Passport";
+import Passport, { PassportGlobe } from "./Passport";
 import { PREVIEW_DATA, PREVIEW_STATIONS, previewState } from "./previewData";
 
 export default function PlayPage() {
@@ -70,6 +70,7 @@ export default function PlayPage() {
       } catch (error) {
         if (error instanceof RpcError && error.code === "PLAYER_NOT_FOUND") {
           localStorage.removeItem(`lp_code:${activeToken}`);
+          localStorage.removeItem(`lp_join_idem:${activeToken}`);
           setJoinNotice("这个编号不属于当前场次，请重新加入或找回");
           setInvalidCodeToken(activeToken);
         }
@@ -114,7 +115,7 @@ export default function PlayPage() {
     return <Demo><CodeIssued code="427" onContinue={() => {}} /></Demo>;
   }
   if (preview === "waiting") {
-    return <Demo><WaitingRoom code="0427" name="林沐恩" online /></Demo>;
+    return <Demo><WaitingRoom code="427" name="林沐恩" online preview /></Demo>;
   }
   if (["reveal", "reveal-duo", "reveal-solo"].includes(preview ?? "")) {
     const revealData = preview === "reveal-duo"
@@ -175,7 +176,7 @@ export default function PlayPage() {
   const { phase, player } = data;
 
   if (phase === "waiting") {
-    return <WaitingRoom code={player.code} name={player.name} online={online} />;
+    return <WaitingRoom code={player.code} name={player.name} online={online} colorGroup={player.color_group} />;
   }
 
   // Identity reveal: once per stored code, when playing begins.
@@ -292,77 +293,209 @@ const RULES: { t: string; d: string }[] = [
   { t: "一枚 Help Token", d: "整队可换提示或重来；不用的话，随时能在恩典站换一张纪念卡" },
 ];
 
-function WaitingRoom({ code, name, online }: { code: string; name: string; online: boolean }) {
-  return (
-    <div className="relative min-h-dvh overflow-hidden text-ink">
-      <div className="night-sky" />
-      <div className="relative z-10 min-h-dvh flex flex-col items-center px-6 pt-12 pb-8">
-        <p className="rise text-foil-dim text-[11px] font-black tracking-[0.45em]" style={{ "--i": 0 } as React.CSSProperties}>
-          READY · 等待开始
-        </p>
-        <h1 className="rise text-3xl font-black mt-2" style={{ "--i": 1 } as React.CSSProperties}>
-          你已到场
-        </h1>
+const WAITING_COVER_COLORS = [
+  { slug: "maroon", label: "酒红", hex: colorOf("maroon")?.hex ?? "#7A1230" },
+  { slug: "coral-red", label: "珊瑚红", hex: "#D44C3E" },
+  { slug: "teal", label: "墨松", hex: colorOf("teal")?.hex ?? "#145C4A" },
+  { slug: "navy", label: "藏青", hex: colorOf("navy")?.hex ?? "#1B2E6B" },
+  { slug: "orange", label: "暖橙", hex: colorOf("orange")?.hex ?? "#FF8A3C" },
+  { slug: "mint", label: "薄荷", hex: colorOf("mint")?.hex ?? "#4ECB8D" },
+] as const;
 
-        {/* boarding pass */}
-        <div
-          className="rise w-full max-w-sm mt-8 rounded-[28px] bg-white px-6 pt-6 pb-5 shadow-[0_3px_0_#f0e4ce]"
-          style={{ "--i": 2 } as React.CSSProperties}
-        >
-          <div className="flex items-center justify-between text-[10px] font-black tracking-[0.28em] text-ink-dim">
-            <span>LIFE PASSPORT</span>
-            <span className="flex items-center gap-1.5">
-              <ConnDot online={online} />
-              {online ? "已连接" : "重连中"}
-            </span>
-          </div>
-          <div className="mt-5 flex items-end justify-between">
+function WaitingRoom({ code, name, online, colorGroup = null, preview = false }: {
+  code: string;
+  name: string;
+  online: boolean;
+  colorGroup?: string | null;
+  preview?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [opening, setOpening] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedColor = searchParams.get("passportColor");
+  const previewCover = WAITING_COVER_COLORS.find(({ slug }) => slug === requestedColor) ?? WAITING_COVER_COLORS[0];
+  const assignedColor = colorOf(colorGroup);
+  const coverColor = preview
+    ? previewCover
+    : { slug: colorGroup ?? "coral-red", label: assignedColor?.zh ?? "珊瑚红", hex: assignedColor?.hex ?? WAITING_COVER_COLORS[0].hex };
+
+  return (
+    <div className="brand-stage passport-stage min-h-dvh overflow-hidden text-ink">
+      <div className="night-sky" />
+      <div className="passport-waiting-layout relative z-10">
+        {preview && (
+          <div className="waiting-cover-picker" aria-label="等待页护照封面颜色预览">
+            <span>封面试色</span>
             <div>
-              <div className="text-ink-dim text-xs">玩家 · PLAYER</div>
-              <div className="font-black text-2xl mt-1">{name}</div>
-            </div>
-            <div className="text-right">
-              <div className="text-ink-dim text-xs">人生编号 · NO.</div>
-              <div className="tabular font-black text-4xl text-ink leading-none mt-1">{code}</div>
+              {WAITING_COVER_COLORS.map((option) => (
+                <button
+                  key={option.slug}
+                  type="button"
+                  className="pressable"
+                  aria-label={`${option.label}封面`}
+                  aria-pressed={coverColor.slug === option.slug}
+                  onClick={() => {
+                    const next = new URLSearchParams(searchParams);
+                    next.set("passportColor", option.slug);
+                    setSearchParams(next, { replace: true });
+                    setOpen(false);
+                    setOpening(false);
+                  }}
+                >
+                  <span style={{ background: option.hex }} aria-hidden="true" />
+                  <small>{option.label}</small>
+                </button>
+              ))}
             </div>
           </div>
-          <div className="mt-5 h-2 w-full rounded-full bg-foil" />
+        )}
+        <p className="text-center font-mono text-[10px] font-black tracking-[0.36em] text-foil-dim">
+          {open ? "BRIEFING · 入场说明" : "ISSUED · 已签发"}
+        </p>
+        <div className="passport-reader">
+          <Briefing code={code} name={name} online={online} onClose={() => setOpen(false)} interactive={open} />
+          {!open && (
+            <PassportCoverCard
+              code={code}
+              name={name}
+              online={online}
+              opening={opening}
+              coverColor={coverColor.hex}
+              onOpen={() => setOpening(true)}
+              onOpened={() => {
+                setOpen(true);
+                setOpening(false);
+              }}
+            />
+          )}
+        </div>
+        <p className="text-center text-xs font-bold leading-5 text-foil-dim">
+          {open ? "玩法已经写在护照内页 · 随时可以合上" : "等待主持人开始游戏 · 同行颜色会自动出现"}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/** The whole phone is the closed document. */
+function PassportCoverCard(props: {
+  code: string;
+  name: string;
+  online: boolean;
+  opening: boolean;
+  coverColor: string;
+  onOpen: () => void;
+  onOpened: () => void;
+}) {
+  const coverInk = readableOn(props.coverColor);
+  const darkCover = coverInk === "#FFFFFF";
+  const coverStyle = {
+    "--doc-cover": props.coverColor,
+    "--doc-cover-light": lighten(props.coverColor, 0.14),
+    "--doc-cover-deep": darken(props.coverColor, 0.2),
+    "--doc-cover-spine": darken(props.coverColor, 0.34),
+    "--doc-foil": darkCover ? "#FFE08A" : "#26211B",
+    "--doc-text": coverInk,
+    "--doc-soft": darkCover ? "rgba(255,249,240,.74)" : "rgba(38,33,27,.68)",
+    "--doc-line": darkCover ? "rgba(255,224,138,.5)" : "rgba(38,33,27,.32)",
+    "--doc-action-bg": darkCover ? "#FFF9F0" : "#26211B",
+    "--doc-action-ink": darkCover ? darken(props.coverColor, 0.3) : "#FFF9F0",
+    "--doc-action-shadow": darken(props.coverColor, 0.42),
+  } as React.CSSProperties;
+
+  return (
+    <button
+      type="button"
+      onClick={props.onOpen}
+      onAnimationEnd={(event) => {
+        if (event.target === event.currentTarget && props.opening) props.onOpened();
+      }}
+      disabled={props.opening}
+      aria-expanded={false}
+      aria-label={`翻开 ${props.name} 的人生护照，编号 ${props.code}`}
+      className={`doc-cover w-full text-left ${props.opening ? "doc-cover--opening" : ""}`}
+      style={coverStyle}
+    >
+        <span className="doc-cover__spine" aria-hidden="true" />
+        <span className="doc-cover__hatch" aria-hidden="true" />
+        <span className="doc-cover__frame" aria-hidden="true" />
+
+        <span className="doc-cover__content relative z-10">
+          <span className="doc-cover__foil flex items-center justify-between font-mono text-[9px] font-black tracking-[0.22em]">
+            <span>格拉斯哥华人福音教会</span>
+            <span className="flex items-center gap-1.5">
+              <ConnDot online={props.online} />
+              <span className="doc-cover__soft">{props.online ? "已连接" : "重连中"}</span>
+            </span>
+          </span>
+
+          <span className="doc-cover__middle flex flex-col items-center justify-center text-center">
+            <span className="doc-crest"><PassportGlobe className="w-[3.75rem]" /></span>
+            <span className="doc-cover__foil mt-5 text-[34px] font-black leading-none tracking-[0.18em]">人生护照</span>
+            <span className="doc-cover__soft mt-2.5 font-mono text-[10px] font-black tracking-[0.34em]">LIFE PASSPORT</span>
+          </span>
+
+          <span className="doc-cover__footer block">
+            <span className="doc-cover__divider grid grid-cols-[1fr_auto] items-end gap-4 border-t border-dashed pt-5">
+              <span className="block min-w-0">
+                <span className="doc-cover__soft block font-mono text-[9px] font-black tracking-[0.22em]">HOLDER · 持有人</span>
+                <span className="doc-cover__text mt-1.5 block truncate text-xl font-black">{props.name}</span>
+              </span>
+              <span className="block text-right">
+                <span className="doc-cover__soft block font-mono text-[9px] font-black tracking-[0.22em]">LIFE NO.</span>
+                <span className="doc-cover__foil tabular mt-1 block text-[42px] font-black leading-none tracking-[0.04em]">{props.code}</span>
+              </span>
+            </span>
+            <span className="doc-cover__action mt-5 flex items-center justify-center gap-2 rounded-full py-3 text-[13px] font-black">
+              轻触翻开护照 <span aria-hidden="true">›</span>
+            </span>
+            <span className="doc-cover__soft mt-3 block text-center text-[10px] font-bold leading-4">请截图保存编号 · 现场报分和找回都只用它</span>
+          </span>
+        </span>
+    </button>
+  );
+}
+
+/** The opened passport page fills the phone too. */
+function Briefing(props: { code: string; name: string; online: boolean; onClose: () => void; interactive: boolean }) {
+  return (
+    <main
+      className="passport-open-page"
+      aria-hidden={!props.interactive}
+      style={{ pointerEvents: props.interactive ? "auto" : "none" }}
+    >
+      <div className="passport-open-page__content">
+        <div className="flex items-end justify-between border-b-2 border-dashed border-line pb-4">
+          <div className="min-w-0">
+            <div className="font-mono text-[9px] font-black tracking-[0.22em] text-ink-dim">HOLDER · 持有人</div>
+            <div className="mt-1 truncate text-lg font-black">{props.name}</div>
+          </div>
+          <div className="text-right">
+            <div className="font-mono text-[9px] font-black tracking-[0.22em] text-ink-dim">LIFE NO.</div>
+            <div className="tabular mt-0.5 text-3xl font-black leading-none">{props.code}</div>
+          </div>
         </div>
 
-        <p className="rise mt-3 text-ink-dim text-xs font-semibold" style={{ "--i": 3 } as React.CSSProperties}>
-          请截图保存编号 —— 现场报分和找回护照都只用它
-        </p>
-
-        {/* rules as a journey timeline (real sequence) */}
-        <div className="w-full max-w-sm mt-9 space-y-0">
+        <div className="mt-4 flex-1 space-y-0">
           {RULES.map((r, i) => (
-            <div
-              key={r.t}
-              className="rise relative flex gap-4 pb-6 last:pb-0"
-              style={{ "--i": 4 + i } as React.CSSProperties}
-            >
-              {i < RULES.length - 1 && (
-                <div className="absolute left-[13px] top-8 bottom-0 w-0.5 bg-line" />
-              )}
-              <div className="h-7 w-7 shrink-0 rounded-full bg-foil text-ink flex items-center justify-center text-xs font-black tabular shadow-[0_2px_0_#e0a800]">
-                {i + 1}
-              </div>
+            <div key={r.t} className="relative flex gap-3 pb-3.5 last:pb-0">
+              {i < RULES.length - 1 && <div className="absolute bottom-0 left-[13px] top-8 w-0.5 bg-line" />}
+              <div className="tabular flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-foil text-xs font-black text-ink shadow-[0_2px_0_#e0a800]">{i + 1}</div>
               <div className="pt-0.5">
-                <div className="font-black text-ink">{r.t}</div>
-                <div className="text-sm font-semibold text-ink-dim mt-0.5 leading-relaxed">{r.d}</div>
+                <div className="text-sm font-black">{r.t}</div>
+                <div className="mt-0.5 text-[12px] font-semibold leading-[1.55] text-ink-dim">{r.d}</div>
               </div>
             </div>
           ))}
         </div>
 
-        <div className="rise mt-auto pt-10 text-center" style={{ "--i": 8 } as React.CSSProperties}>
-          <div className="dots text-ink-dim text-sm font-black">
-            等待主持人开始游戏<span>.</span><span>.</span><span>.</span>
-          </div>
-          <div className="text-ink-dim text-xs mt-2">同行方式和组队颜色会自动出现，不用刷新</div>
+        <div className="mt-1 flex items-center justify-center gap-1.5 border-t-2 border-dashed border-line pt-4 text-xs font-black text-ink-dim">
+          <ConnDot online={props.online} />
+          {props.online ? "已连接现场" : "重连中，护照编号仍保存在本机"}
         </div>
+        <button type="button" onClick={props.onClose} className="pressable mt-3 min-h-10 w-full rounded-full bg-ink text-xs font-black text-white shadow-[0_3px_0_#0f0d0a]">‹ 合上护照</button>
       </div>
-    </div>
+    </main>
   );
 }
 
@@ -465,5 +598,3 @@ function Reveal({ data, onDone }: { data: PollResult; onDone: () => void }) {
     </div>
   );
 }
-
-

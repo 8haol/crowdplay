@@ -166,3 +166,4 @@ Netlify（仓库已包含 SPA rewrite、安全响应头和静态资源缓存）�
 | 11_team_journey | 单码识别整队、混合门（分数或站数）、非阻塞随机事件、隐藏结果、整队 Token 成本 |
 | 12_single_score_event_review | 单一公开分数、事件库审核载荷（30/60/180）、`/library` 与后台同源、helper 不授权 |
 | 13_journey_stages | 每本护照恰好三段人生、站点门兜底、颁奖载荷（唯一队伍奖、过山车用落差） |
+| 14_registration_safety_contact | 加入幂等、选填联系方式隐私边界、迟到玩家 Solo |

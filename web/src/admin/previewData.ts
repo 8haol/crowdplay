@@ -42,8 +42,8 @@ const player = (
 });
 
 const PLAYERS: AdminPlayer[] = [
-  player("林沐恩", "427", 48, 7, 3, { identity: "duo", color_group: "navy", team_id: "t1", teammates: ["周以诺"] }),
-  player("周以诺", "183", 42, 6, 2, { identity: "duo", color_group: "navy", team_id: "t1", teammates: ["林沐恩"] }),
+  player("林沐恩", "427", 48, 7, 3, { contact: "WeChat: muen427", identity: "duo", color_group: "navy", team_id: "t1", teammates: ["周以诺"] }),
+  player("周以诺", "183", 42, 6, 2, { contact: "+44 7700 900183", identity: "duo", color_group: "navy", team_id: "t1", teammates: ["林沐恩"] }),
   player("陈思语", "274", 37, 5, 1, {
     identity: "trio",
     color_group: "coral",

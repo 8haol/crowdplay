@@ -93,6 +93,7 @@ export function PlayerDrawer(props: {
   const dirty = score !== "" || unlock || clearEffect || restoreToken || restore;
 
   const facts: Array<[string, string | number]> = [
+    ["联系方式", player.contact || "未填写"],
     ["同行", player.teammates.length > 0 ? player.teammates.join(" / ") : "独自同行"],
     ["身份", player.identity ?? "待分配"],
     ["个人总分", player.score],

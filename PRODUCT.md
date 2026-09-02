@@ -27,17 +27,26 @@ shareable keepsake badge.
 
 ## Brand voice
 
-夜航 (night flight) · 烫金 (foil-stamped) · 仪式感 (ceremony).
-The physical object is a midnight-blue passport: gold foil numerals, visa
-stamps, machine-readable code lines, boarding-pass perforations. Faith
-undertone is warm, not preachy: "我的恩典够你用的" (2 Cor 12:9),
-"You don't have to do life alone."
+明亮迎新 · 人生旅行 · 轻仪式感。
+
+The visual source of truth is the current app: a high-energy marigold and
+orange event space, warm-white paper documents, dark-brown ink, bold Chinese
+type, soft oversized circles, tactile shadows and small red/green accents.
+Passport covers, arrival cards, stamps, machine-readable lines and ticket
+perforations provide the travel metaphor, but should feel young and welcoming
+rather than official, luxurious or sombre. Large dark surfaces are reserved
+for primary buttons and the identity/team-colour reveal; they are not the
+default player-page background. Faith undertone is warm, not preachy: "我的恩典
+够你用的" (2 Cor 12:9), "You don't have to do life alone."
 
 ## Anti-references
 
 - Generic SaaS gradients, glassmorphism, hero-metric dashboards.
 - Cutesy game-show confetti UI; this is a keepsake, not a slot machine.
-- Cream-paper + terracotta "AI default" landing aesthetics.
+- Black-and-gold luxury branding, corporate navy, or a sombre official-document
+  aesthetic that fights the bright welcome-party setting.
+- Low-saturation beige + terracotta "AI default" landing aesthetics. Warm paper
+  is a supporting surface; marigold, orange and dark-brown contrast lead the app.
 
 ## Hard constraints
 

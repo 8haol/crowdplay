@@ -295,6 +295,8 @@ export interface LifeEventResult {
 }
 
 export interface AdminPlayer extends PlayerState {
+  /** Optional admin-only follow-up contact; never included in player/staff/board payloads. */
+  contact?: string | null;
   is_removed: boolean;
   created_at: string;
   attempt_count: number;

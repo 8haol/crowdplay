@@ -116,6 +116,8 @@ const ERROR_ZH: Record<string, string> = {
   BAD_STATION_NAME: "站点名称要 1~30 个字",
   BAD_SCORING_MODE: "计分方式不合法",
   BAD_NAME: "名字要 1~20 个字",
+  BAD_CONTACT: "联系方式最多 80 个字",
+  PLAYER_NAME_MISMATCH: "姓名与这个人生编号不一致，请重新核对",
   GAME_ENDED: "游戏已经结束啦",
   GAME_NOT_PLAYING: "游戏还没开始（或已结束），暂时不能操作",
   PLAYER_NOT_FOUND: "找不到玩家 {d}，请核对人生编号",

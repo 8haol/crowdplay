@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { rpc, errorText } from "../lib/api";
+import { useRef, useState } from "react";
+import { rpc, errorText, newIdemKey, RpcError } from "../lib/api";
 import { ActionButton, BrandMark, ErrorBanner, UpLink } from "../lib/ui";
 
 /* The join form is an "arrival card": a light paper immigration form
@@ -7,6 +7,21 @@ import { ActionButton, BrandMark, ErrorBanner, UpLink } from "../lib/ui";
 
 const cardInput =
   "mt-1.5 w-full rounded-[14px] border-2 border-transparent bg-[#fbf4e6] px-4 py-3.5 text-lg font-bold text-ink placeholder:text-[#b5a88c] outline-none transition-shadow duration-200 focus:bg-card focus:shadow-[0_0_0_3px_#ffc838]";
+
+function admissionKey(joinToken: string): string {
+  const storageKey = `lp_join_idem:${joinToken}`;
+  try {
+    const existing = localStorage.getItem(storageKey);
+    if (existing) return existing;
+    const created = newIdemKey();
+    localStorage.setItem(storageKey, created);
+    return created;
+  } catch {
+    // Private/locked-down webviews can deny storage; the in-memory key still
+    // protects retries and rapid taps for the lifetime of this page.
+    return newIdemKey();
+  }
+}
 
 export default function Join(props: {
   /** Fires the instant a passport exists, before the player taps anything.
@@ -20,10 +35,17 @@ export default function Join(props: {
 }) {
   const [mode, setMode] = useState<"join" | "recover">("join");
   const [name, setName] = useState("");
+  const [contact, setContact] = useState("");
   const [code, setCode] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+  const joinIdempotencyKey = useRef(admissionKey(props.joinToken));
+
+  const normalizedName = (value: string) => value.trim().replace(/\s+/g, "").toLocaleLowerCase();
 
   const join = async () => {
+    if (submittingRef.current) return;
     setErr(null);
     /*
      * Demo mode walks the whole flow instead of refusing at the first tap. The
@@ -34,10 +56,14 @@ export default function Join(props: {
       props.onCodeIssued(String(100 + Math.floor(Math.random() * 900)), name.trim() || "新朋友");
       return;
     }
+    submittingRef.current = true;
+    setSubmitting(true);
     try {
       const r = await rpc<{ player_id: string; code: string }>("join_by_link", {
         p_name: name,
         p_join_token: props.joinToken,
+        p_contact: contact.trim() || null,
+        p_idempotency_key: joinIdempotencyKey.current,
       });
       /*
        * Hand the code up immediately. The player row already exists server-side,
@@ -50,23 +76,35 @@ export default function Join(props: {
       props.onCodeIssued(r.code, name.trim());
     } catch (e) {
       setErr(errorText(e));
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
     }
   };
 
   const recover = async () => {
+    if (submittingRef.current) return;
     setErr(null);
     if (props.preview) {
       props.onJoined(code);
       return;
     }
+    submittingRef.current = true;
+    setSubmitting(true);
     try {
-      const r = await rpc<{ code: string }>("recover_by_link", {
+      const r = await rpc<{ code: string; name: string }>("recover_by_link", {
         p_join_token: props.joinToken,
         p_code: code,
       });
+      if (normalizedName(r.name) !== normalizedName(name)) {
+        throw new RpcError("PLAYER_NAME_MISMATCH");
+      }
       props.onJoined(r.code);
     } catch (e) {
       setErr(errorText(e));
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
     }
   };
 
@@ -88,7 +126,7 @@ export default function Join(props: {
           领取人生编号
         </h1>
         <p className="rise mt-2 max-w-xs text-center text-sm font-semibold text-ink-dim" style={{ "--i": 2 } as React.CSSProperties}>
-          {props.gameTitle ?? "本场活动"} · 填写姓名即可入场
+          {props.gameTitle ?? "本场活动"} · 填写姓名即可，联系方式选填
         </p>
 
         {/* arrival card */}
@@ -117,11 +155,36 @@ export default function Join(props: {
                   onChange={(event) => setName(event.target.value)}
                 />
               </label>
+              <label className="block">
+                <span className="text-[12px] font-black tracking-[0.12em] text-ink-dim">微信号 / WHATSAPP · 选填</span>
+                <input
+                  className={cardInput}
+                  placeholder="方便活动后联系你"
+                  maxLength={80}
+                  value={contact}
+                  onChange={(event) => setContact(event.target.value)}
+                />
+                <span className="mt-2 block text-[11px] font-semibold leading-5 text-ink-dim">
+                  仅供活动管理员后续联系；不显示在游戏、记分端或大屏。留空不影响参加。
+                </span>
+              </label>
               <ErrorBanner text={err} />
-              <ActionButton onClick={join} disabled={!name.trim()}>领取人生编号</ActionButton>
+              <ActionButton onClick={join} disabled={!name.trim() || submitting}>
+                {submitting ? "正在签发护照…" : "领取人生编号"}
+              </ActionButton>
             </div>
           ) : (
             <div className="mt-4 space-y-4">
+              <label className="block">
+                <span className="text-[12px] font-black tracking-[0.16em] text-ink-dim">登记姓名 · NAME</span>
+                <input
+                  className={cardInput}
+                  placeholder="登记时填写的姓名"
+                  maxLength={20}
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                />
+              </label>
               <label className="block">
                 <span className="text-[12px] font-black tracking-[0.16em] text-ink-dim">人生编号 · LIFE NO.</span>
                 <input
@@ -138,7 +201,9 @@ export default function Join(props: {
               <ErrorBanner text={err} />
               {/* Codes are 3 digits now; 4 stays accepted so a passport issued
                   by an older session can still be recovered. */}
-              <ActionButton onClick={recover} disabled={code.length < 3}>找回我的护照</ActionButton>
+              <ActionButton onClick={recover} disabled={code.length < 3 || !name.trim() || submitting}>
+                {submitting ? "正在核对…" : "找回我的护照"}
+              </ActionButton>
             </div>
           )}
         </div>

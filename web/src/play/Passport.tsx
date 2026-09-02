@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { errorText, newIdemKey, rpc } from "../lib/api";
 import type { LifeEventChoiceResult, PendingLifeEvent, PollResult, Station } from "../lib/types";
 import { IDENTITY_SHORT, IDENTITY_ZH, colorOf, journeyProgress, soloColor } from "../lib/types";
@@ -8,6 +8,16 @@ import { darken, readableOn } from "../lib/color";
 import { useCountUp } from "../lib/useCountUp";
 
 const STAGE_ZH = ["", "第一段人生", "第二段人生", "最后一段人生"];
+const PASSPORT_STYLES = ["cover", "visa", "epass"] as const;
+const PASSPORT_PREVIEW_COLORS = [
+  { slug: "teal", label: "墨松" },
+  { slug: "navy", label: "藏青" },
+  { slug: "maroon", label: "酒红" },
+  { slug: "orange", label: "橙" },
+  { slug: "mint", label: "薄荷" },
+  { slug: "gold", label: "金棕" },
+] as const;
+type PassportStyle = (typeof PASSPORT_STYLES)[number];
 
 export default function Passport(props: {
   data: PollResult;
@@ -17,6 +27,7 @@ export default function Passport(props: {
 }) {
   const { data, stations, online } = props;
   const { player, attempts, life_events } = data;
+  const [searchParams, setSearchParams] = useSearchParams();
   const [toast, setToast] = useState<string | null>(null);
   const prev = useRef<PollResult | null>(null);
   const shownScore = useCountUp(player.score);
@@ -81,8 +92,17 @@ export default function Passport(props: {
     );
   }
 
+  const requestedStyle = searchParams.get("passportStyle");
+  const passportStyle: PassportStyle = PASSPORT_STYLES.includes(requestedStyle as PassportStyle)
+    ? requestedStyle as PassportStyle
+    : "cover";
+  const showStylePicker = searchParams.get("preview") === "passport";
+  const requestedColor = searchParams.get("passportColor");
+  const previewColor = showStylePicker && PASSPORT_PREVIEW_COLORS.some(({ slug }) => slug === requestedColor)
+    ? requestedColor
+    : null;
   const id = IDENTITY_ZH[player.identity ?? "solo"];
-  const color = colorOf(player.color_group) ?? (player.identity === "solo" ? soloColor(player.code) : null);
+  const color = colorOf(previewColor ?? player.color_group) ?? (player.identity === "solo" ? soloColor(player.code) : null);
   const headerBg = color?.hex ?? "#ffffff";
   const headerInk = color ? readableOn(headerBg) : "#26211b";
   const headerSoft = color ? (headerInk === "#FFFFFF" ? "rgba(255,255,255,.74)" : "rgba(0,0,0,.6)") : "#7d7261";
@@ -96,68 +116,77 @@ export default function Passport(props: {
     <div className="relative min-h-dvh overflow-x-hidden">
       <div className="night-sky" />
       <div className="relative z-10 pb-12">
-        {/* Player summary — painted in the player's own team colour so a Duo or
-            Trio can find each other by holding up their passports. */}
-        <header
-          className="rise mx-auto mt-5 w-[calc(100%-2rem)] max-w-2xl rounded-[28px] pr-5 pl-12 pt-5 pb-5 sm:px-5"
-          style={{
-            "--i": 0,
-            background: headerBg,
-            color: headerInk,
-            boxShadow: color ? `0 3px 0 ${darken(headerBg, 0.3)}` : "0 3px 0 #f0e4ce",
-          } as React.CSSProperties}
-        >
-          <div className="flex items-center justify-between text-[10px] tracking-[0.3em]" style={{ color: headerSoft }}>
-            <span className="font-black">LIFE PASSPORT</span>
-            <span className="flex items-center gap-1.5">
-              <ConnDot online={online} />
-              NO. {player.code}
-            </span>
-          </div>
-
-          <div className="mt-4 flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="truncate text-[26px] font-black leading-tight">{player.name}</div>
-              <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[13px]">
-                <span className="font-bold" style={{ color: headerSoft }}>{id.name}</span>
-                {color && (
-                  <span
-                    className="rounded-full px-2 py-0.5 text-[12px] font-black"
-                    style={{ background: chipBg, color: headerInk === "#FFFFFF" ? "#FFFFFF" : "#26211b" }}
-                  >
-                    {color.zh}
-                  </span>
-                )}
-              </div>
+        {showStylePicker && (
+          <div className="rise mx-auto mt-4 w-[calc(100%-2rem)] max-w-2xl" style={{ "--i": 0 } as React.CSSProperties}>
+            <div className="passport-style-picker" aria-label="护照主面板设计方案">
+              {([
+                ["cover", "01 经典封皮"],
+                ["visa", "02 签证内页"],
+                ["epass", "03 电子护照"],
+              ] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className="pressable"
+                  aria-pressed={passportStyle === value}
+                  onClick={() => {
+                    const next = new URLSearchParams(searchParams);
+                    next.set("passportStyle", value);
+                    setSearchParams(next, { replace: true });
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
-            <div className="shrink-0 rounded-2xl bg-white px-5 py-3 text-right shadow-[0_2px_0_rgba(0,0,0,.16)]">
-              <div className="text-[9px] font-black tracking-[0.15em] text-[#806321]">我的总分</div>
-              <div className="tabular mt-1 text-5xl font-black leading-none text-ink">{shownScore}</div>
-            </div>
-          </div>
-
-          <JourneyStrip player={player} inkColor={headerInk} softColor={headerSoft} lineColor={headerLine} />
-
-          {/* One code, full stop. It is both the credential the player keeps and
-              the only thing a station ever needs typed — the old short team
-              code was a second number nobody could remember. */}
-          <div className="mt-4 grid gap-2" style={{ gridTemplateColumns: player.teammates.length > 0 ? "1fr 1fr" : "1fr" }}>
-            <div className="rounded-xl bg-white px-3 py-2.5 text-ink">
-              <div className="text-[9px] font-black tracking-[0.16em] text-ink-dim">现场报这个 · 人生编号</div>
-              <div className="tabular mt-1 text-3xl font-black leading-none tracking-[0.14em]">{player.code}</div>
-            </div>
-            {player.teammates.length > 0 && (
-              <div className="rounded-xl px-3 py-2.5" style={{ background: chipBg, color: headerInk === "#FFFFFF" ? "#FFFFFF" : "#26211b" }}>
-                <div className="text-[9px] font-black tracking-[0.16em]" style={{ color: headerInk === "#FFFFFF" ? "rgba(255,255,255,.8)" : "#7d7261" }}>
-                  同行 · {IDENTITY_SHORT[player.identity ?? "solo"]}队
-                </div>
-                <div className="mt-1 text-[15px] font-black leading-tight">
-                  {player.teammates.join(" / ")}
+            {passportStyle === "cover" && (
+              <div className="passport-color-picker" aria-label="经典封皮颜色预览">
+                <span>队伍色自动套用</span>
+                <div>
+                  {PASSPORT_PREVIEW_COLORS.map(({ slug, label }) => {
+                    const swatch = colorOf(slug);
+                    const active = (previewColor ?? player.color_group) === slug;
+                    return (
+                      <button
+                        key={slug}
+                        type="button"
+                        className="pressable"
+                        aria-label={`${label}封皮`}
+                        aria-pressed={active}
+                        title={label}
+                        style={{ "--swatch": swatch?.hex ?? "#888888" } as React.CSSProperties}
+                        onClick={() => {
+                          const next = new URLSearchParams(searchParams);
+                          next.set("passportStyle", "cover");
+                          next.set("passportColor", slug);
+                          setSearchParams(next, { replace: true });
+                        }}
+                      >
+                        <span aria-hidden="true" />
+                        <small>{label}</small>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
           </div>
-        </header>
+        )}
+
+        <PassportHero
+          styleName={passportStyle}
+          player={player}
+          online={online}
+          shownScore={shownScore}
+          identityName={id.name}
+          identityShort={IDENTITY_SHORT[player.identity ?? "solo"]}
+          teamColorName={color?.zh ?? null}
+          teamColor={headerBg}
+          teamInk={headerInk}
+          teamSoft={headerSoft}
+          teamLine={headerLine}
+          teamChip={chipBg}
+        />
 
         {/* status effect notice */}
         {player.status_effect?.type === "cap_next" && (
@@ -284,6 +313,205 @@ export default function Passport(props: {
         )}
       </div>
     </div>
+  );
+}
+
+/* ---------------------------------------------------------- passport hero */
+
+type PassportHeroProps = {
+  styleName: PassportStyle;
+  player: PollResult["player"];
+  online: boolean;
+  shownScore: number;
+  identityName: string;
+  identityShort: string;
+  teamColorName: string | null;
+  teamColor: string;
+  teamInk: string;
+  teamSoft: string;
+  teamLine: string;
+  teamChip: string;
+};
+
+function PassportHero(props: PassportHeroProps) {
+  if (props.styleName === "visa") return <VisaPageHero {...props} />;
+  if (props.styleName === "epass") return <ElectronicPassportHero {...props} />;
+  return <ClassicCoverHero {...props} />;
+}
+
+export function PassportGlobe({ className = "" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 120 120" role="img" aria-label="人生护照地球纹章">
+      <circle cx="60" cy="60" r="46" fill="none" stroke="currentColor" strokeWidth="2" />
+      <ellipse cx="60" cy="60" rx="20" ry="46" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M18 45h84M16 60h88M18 75h84M60 14v92" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M28 28c15 11 49 11 64 0M28 92c15-11 49-11 64 0" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="60" cy="60" r="54" fill="none" stroke="currentColor" strokeWidth="1" strokeDasharray="2 5" />
+    </svg>
+  );
+}
+
+function ClassicCoverHero(props: PassportHeroProps) {
+  const { player } = props;
+  return (
+    <header
+      className="passport-panel passport-cover rise"
+      style={{
+        "--i": 0,
+        "--passport-accent": props.teamColor,
+        "--passport-accent-dark": darken(props.teamColor, 0.32),
+        "--passport-cover-ink": props.teamInk,
+        "--passport-cover-soft": props.teamSoft,
+        "--passport-cover-line": props.teamLine,
+      } as React.CSSProperties}
+    >
+      <span className="passport-cover__spine" aria-hidden="true" />
+      <div className="passport-cover__topline">
+        <span>THE REPUBLIC OF LIFE</span>
+        <span className="flex items-center gap-1.5"><ConnDot online={props.online} /> VALID</span>
+      </div>
+
+      <div className="passport-cover__title">
+        <PassportGlobe className="passport-cover__emblem" />
+        <div>
+          <div className="passport-cover__zh">人生护照</div>
+          <div className="passport-cover__en">LIFE PASSPORT</div>
+        </div>
+        <div className="passport-cover__score" aria-label={`我的总分 ${props.shownScore}`}>
+          <span>总分</span>
+          <strong className="tabular">{props.shownScore}</strong>
+        </div>
+      </div>
+
+      <div className="passport-cover__holder">
+        <div>
+          <span>持照人 / HOLDER</span>
+          <strong>{player.name}</strong>
+        </div>
+        <div>
+          <span>旅行身份 / CLASS</span>
+          <strong>{props.identityName}{props.teamColorName ? ` · ${props.teamColorName}` : ""}</strong>
+        </div>
+      </div>
+
+      <JourneyStrip player={player} inkColor={props.teamInk} softColor={props.teamSoft} lineColor={props.teamLine} />
+
+      <div className="passport-cover__credential">
+        <div>
+          <span>人生编号 · 现场报这个</span>
+          <strong className="tabular">{player.code}</strong>
+        </div>
+        {player.teammates.length > 0 && (
+          <div className="passport-cover__companions">
+            <span>同行 · {props.identityShort}队</span>
+            <strong>{player.teammates.join(" / ")}</strong>
+          </div>
+        )}
+      </div>
+    </header>
+  );
+}
+
+function VisaPageHero(props: PassportHeroProps) {
+  const { player } = props;
+  return (
+    <header
+      className="passport-panel passport-visa rise"
+      style={{ "--i": 0, "--passport-accent": props.teamColor } as React.CSSProperties}
+    >
+      <div className="passport-visa__binding" aria-hidden="true" />
+      <div className="passport-visa__heading">
+        <div>
+          <span>PERSONAL PARTICULARS</span>
+          <strong>人生旅行证件</strong>
+        </div>
+        <div className="text-right">
+          <span className="flex items-center justify-end gap-1.5"><ConnDot online={props.online} /> LIVE RECORD</span>
+          <strong className="tabular">P · {player.code}</strong>
+        </div>
+      </div>
+
+      <div className="passport-visa__identity">
+        <div className="passport-visa__portrait">
+          <span>{player.name.slice(0, 1)}</span>
+          <small>持照人</small>
+        </div>
+        <dl className="passport-visa__fields">
+          <div><dt>姓名 / NAME</dt><dd>{player.name}</dd></div>
+          <div><dt>旅行身份 / CLASS</dt><dd>{props.identityName}</dd></div>
+          <div><dt>同行者 / COMPANIONS</dt><dd>{player.teammates.length ? player.teammates.join("、") : "独立旅行"}</dd></div>
+          <div><dt>签发状态 / STATUS</dt><dd>{props.teamColorName ? `${props.teamColorName} · ` : ""}旅程进行中</dd></div>
+        </dl>
+        <div className="passport-visa__stamp">
+          <span>POINTS</span>
+          <strong className="tabular">{props.shownScore}</strong>
+          <span>VALID SCORE</span>
+        </div>
+      </div>
+
+      <JourneyStrip player={player} inkColor="#314c52" softColor="#756b5b" lineColor="#c9bda7" />
+
+      <div className="passport-visa__mrz" aria-label={`人生编号 ${player.code}`}>
+        <span>P&lt;LIFE&lt;{player.name.replace(/\s/g, "<")}&lt;&lt;&lt;{props.identityShort}&lt;&lt;&lt;&lt;&lt;&lt;</span>
+        <span>{player.code}LIFE{String(player.stations_done).padStart(2, "0")}{String(player.life_events_done).padStart(2, "0")}&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;</span>
+      </div>
+    </header>
+  );
+}
+
+function PassportChip() {
+  return (
+    <svg viewBox="0 0 76 58" aria-hidden="true">
+      <rect x="2" y="2" width="72" height="54" rx="11" fill="none" stroke="currentColor" strokeWidth="2" />
+      <path d="M27 3v52M49 3v52M3 20h21l8 9-8 9H3M73 20H52l-8 9 8 9h21" fill="none" stroke="currentColor" strokeWidth="2" />
+    </svg>
+  );
+}
+
+function ElectronicPassportHero(props: PassportHeroProps) {
+  const { player } = props;
+  return (
+    <header
+      className="passport-panel passport-epass rise"
+      style={{ "--i": 0, "--passport-accent": props.teamColor } as React.CSSProperties}
+    >
+      <div className="passport-epass__scan" aria-hidden="true" />
+      <div className="passport-epass__heading">
+        <div>
+          <span>DIGITAL TRAVEL DOCUMENT</span>
+          <strong>人生护照</strong>
+        </div>
+        <div className="passport-epass__status"><ConnDot online={props.online} /> ACTIVE</div>
+      </div>
+
+      <div className="passport-epass__main">
+        <div className="passport-epass__chip"><PassportChip /></div>
+        <div className="passport-epass__holder">
+          <span>HOLDER · P/{player.code}</span>
+          <strong>{player.name}</strong>
+          <small>{props.identityName}{props.teamColorName ? ` · ${props.teamColorName}` : ""}</small>
+        </div>
+        <div className="passport-epass__score">
+          <span>CURRENT SCORE</span>
+          <strong className="tabular">{props.shownScore}</strong>
+        </div>
+      </div>
+
+      <JourneyStrip player={player} inkColor="#f5e6b8" softColor="rgba(245,230,184,.68)" lineColor="rgba(245,230,184,.22)" />
+
+      <div className="passport-epass__footer">
+        <div>
+          <span>人生编号 · 现场报这个</span>
+          <strong className="tabular">{player.code}</strong>
+        </div>
+        {player.teammates.length > 0 && (
+          <div>
+            <span>COMPANIONS · {props.identityShort}</span>
+            <strong>{player.teammates.join(" / ")}</strong>
+          </div>
+        )}
+      </div>
+    </header>
   );
 }
 

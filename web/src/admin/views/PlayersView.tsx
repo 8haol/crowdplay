@@ -27,6 +27,7 @@ export function PlayersView({
         !needle ||
         player.name.toLowerCase().includes(needle) ||
         player.code.includes(needle) ||
+        player.contact?.toLowerCase().includes(needle) ||
         player.teammates.some((name) => name.toLowerCase().includes(needle)),
       )
       .filter((player) =>
@@ -56,6 +57,7 @@ export function PlayersView({
                 players.map((player) => ({
                   姓名: player.name,
                   人生编号: player.code,
+                  微信或WhatsApp: player.contact ?? "",
                   同行: player.teammates.join(" / "),
                   身份: player.identity,
                   总分: player.score,
@@ -79,7 +81,7 @@ export function PlayersView({
             <input
               className={`${inputClass} !mt-0 pl-10`}
               style={inputStyle}
-              placeholder="搜索姓名、队友或人生编号"
+              placeholder="搜索姓名、联系方式、队友或人生编号"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
@@ -152,6 +154,11 @@ export function PlayersView({
                             <div className="font-mono text-[11px]" style={{ color: T.inkFaint }}>
                               人生编号 {player.code}
                             </div>
+                            {player.contact && (
+                              <div className="mt-0.5 truncate text-[11px] font-semibold" style={{ color: T.inkSoft }}>
+                                {player.contact}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </td>

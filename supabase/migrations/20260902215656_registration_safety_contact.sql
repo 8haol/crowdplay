@@ -1,4 +1,4 @@
--- Registration safety and optional follow-up contact.
+-- Life Passport registration safety and optional follow-up contact.
 --
 -- Contact details are private event data. They are deliberately omitted from
 -- _player_json, so player polling, staff lookup, teammates and the projector

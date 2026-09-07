@@ -25,7 +25,6 @@ export default function MainStation({
   const [identifier, setIdentifier] = useState("");
   const [team, setTeam] = useState<StaffTeamLookup | null>(null);
   const [choice, setChoice] = useState<number | "failed" | null>(null);
-  const [freeScore, setFreeScore] = useState("");
   const [idemKey, setIdemKey] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [result, setResult] = useState<AwardTeamResult | null>(null);
@@ -41,7 +40,6 @@ export default function MainStation({
     if (staffKey === PREVIEW_STAFF_KEY) {
       setTeam(PREVIEW_TEAM);
       setChoice(null);
-      setFreeScore("");
       setIdemKey("preview");
       return;
     }
@@ -52,7 +50,6 @@ export default function MainStation({
       });
       setTeam(found);
       setChoice(null);
-      setFreeScore("");
       setIdemKey(newIdemKey()); // one key per confirmed batch; retries reuse it
     } catch (error) {
       setErr(errorText(error));
@@ -95,7 +92,6 @@ export default function MainStation({
     setIdentifier("");
     setTeam(null);
     setChoice(null);
-    setFreeScore("");
     setResult(null);
     setErr(null);
   };
@@ -211,38 +207,16 @@ export default function MainStation({
               <div className="text-[15px] font-black">这一队本次表现如何？</div>
               <p className="mt-1 text-xs font-semibold text-ink-dim">
                 {usesFreeScore
-                  ? "根据现场表现输入 0–10 的整数分；0 分也是有效成绩"
+                  ? "根据现场表现点选 0–10 分；0 分也是有效成绩"
                   : station.scoring_mode === "graded"
                     ? "3 分 = 勉强完成 · 6 分 = 顺利完成 · 9 分 = 表现出色"
                     : "完成即 6 分，没完成选失败"}
               </p>
               {usesFreeScore ? (
-                <label className="mt-4 block rounded-[18px] border-2 border-line bg-white px-4 py-4 focus-within:border-ink">
-                  <span className="block text-[11px] font-black tracking-[0.14em] text-ink-dim">本次得分</span>
-                  <span className="mt-2 flex items-end gap-3">
-                    <input
-                      type="number"
-                      min={0}
-                      max={10}
-                      step={1}
-                      inputMode="numeric"
-                      value={freeScore}
-                      onChange={(event) => {
-                        const next = event.target.value;
-                        setFreeScore(next);
-                        const parsed = Number(next);
-                        setChoice(next !== "" && Number.isInteger(parsed) && parsed >= 0 && parsed <= 10 ? parsed : null);
-                      }}
-                      placeholder="0–10"
-                      className="tabular min-w-0 flex-1 bg-transparent text-[3rem] font-black leading-none outline-none placeholder:text-[#c9bea9]"
-                      aria-label="输入 0 到 10 分"
-                    />
-                    <span className="pb-1 text-lg font-black text-ink-dim">/ 10 分</span>
-                  </span>
-                  {freeScore !== "" && choice == null && (
-                    <span className="mt-2 block text-xs font-black text-seal">请输入 0–10 之间的整数</span>
-                  )}
-                </label>
+                <ScorePad
+                  value={typeof choice === "number" ? choice : null}
+                  onChange={setChoice}
+                />
               ) : (
                 <div className={`mt-4 grid gap-2 ${scoreChoices.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
                   {scoreChoices.map((score) => (
@@ -308,6 +282,62 @@ export default function MainStation({
         <ActionButton onClick={lookup} disabled={identifier.length < 3}>识别整队 →</ActionButton>
       </StickyBar>
     </>
+  );
+}
+
+/** One-tap 0–10 score selector, deliberately matching the passport CodePad. */
+function ScorePad({ value, onChange }: { value: number | null; onChange: (score: number | null) => void }) {
+  return (
+    <div className="mt-4">
+      <div
+        className="tabular flex min-h-[5.5rem] items-end justify-center gap-2 rounded-[20px] px-4 py-4"
+        style={{ background: "#fff", border: "2px solid #e8dcc4" }}
+        aria-live="polite"
+      >
+        <span
+          className="text-[3.25rem] font-black leading-none"
+          style={{ color: value == null ? "#c9bca1" : "#26211b" }}
+        >
+          {value ?? "—"}
+        </span>
+        <span className="pb-1 text-sm font-black text-ink-dim">/ 10 分</span>
+      </div>
+
+      <div className="mt-3 grid grid-cols-3 gap-2" aria-label="选择 0 到 10 分">
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((score) => (
+          <ScoreKey key={score} score={score} active={value === score} onClick={() => onChange(score)} />
+        ))}
+        <button
+          type="button"
+          onClick={() => onChange(null)}
+          className="pressable rounded-[16px] py-4 text-sm font-black"
+          style={{ background: "#fff", border: "1px solid #e8dcc4", color: "#26211b" }}
+        >
+          清空
+        </button>
+        <ScoreKey score={0} active={value === 0} onClick={() => onChange(0)} />
+        <ScoreKey score={10} active={value === 10} onClick={() => onChange(10)} />
+      </div>
+    </div>
+  );
+}
+
+function ScoreKey({ score, active, onClick }: { score: number; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      aria-label={`${score} 分`}
+      className="pressable tabular rounded-[16px] py-4 text-2xl font-black"
+      style={
+        active
+          ? { background: "#26211b", border: "1px solid #26211b", color: "#fff" }
+          : { background: "#fff", border: "1px solid #e8dcc4", color: "#26211b" }
+      }
+    >
+      {score}
+    </button>
   );
 }
 

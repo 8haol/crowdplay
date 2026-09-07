@@ -29,8 +29,8 @@ create table stations (
   slug         text not null unique,
   name_zh      text not null,
   type         text not null check (type in ('main', 'life_event', 'grace')),
-  -- graded = staff picks 3/6/9; fixed = completing awards exactly 6
-  scoring_mode text check (scoring_mode in ('graded', 'fixed')),
+  -- graded = staff picks 3/6/9; free = staff enters 0..10; fixed = exactly 6
+  scoring_mode text check (scoring_mode in ('graded', 'free', 'fixed')),
   sort_order   int not null default 0
 );
 

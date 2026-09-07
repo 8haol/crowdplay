@@ -141,12 +141,43 @@ function effectOf(outcome: LifeEventOutcomeDefinition): string {
 
 const makeOutcome = (key: string, label: string, detail: string, delta: number, weight: number, tone: LifeEventOutcomeDefinition["tone"], multiplier?: number): LifeEventOutcomeDefinition => ({ key, label, detail, delta, weight, tone, ...(multiplier ? { multiplier } : {}) });
 
-const PREVIEW_CATALOG: LifeEventCatalog = {
+const PREVIEW_CATALOG_RAW: LifeEventCatalog = {
   stats: { scenes: 4, choices: 8, outcomes: 24, by_audience: { all: 1, solo: 1, duo: 1, trio: 1 } },
   scenes: [
-    { key: "all_last_bus", audience: "all", title: "末班车刚刚开走", prompt: "你站在陌生的站牌下，手机只剩 8% 电。今晚要怎么回去？", emoji: "🚌", active: true, sort_order: 1, choices: [{ key: "walk", label: "沿着地图走回去", outcomes: [makeOutcome("shortcut", "发现河边近路", "绕开拥堵，还看到一段漂亮夜景。", 9, 30, "good"), makeOutcome("rain", "突然下起大雨", "鞋袜湿透，回程比想象中狼狈。", -6, 35, "bad"), makeOutcome("company", "遇见同路的人", "一路聊天，陌生城市没那么陌生。", 6, 35, "good")] }, { key: "taxi", label: "叫一辆出租车", outcomes: [makeOutcome("share", "有人提出拼车", "车费减半，还交换了旅行故事。", 6, 40, "good"), makeOutcome("surge", "遇到高峰加价", "安全到家，但钱包有点受伤。", -3, 35, "bad"), makeOutcome("driver", "司机送你到门口", "一次可靠的选择结束了慌乱。", 3, 25, "neutral")] }] },
-    { key: "solo_blackout", audience: "solo", title: "单人公寓突然停电", prompt: "夜里整栋楼停电，你独自在房间，外面也没有明显动静。", emoji: "🕯️", active: true, sort_order: 105, choices: [{ key: "check", label: "带手电去楼道查看", outcomes: [makeOutcome("neighbors", "邻居们正一起找原因", "大家分工，很快联系到物业。", 6, 40, "good"), makeOutcome("stair", "在楼梯上崴到脚", "问题没找到，行动还变得更慢。", -6, 20, "bad"), makeOutcome("switch", "只是自家开关跳闸", "你第一次独立解决了这个问题。", 9, 40, "good")] }, { key: "wait", label: "留在房里等待恢复", outcomes: [makeOutcome("stars", "窗外星星突然很清楚", "没有电的半小时安静得难得。", 6, 30, "good"), makeOutcome("long", "停电持续到凌晨", "手机没电，冰箱也开始升温。", 0, 35, "bad", 50), makeOutcome("call", "一通久违的电话陪你等完", "黑暗反而让一段关系重新连上。", 9, 35, "good")] }] },
+    { key: "all_last_bus", audience: "all", title: "末班车刚刚开走", prompt: "你站在陌生的站牌下，手机只剩 8% 电。今晚要怎么回去？", emoji: "🚌", active: true, sort_order: 1, choices: [{ key: "walk", label: "沿着地图走回去", outcomes: [makeOutcome("shortcut", "发现河边近路", "绕开拥堵，还看到一段漂亮夜景。", 9, 20, "good"), makeOutcome("rain", "突然下起大雨", "鞋袜湿透，回程比想象中狼狈。", -6, 60, "bad"), makeOutcome("company", "遇见同路的人", "一路聊天，陌生城市没那么陌生。", 6, 20, "good")] }, { key: "taxi", label: "叫一辆出租车", outcomes: [makeOutcome("share", "有人提出拼车", "车费减半，还交换了旅行故事。", 6, 25, "good"), makeOutcome("surge", "遇到高峰加价", "安全到家，但钱包有点受伤。", -3, 60, "bad"), makeOutcome("driver", "司机送你到门口", "一次可靠的选择结束了慌乱。", 3, 15, "good")] }] },
+    { key: "solo_blackout", audience: "solo", title: "单人公寓突然停电", prompt: "夜里整栋楼停电，你独自在房间，外面也没有明显动静。", emoji: "🕯️", active: true, sort_order: 105, choices: [{ key: "check", label: "带手电去楼道查看", outcomes: [makeOutcome("neighbors", "邻居们正一起找原因", "大家分工，很快联系到物业。", 6, 20, "good"), makeOutcome("stair", "在楼梯上崴到脚", "问题没找到，行动还变得更慢。", -6, 60, "bad"), makeOutcome("switch", "只是自家开关跳闸", "你第一次独立解决了这个问题。", 9, 20, "good")] }, { key: "wait", label: "留在房里等待恢复", outcomes: [makeOutcome("stars", "窗外星星突然很清楚", "没有电的半小时安静得难得。", 6, 20, "good"), makeOutcome("long", "停电持续到凌晨", "手机没电，冰箱也开始升温。", 0, 60, "bad", 50), makeOutcome("call", "一通久违的电话陪你等完", "黑暗反而让一段关系重新连上。", 9, 20, "good")] }] },
     { key: "duo_menu", audience: "duo", title: "双人默契菜单", prompt: "你们必须背对背各选一道菜；选中同一道就有隐藏奖励。", emoji: "🍜", active: true, sort_order: 203, choices: [{ key: "favorite", label: "各自选自己最想吃的", outcomes: [makeOutcome("match", "答案完全一致", "原来你们的默契藏在胃里。", 9, 35, "good"), makeOutcome("different", "一个辣一个甜", "完全不同，但正好可以交换着尝。", 3, 45, "neutral"), makeOutcome("soldout", "两道菜都刚好售罄", "默契还没验证，厨房先给了答案。", -3, 20, "bad")] }, { key: "predict", label: "猜队友会选什么", outcomes: [makeOutcome("readmind", "准确猜中队友", "对方惊讶得重新看了你一眼。", 9, 30, "good"), makeOutcome("both", "两人都在猜对方", "交叉错过，却成了最好笑的结果。", 3, 45, "neutral"), makeOutcome("assume", "猜测和现实差很远", "你发现自己其实还不够了解对方。", -3, 25, "bad")] }] },
     { key: "trio_vote", audience: "trio", title: "三人投票僵局", prompt: "你们要在三个方案里选一个，恰好每个人支持不同选项。", emoji: "🗳️", active: true, sort_order: 301, choices: [{ key: "pitch", label: "每人用二十秒推销方案", outcomes: [makeOutcome("consensus", "一个理由说服所有人", "被理解比赢得投票更重要。", 9, 35, "good"), makeOutcome("louder", "推销变成抢话", "每个人都说得更多，听得更少。", -6, 25, "bad"), makeOutcome("merge", "拼出第四个方案", "没有任何人全赢，却比原选项都好。", 6, 40, "good")] }, { key: "random", label: "交给随机转盘决定", outcomes: [makeOutcome("fun", "抽中的方案意外好玩", "三个人都放松下来。", 6, 40, "good"), makeOutcome("blame", "结果不好开始怪运气", "没有人负责，也没有人满意。", -3, 35, "bad"), makeOutcome("jackpot", "转盘触发隐藏选项", "一个惊喜改变了整天。", 9, 25, "good")] }] },
   ],
+};
+
+// Keep the development preview under the same probability invariant as the
+// database migration, so reviewers never see a misleading old distribution.
+const PREVIEW_CATALOG: LifeEventCatalog = {
+  ...PREVIEW_CATALOG_RAW,
+  scenes: PREVIEW_CATALOG_RAW.scenes.map((scene) => ({
+    ...scene,
+    choices: scene.choices.map((choice) => {
+      const isPositive = (outcome: LifeEventOutcomeDefinition) =>
+        (outcome.multiplier ?? 100) > 100
+        || ((outcome.multiplier ?? 100) === 100 && (outcome.delta ?? 0) > 0);
+      const positiveTotal = choice.outcomes.filter(isPositive).reduce((sum, outcome) => sum + outcome.weight, 0);
+      const nonpositiveTotal = choice.outcomes.filter((outcome) => !isPositive(outcome)).reduce((sum, outcome) => sum + outcome.weight, 0);
+      return {
+        ...choice,
+        outcomes: choice.outcomes.map((outcome) => {
+          const positive = isPositive(outcome);
+          const weight = positive
+            ? Math.max(1, Math.floor(outcome.weight * 40 / Math.max(1, positiveTotal)))
+            : Math.max(1, Math.ceil(outcome.weight * 60 / Math.max(1, nonpositiveTotal)));
+          const tone = positive
+            ? "good"
+            : (outcome.multiplier ?? 100) < 100 || (outcome.delta ?? 0) < 0
+              ? "bad"
+              : "neutral";
+          return { ...outcome, weight, tone };
+        }),
+      };
+    }),
+  })),
 };

@@ -3,7 +3,7 @@ import type { PollResult, Station } from "../lib/types";
 export const PREVIEW_STATIONS: Station[] = [
   { id: 1, slug: "memory", name_zh: "记忆与观察", type: "main", scoring_mode: "graded", sort_order: 1 },
   { id: 2, slug: "music", name_zh: "音乐之声", type: "main", scoring_mode: "graded", sort_order: 2 },
-  { id: 3, slug: "british", name_zh: "英伦百事通", type: "main", scoring_mode: "graded", sort_order: 3 },
+  { id: 3, slug: "interview", name_zh: "灵魂拷问", type: "main", scoring_mode: "free", sort_order: 3 },
   { id: 4, slug: "teamwork", name_zh: "同心协力", type: "main", scoring_mode: "fixed", sort_order: 4 },
   { id: 5, slug: "language", name_zh: "你画我猜", type: "main", scoring_mode: "graded", sort_order: 5 },
   { id: 6, slug: "balance", name_zh: "人生平衡", type: "main", scoring_mode: "fixed", sort_order: 6 },

@@ -58,6 +58,12 @@ export const PREVIEW_TEAM: StaffTeamLookup = {
   attempted_station_ids: [1, 2, 3, 4],
   retry_station_ids: [],
   failed_station_ids: [2],
+  station_results: [
+    { station_id: 1, score: 9, status: "passed" },
+    { station_id: 2, score: 0, status: "failed" },
+    { station_id: 3, score: 4, status: "passed" },
+    { station_id: 4, score: 6, status: "passed" },
+  ],
   all_tokens_available: true,
 };
 

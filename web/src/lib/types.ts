@@ -235,6 +235,7 @@ export interface StaffTeamLookup {
   attempted_station_ids?: number[];
   retry_station_ids?: number[];
   failed_station_ids?: number[];
+  station_results?: Array<{ station_id: number; score: number; status: "passed" | "failed" }>;
   all_tokens_available?: boolean;
 }
 
@@ -262,7 +263,7 @@ export interface Station {
   slug: string;
   name_zh: string;
   type: "main" | "life_event" | "grace";
-  scoring_mode: "graded" | "fixed" | null;
+  scoring_mode: "graded" | "free" | "fixed" | null;
   sort_order: number;
 }
 

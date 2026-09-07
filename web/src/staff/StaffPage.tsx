@@ -103,6 +103,7 @@ export default function StaffPage() {
 
 function stationSubtitle(station: Station): string {
   if (station.type === "main") {
+    if (station.scoring_mode === "free") return "整队一次记分 · 自由输入 0–10 分";
     return station.scoring_mode === "graded" ? "整队一次记分 · 3 / 6 / 9 或失败" : "整队一次记分 · 完成 6 分或失败";
   }
   if (station.type === "life_event") return "玩家在自己手机上完成，无需值守";

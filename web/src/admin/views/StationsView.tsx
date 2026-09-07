@@ -53,7 +53,7 @@ export function StationsView({
                     <h2 className="font-black">{station.name_zh}</h2>
                     <div className="text-[11px] font-bold" style={{ color: T.inkFaint }}>
                       {station.type === "main"
-                        ? station.scoring_mode === "graded" ? "3 / 6 / 9 分级计分" : "固定 6 分"
+                        ? station.scoring_mode === "graded" ? "3 / 6 / 9 分级计分" : station.scoring_mode === "free" ? "0–10 自由计分" : "固定 6 分"
                         : station.type === "life_event" ? "手机自动事件（无需值守）" : "Help Token 兑换"}
                     </div>
                   </div>

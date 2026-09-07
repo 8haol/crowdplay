@@ -99,7 +99,7 @@ function TeamHelp({
     if (!usage) return;
     setErr(null);
     if (staffKey === PREVIEW_STAFF_KEY) {
-      setDone(usage === "hint" ? "全队已换取提示（演示）" : "全队已获得 Second Chance（演示）");
+      setDone(usage === "hint" ? "已登记并领取实体恩典卡（演示）" : "全队已获得重新挑战（演示）");
       return;
     }
     try {
@@ -113,7 +113,7 @@ function TeamHelp({
       const who = (team?.members ?? []).map((member) => member.name).join(" / ");
       setDone(
         usage === "hint"
-          ? `${who} 全队已换取提示`
+          ? `${who} 已登记并领取实体恩典卡`
           : `${who} 已获得 Second Chance：${stationName.get(target!) ?? ""}`,
       );
     } catch (error) {
@@ -136,10 +136,17 @@ function TeamHelp({
         <div className="space-y-4 pb-28">
           <SuccessBanner text={done} />
           <StaffCard tone="accent">
-            <p className="text-xs font-semibold leading-6 text-ink-dim">
-              重来机会已经写进队伍和每位队员的护照 —— 他们手机上那一站会从红色「未通过」变成
-              「✨ 可重新挑战」。让他们回到那一站，工作人员照常录一次分即可。
-            </p>
+            {usage === "hint" ? (
+              <p className="text-xs font-semibold leading-6 text-ink-dim">
+                请现在交给队伍<b className="text-ink">一张实体恩典卡</b>。他们在挑战任意站点前向该站同工出示，
+                由该站同工按本站玩法给出提示、降低难度或其他合适帮助。
+              </p>
+            ) : (
+              <p className="text-xs font-semibold leading-6 text-ink-dim">
+                重新挑战已经写进队伍和每位队员的护照，手机上该站会显示「✨ 可重新挑战」。
+                请让他们回到该站；新成绩录入后会<b className="text-ink">替换旧成绩</b>，不会重复加分。
+              </p>
+            )}
           </StaffCard>
         </div>
         <StickyBar>
@@ -188,7 +195,8 @@ function TeamHelp({
       );
     }
 
-    const failed = team.failed_station_ids ?? [];
+    const attempted = team.attempted_station_ids ?? [];
+    const resultByStation = new Map((team.station_results ?? []).map((result) => [result.station_id, result]));
     return (
       <>
         <div className="space-y-4 pb-44">
@@ -208,7 +216,7 @@ function TeamHelp({
 
           <StaffCard tone="accent">
             <p className="text-xs font-semibold leading-6 text-ink-dim">
-              提示和 Second Chance 都影响整队，因此会<b className="text-ink">同时消耗每位成员的一枚 Token</b>。
+              实体恩典卡和重新挑战都影响整队，因此会<b className="text-ink">同时消耗每位成员的一枚 Token</b>。
               Solo 消耗 1 枚，Duo 2 枚，Trio 3 枚。不同人数的队伍都只有一次完整的团队求助机会。
             </p>
           </StaffCard>
@@ -217,23 +225,25 @@ function TeamHelp({
             <UsageBtn
               active={usage === "hint"}
               onClick={() => setUsage("hint")}
-              title="💡 换一个提示"
-              desc="站点给出提示，之后照常挑战、照常计分"
+              title="💡 领取实体恩典卡"
+              desc="挑战前交给目标站同工，由该站提示或降低难度"
             />
             <UsageBtn
               active={usage === "second_chance"}
               onClick={() => { setUsage("second_chance"); setTarget(null); }}
-              title="🔄 Second Chance"
-              desc={failed.length > 0 ? "选一个失败过的站重新挑战" : "这支队伍还没有失败过的站，暂不可选"}
-              disabled={failed.length === 0}
+              title="🔄 重新挑战"
+              desc={attempted.length > 0 ? "已挑战过的任意站都可以重来，包括已通过但分数不满意" : "先完成至少一个站点，再回来选择重新挑战"}
+              disabled={attempted.length === 0}
             />
           </div>
 
-          {usage === "second_chance" && failed.length > 0 && (
+          {usage === "second_chance" && attempted.length > 0 && (
             <StaffCard>
               <div className="text-[15px] font-black">重新挑战哪一站？</div>
               <div className="mt-3 grid grid-cols-2 gap-2">
-                {failed.map((id) => (
+                {attempted.map((id) => {
+                  const previous = resultByStation.get(id);
+                  return (
                   <button
                     key={id}
                     type="button"
@@ -245,10 +255,15 @@ function TeamHelp({
                         : { background: "#fff", border: "2px solid #e8dcc4" }
                     }
                   >
-                    {stationName.get(id) ?? `站点 ${id}`}
+                    <span className="block">{stationName.get(id) ?? `站点 ${id}`}</span>
+                    {previous && (
+                      <span className="mt-1 block text-[10px] opacity-70">上次：{previous.status === "failed" ? "未通过 · 0 分" : `${previous.score} 分`}</span>
+                    )}
                   </button>
-                ))}
+                  );
+                })}
               </div>
+              <p className="mt-3 text-[11px] font-semibold leading-5 text-ink-dim">重挑后以新成绩为准，旧成绩会被替换。</p>
             </StaffCard>
           )}
 
@@ -258,7 +273,7 @@ function TeamHelp({
         <StickyBar>
           <ActionButton onClick={submit} disabled={!usage || (usage === "second_chance" && !target)}>
             {usage === "hint"
-              ? "确认：全队换提示"
+              ? "确认：登记并发放恩典卡"
               : usage === "second_chance" && target
                 ? `确认：重新挑战${stationName.get(target) ?? ""}`
                 : "先选一种帮助"}
@@ -275,7 +290,7 @@ function TeamHelp({
         <StaffCard tone="accent">
           <div className="text-[15px] font-black">整队帮助</div>
           <p className="mt-1 text-xs font-semibold leading-6 text-ink-dim">
-            输入队里任意一人的 3 位人生编号。提示 / Second Chance 会消耗全队每人一枚 Token。
+            输入队里任意一人的 3 位人生编号。实体恩典卡 / 重新挑战会消耗全队每人一枚 Token。
           </p>
         </StaffCard>
         <CodePad

@@ -25,11 +25,13 @@ export default function MainStation({
   const [identifier, setIdentifier] = useState("");
   const [team, setTeam] = useState<StaffTeamLookup | null>(null);
   const [choice, setChoice] = useState<number | "failed" | null>(null);
+  const [freeScore, setFreeScore] = useState("");
   const [idemKey, setIdemKey] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [result, setResult] = useState<AwardTeamResult | null>(null);
 
   const scoreChoices = station.scoring_mode === "graded" ? [3, 6, 9] : [6];
+  const usesFreeScore = station.scoring_mode === "free";
   const step = result ? 2 : team ? 1 : 0;
 
   const lookup = async () => {
@@ -39,6 +41,7 @@ export default function MainStation({
     if (staffKey === PREVIEW_STAFF_KEY) {
       setTeam(PREVIEW_TEAM);
       setChoice(null);
+      setFreeScore("");
       setIdemKey("preview");
       return;
     }
@@ -49,6 +52,7 @@ export default function MainStation({
       });
       setTeam(found);
       setChoice(null);
+      setFreeScore("");
       setIdemKey(newIdemKey()); // one key per confirmed batch; retries reuse it
     } catch (error) {
       setErr(errorText(error));
@@ -91,6 +95,7 @@ export default function MainStation({
     setIdentifier("");
     setTeam(null);
     setChoice(null);
+    setFreeScore("");
     setResult(null);
     setErr(null);
   };
@@ -205,28 +210,59 @@ export default function MainStation({
             <StaffCard>
               <div className="text-[15px] font-black">这一队本次表现如何？</div>
               <p className="mt-1 text-xs font-semibold text-ink-dim">
-                {station.scoring_mode === "graded"
-                  ? "3 分 = 勉强完成 · 6 分 = 顺利完成 · 9 分 = 表现出色"
-                  : "完成即 6 分，没完成选失败"}
+                {usesFreeScore
+                  ? "根据现场表现输入 0–10 的整数分；0 分也是有效成绩"
+                  : station.scoring_mode === "graded"
+                    ? "3 分 = 勉强完成 · 6 分 = 顺利完成 · 9 分 = 表现出色"
+                    : "完成即 6 分，没完成选失败"}
               </p>
-              <div className={`mt-4 grid gap-2 ${scoreChoices.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
-                {scoreChoices.map((score) => (
+              {usesFreeScore ? (
+                <label className="mt-4 block rounded-[18px] border-2 border-line bg-white px-4 py-4 focus-within:border-ink">
+                  <span className="block text-[11px] font-black tracking-[0.14em] text-ink-dim">本次得分</span>
+                  <span className="mt-2 flex items-end gap-3">
+                    <input
+                      type="number"
+                      min={0}
+                      max={10}
+                      step={1}
+                      inputMode="numeric"
+                      value={freeScore}
+                      onChange={(event) => {
+                        const next = event.target.value;
+                        setFreeScore(next);
+                        const parsed = Number(next);
+                        setChoice(next !== "" && Number.isInteger(parsed) && parsed >= 0 && parsed <= 10 ? parsed : null);
+                      }}
+                      placeholder="0–10"
+                      className="tabular min-w-0 flex-1 bg-transparent text-[3rem] font-black leading-none outline-none placeholder:text-[#c9bea9]"
+                      aria-label="输入 0 到 10 分"
+                    />
+                    <span className="pb-1 text-lg font-black text-ink-dim">/ 10 分</span>
+                  </span>
+                  {freeScore !== "" && choice == null && (
+                    <span className="mt-2 block text-xs font-black text-seal">请输入 0–10 之间的整数</span>
+                  )}
+                </label>
+              ) : (
+                <div className={`mt-4 grid gap-2 ${scoreChoices.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
+                  {scoreChoices.map((score) => (
+                    <ScoreBtn
+                      key={score}
+                      active={choice === score}
+                      onClick={() => setChoice(score)}
+                      big={String(score)}
+                      small={station.scoring_mode === "fixed" ? "完成" : score === 3 ? "勉强完成" : score === 6 ? "顺利完成" : "表现出色"}
+                    />
+                  ))}
                   <ScoreBtn
-                    key={score}
-                    active={choice === score}
-                    onClick={() => setChoice(score)}
-                    big={String(score)}
-                    small={station.scoring_mode === "fixed" ? "完成" : score === 3 ? "勉强完成" : score === 6 ? "顺利完成" : "表现出色"}
+                    active={choice === "failed"}
+                    danger
+                    onClick={() => setChoice("failed")}
+                    big="✗"
+                    small="未通过 · 0 分"
                   />
-                ))}
-                <ScoreBtn
-                  active={choice === "failed"}
-                  danger
-                  onClick={() => setChoice("failed")}
-                  big="✗"
-                  small="未通过 · 0 分"
-                />
-              </div>
+                </div>
+              )}
             </StaffCard>
           )}
 

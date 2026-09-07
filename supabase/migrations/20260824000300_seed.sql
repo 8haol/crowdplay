@@ -13,7 +13,7 @@ values (1, 'waiting', 'change-me');
 insert into stations (slug, name_zh, type, scoring_mode, sort_order) values
   ('music',      '音乐之声',   'main',       'graded', 1),
   ('uk-life',    '英伦百事通', 'main',       'graded', 2),
-  ('interview',  '灵魂拷问',   'main',       'graded', 3),
+  ('interview',  '灵魂拷问',   'main',       'free',   3),
   ('photo',      '定格瞬间',   'main',       'graded', 4),
   ('memory',     '记忆与观察', 'main',       'graded', 5),
   ('ring-toss',  '套圈',       'main',       'graded', 6),

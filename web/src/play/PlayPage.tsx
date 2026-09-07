@@ -23,6 +23,7 @@ export default function PlayPage() {
   const [joinNotice, setJoinNotice] = useState<string | null>(null);
   const [stations, setStations] = useState<Station[]>([]);
   const [revealDone, setRevealDone] = useState<{ token: string; code: string } | null>(null);
+  const [recovering, setRecovering] = useState<{ token: string; code: string } | null>(null);
   const [issuedCode, setIssuedCode] = useState<string | null>(null);
   const [sessionArchived, setSessionArchived] = useState(false);
   const activeToken = routeToken ?? landing?.join_token;
@@ -105,8 +106,13 @@ export default function PlayPage() {
     setInvalidCodeToken(null);
     setJoinNotice(null);
     setJoined({ token: activeToken, code: newCode });
+    setRecovering({ token: activeToken, code: newCode });
+    // Recovery restores an existing passport. Mark the original reveal as
+    // seen immediately so a missing browser flag never replays identity/color.
+    localStorage.setItem(`lp_reveal:${activeToken}`, newCode);
+    setRevealDone({ token: activeToken, code: newCode });
     setIssuedCode(null);
-  }, [activeToken, setIssuedCode]);
+  }, [activeToken, setIssuedCode, setRevealDone]);
 
   if (preview === "join") {
     return <Demo><PreviewJoinFlow /></Demo>;
@@ -170,7 +176,7 @@ export default function PlayPage() {
   }
 
   if (!data) {
-    return <PlayerLoading label="正在读取你的人生" error={!online ? errorText(error) : undefined} />;
+    return <PlayerLoading label={recovering?.token === activeToken ? "正在找回你的护照" : "正在读取你的人生"} error={!online ? errorText(error) : undefined} />;
   }
 
   const { phase, player } = data;
@@ -180,7 +186,8 @@ export default function PlayPage() {
   }
 
   // Identity reveal: once per stored code, when playing begins.
-  if (phase === "playing" && player.identity && revealSeen !== player.code) {
+  const isCurrentRecovery = recovering?.token === activeToken && recovering.code === player.code;
+  if (phase === "playing" && player.identity && revealSeen !== player.code && !isCurrentRecovery) {
     return (
       <Reveal
         data={data}
@@ -206,10 +213,13 @@ function Demo({ children }: { children: React.ReactNode }) {
  * exactly what a new person sees on their phone.
  */
 function PreviewJoinFlow() {
-  const [step, setStep] = useState<"form" | "code" | "waiting">("form");
+  const [step, setStep] = useState<"form" | "code" | "waiting" | "passport">("form");
   const [code, setCode] = useState("427");
   const [name, setName] = useState("林沐恩");
 
+  if (step === "passport") {
+    return <Passport data={PREVIEW_DATA} stations={PREVIEW_STATIONS} online joinToken="preview" />;
+  }
   if (step === "waiting") {
     return <WaitingRoom code={code} name={name} online />;
   }
@@ -223,7 +233,7 @@ function PreviewJoinFlow() {
       gameTitle="Glasgow 新生迎新会"
       notice={null}
       onCodeIssued={(issued, entered) => { setCode(issued); setName(entered); setStep("code"); }}
-      onJoined={(recovered) => { setCode(recovered); setName("找回的玩家"); setStep("waiting"); }}
+      onJoined={(recovered) => { setCode(recovered); setName("找回的玩家"); setStep("passport"); }}
     />
   );
 }
@@ -290,7 +300,7 @@ const RULES: { t: string; d: string }[] = [
   { t: "组队揭晓", d: "开场时会显示同行方式和颜色；Duo / Trio 请寻找同色队友" },
   { t: "整队闯七站", d: "报你的人生编号，工作人员只录一次，每位队员获得相同加分" },
   { t: "三段人生", d: "分数到 15 / 35 / 45，或走完第 3 / 5 / 7 站，先到就触发一段人生事件" },
-  { t: "一枚 Help Token", d: "整队可换提示或重来；不用的话，随时能在恩典站换一张纪念卡" },
+  { t: "一枚 Help Token", d: "整队可领实体恩典卡，或重挑任意已玩站点；不用的话，随时可换纪念卡" },
 ];
 
 const WAITING_COVER_COLORS = [

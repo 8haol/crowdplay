@@ -275,9 +275,10 @@ export function StationEditModal(props: {
             className={inputClass}
             style={inputStyle}
             value={mode}
-            onChange={(event) => setMode(event.target.value as "graded" | "fixed")}
+            onChange={(event) => setMode(event.target.value as "graded" | "free" | "fixed")}
           >
             <option value="graded">分级计分（3 / 6 / 9）</option>
+            <option value="free">自由计分（0–10 整数）</option>
             <option value="fixed">固定计分（6 分）</option>
           </select>
         </label>

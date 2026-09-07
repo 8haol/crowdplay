@@ -260,7 +260,7 @@ export default function Passport(props: {
               </div>
               <div className="mt-1 text-xs text-moon-dim">
                 {player.token_available
-                  ? "整队可换提示 / 重来；也可以随时去恩典站换纪念卡"
+                  ? "整队可领实体恩典卡 / 重挑已玩站点；也可随时换纪念卡"
                   : "You don't have to do life alone"}
               </div>
             </div>

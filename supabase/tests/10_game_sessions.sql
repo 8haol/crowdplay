@@ -1,79 +1,86 @@
--- Tests: QR admission, session archive, and admin-created new games.
+-- Tests: event lifecycle — landing, ending, creating the next event without wiping the last.
 begin;
-delete from game_archives;
-delete from rpc_results; delete from admin_actions; delete from token_usages;
-delete from life_events; delete from life_event_instances; delete from attempts;
-delete from team_attempts; delete from players; delete from teams;
-update app_config set value = 'session-admin' where key = 'admin_key';
-update game_state set
-  event_id = gen_random_uuid(),
-  title = '第一场',
-  join_token = 'old-session-token',
-  join_passphrase = 'unused',
-  join_open = true,
-  phase = 'waiting',
-  created_at = now(),
-  started_at = null,
-  ended_at = null
-where id = 1;
+delete from events; delete from organizations;
+insert into organizations (slug, name_zh, name_en, admin_key) values ('tc', '测试教会', 'Test Church', 'test-admin');
+insert into events (org_id, title, join_token, staff_code, screen_token, phase, started_at)
+select id, '测试场', 'old-token', 'STAFF1', 'screen-t', 'waiting', null from organizations where slug = 'tc';
 
 do $$
 declare
-  r jsonb;
-  old_event uuid := (select event_id from game_state where id = 1);
+  old_ev uuid := (select id from events where join_token = 'old-token');
+  new_ev uuid;
   new_token text;
+  r jsonb;
 begin
-  r := game_landing('old-session-token');
-  assert (r ->> 'is_current')::boolean, 'current QR resolves';
-  assert r ->> 'title' = '第一场', 'current title returned';
+  r := game_landing('old-token');
+  assert (r ->> 'is_current')::boolean and r ->> 'title' = '测试场', 'QR resolves to its event';
+  assert r -> 'org' ->> 'slug' = 'tc', 'landing carries the organisation';
+  assert position('staff_code' in r::text) = 0, 'landing leaks no keys';
 
-  r := join_by_link('扫码玩家', 'old-session-token');
+  r := join_by_link('扫码玩家', 'old-token');
   assert r ->> 'code' ~ '^[1-9]\d{2}$', 'QR join creates a three-digit player code';
-  assert (select count(*) from players) = 1, 'player stored in current session';
+  assert (select count(*) from players where event_id = old_ev) = 1, 'player stored in that event';
 
-  begin
-    perform join_by_link('错误链接', 'not-a-token');
-    raise exception 'TEST FAILED: expected BAD_GAME_LINK';
-  exception when others then
-    if sqlerrm <> 'BAD_GAME_LINK' then raise; end if;
-  end;
+  r := game_landing('not-a-token');
+  assert (r ->> 'invalid')::boolean and not (r ->> 'is_current')::boolean, 'unknown link is flagged, not an error';
 
-  perform end_game('session-admin');
-  assert not (select join_open from game_state where id = 1), 'ending closes registration';
+  perform end_game('test-admin', old_ev);
+  assert not (select join_open from events where id = old_ev), 'ending closes registration';
 
-  r := admin_create_game('session-admin', '第二场', false);
+  -- next event: nothing is wiped
+  r := admin_create_event('test-admin', '第二场');
+  new_ev := (r ->> 'event_id')::uuid;
   new_token := r ->> 'join_token';
-  assert r ->> 'title' = '第二场', 'new session created';
-  assert new_token is distinct from 'old-session-token', 'new QR token generated';
-  assert (select count(*) from players) = 0, 'live roster reset';
-  assert exists (select 1 from game_archives where source_event_id = old_event), 'old session archived';
+  assert r ->> 'title' = '第二场' and r ->> 'phase' = 'waiting', 'new event created';
+  assert new_token is distinct from 'old-token', 'new QR token generated';
+  assert length(r ->> 'staff_code') = 6 and length(r ->> 'screen_token') = 16, 'staff code and screen token issued';
+  assert (select count(*) from players where event_id = old_ev) = 1, 'old roster kept';
+  assert (select count(*) from players where event_id = new_ev) = 0, 'new roster empty';
 
-  r := game_landing('old-session-token');
-  assert not (r ->> 'is_current')::boolean, 'old QR is archived';
-  assert r ->> 'current_join_token' = new_token, 'archive can point to current session';
+  r := game_landing('old-token');
+  assert not (r ->> 'is_current')::boolean and r ->> 'phase' = 'ended', 'old QR reports the ended event';
 
-  r := admin_console('session-admin');
-  assert r -> 'current' ->> 'title' = '第二场', 'console returns current session';
-  assert jsonb_array_length(r -> 'archives') = 1, 'console returns archive list';
+  r := admin_dashboard('test-admin');
+  assert jsonb_array_length(r -> 'events') = 2, 'dashboard lists both events';
+  -- Both rows share one transaction timestamp here, so order is not asserted; presence is.
+  assert exists (select 1 from jsonb_array_elements(r -> 'events') e where e ->> 'title' = '第二场')
+     and exists (select 1 from jsonb_array_elements(r -> 'events') e where e ->> 'title' = '测试场'), 'both events listed';
+
+  r := admin_console('test-admin', new_ev);
+  assert r -> 'current' ->> 'title' = '第二场', 'console opens the requested event';
+  assert jsonb_array_length(r -> 'events') = 2, 'console carries the event list';
   assert jsonb_array_length(r -> 'station_metrics') = 9, 'console returns every station';
 
-  r := admin_event_detail('session-admin', old_event);
-  assert not (r ->> 'is_current')::boolean, 'archived event detail is marked historical';
-  assert jsonb_array_length(r -> 'players') = 1, 'archive preserves player detail';
+  r := admin_event_detail('test-admin', old_ev);
+  assert not (r ->> 'is_current')::boolean, 'ended event detail is marked historical';
+  assert jsonb_array_length(r -> 'players') = 1, 'ended event keeps live relational detail';
 
-  r := admin_update_station('session-admin', (select id from stations where slug = 'music'), '音乐测试站', 'fixed');
-  assert r ->> 'name_zh' = '音乐测试站', 'admin can rename a station';
-  assert r ->> 'scoring_mode' = 'fixed', 'admin can change scoring mode while waiting';
+  r := admin_update_station('test-admin', (select id from stations where slug = 'music'), '音乐测试站', 'fixed');
+  assert r ->> 'name_zh' = '音乐测试站' and r ->> 'scoring_mode' = 'fixed', 'admin can edit a station while nothing is playing';
 
-  r := admin_update_access('session-admin', 'new-staff-key', null);
-  assert (r ->> 'staff_key_changed')::boolean, 'staff access key can be changed in console';
-  perform _require_key('staff', 'new-staff-key');
+  -- access: change admin password, rotate one event's staff code
+  r := admin_update_access('test-admin', 'new-admin-pass', new_ev);
+  assert (r ->> 'admin_key_changed')::boolean and length(r ->> 'staff_code') = 6, 'password changed, staff code rotated';
+  assert (select staff_code from events where id = new_ev) = r ->> 'staff_code', 'rotated code persisted';
+  assert staff_session(r ->> 'staff_code') ->> 'title' = '第二场', 'new staff code logs into the new event';
+  perform admin_dashboard('new-admin-pass');
 
+  -- old link can no longer admit
   begin
-    perform join_by_link('旧链接玩家', 'old-session-token');
+    perform join_by_link('旧链接玩家', 'old-token');
     raise exception 'TEST FAILED: expected GAME_ARCHIVED';
   exception when others then
     if sqlerrm <> 'GAME_ARCHIVED' then raise; end if;
+  end;
+
+  -- one playing event per organisation
+  perform join_by_link('新场玩家', new_token);
+  perform start_game('new-admin-pass', new_ev, '{}'::jsonb);
+  begin
+    perform admin_create_event('new-admin-pass', '第三场');
+    raise exception 'TEST FAILED: expected ACTIVE_EVENT_EXISTS';
+  exception when others then
+    if sqlerrm <> 'ACTIVE_EVENT_EXISTS' then raise; end if;
   end;
 
   raise notice 'PASS 10_game_sessions';

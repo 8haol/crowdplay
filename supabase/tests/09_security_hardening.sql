@@ -1,46 +1,50 @@
--- Tests: public credential surface, hashed secrets, throttling, safe RPCs
+-- Tests: credential surface, hashed admin secret, token throttling, safe RPCs
 begin;
-delete from rpc_results; delete from admin_actions; delete from token_usages;
-delete from life_events; delete from life_event_instances; delete from attempts;
-delete from team_attempts; delete from players; delete from teams;
-update app_config set value = '{sha256}' || encode(extensions.digest('secure-admin', 'sha256'), 'hex')
-where key = 'admin_key';
-update app_config set value = '{sha256}' || encode(extensions.digest('secure-staff', 'sha256'), 'hex')
-where key = 'staff_key';
-update game_state
-set phase = 'waiting',
-    join_passphrase = '{sha256}' || encode(extensions.digest('secure-join', 'sha256'), 'hex'),
-    started_at = null
-where id = 1;
+delete from events; delete from organizations;
+insert into organizations (slug, name_zh, name_en, admin_key)
+values ('tc', '测试教会', 'Test Church', '{sha256}' || encode(extensions.digest('secure-admin', 'sha256'), 'hex'));
+insert into events (org_id, title, join_token, staff_code, screen_token)
+select id, '测试场', 'join-t', 'STAFF1', 'screen-t' from organizations where slug = 'tc';
 
 do $$
 declare
+  v_ev uuid := (select id from events where join_token = 'join-t');
   r jsonb;
   started timestamptz;
 begin
-  assert not has_table_privilege('anon', 'leaderboard', 'select'),
-         'anon cannot read credential-bearing leaderboard';
-  assert to_regclass('public.public_leaderboard') is null,
-         'unused security-definer public leaderboard is removed';
-  assert to_regclass('public.public_game_state') is null,
-         'security-definer public game-state view is removed';
-  assert has_function_privilege('anon', 'board_snapshot()', 'execute'),
-         'anon can read the code-free board RPC';
+  assert to_regclass('public.leaderboard') is null, 'cross-tenant leaderboard view is gone';
+  assert to_regclass('public.game_state') is null and to_regclass('public.app_config') is null,
+         'singleton tables are gone';
+  assert has_function_privilege('anon', 'board_snapshot(text)', 'execute'), 'anon can read the code-free board RPC';
+  assert not has_function_privilege('anon', '_event_by(text,text)', 'execute'), 'resolver stays internal';
+  assert not has_table_privilege('anon', 'events', 'select') and not has_table_privilege('anon', 'organizations', 'select'),
+         'tenant tables are not readable directly';
 
-  r := join_game('安全测试', 'secure-join');
-  assert r ->> 'code' ~ '^[1-9]\d{2}$', 'hashed join secret matches';
-  perform staff_lookup('secure-staff', array[]::text[]);
-  perform admin_list_players('secure-admin');
+  -- hashed admin secret matches; plaintext staff code works case-insensitively
+  perform admin_list_players('secure-admin', v_ev);
+  assert staff_session('staff1') ->> 'title' = '测试场', 'staff code is case-insensitive';
+  r := join_by_link('安全测试', 'join-t');
+  assert r ->> 'code' ~ '^[1-9]\d{2}$', 'join works';
 
+  -- guessing a player code is throttled
   started := clock_timestamp();
   begin
-    perform recover_identity('0000');
+    perform recover_by_link('join-t', '000');
     raise exception 'TEST FAILED: expected PLAYER_NOT_FOUND';
   exception when others then
-    if sqlerrm <> 'PLAYER_NOT_FOUND:0000' then raise; end if;
+    if sqlerrm <> 'PLAYER_NOT_FOUND:000' then raise; end if;
   end;
-  assert clock_timestamp() - started >= interval '700 milliseconds',
-         'invalid player-code guesses are deliberately throttled';
+  assert clock_timestamp() - started >= interval '700 milliseconds', 'invalid player-code guesses are throttled';
+
+  -- guessing a staff code is throttled too
+  started := clock_timestamp();
+  begin
+    perform staff_session('ZZZZZZ');
+    raise exception 'TEST FAILED: expected BAD_STAFF_KEY';
+  exception when others then
+    if sqlerrm <> 'BAD_STAFF_KEY' then raise; end if;
+  end;
+  assert clock_timestamp() - started >= interval '700 milliseconds', 'invalid staff-code guesses are throttled';
 
   raise notice 'PASS 09_security_hardening';
 end $$;

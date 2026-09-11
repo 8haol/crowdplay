@@ -1,104 +1,93 @@
--- Tests: apply_life_event — all six cards, threshold skipping, unlock,
--- audit rows, idempotency
+-- Tests: digital life-event state machine — gates, one pending at a time, hidden outcomes,
+-- choose/replay/cancel, admin unlock.
 begin;
-delete from rpc_results; delete from admin_actions; delete from token_usages;
-delete from life_events; delete from life_event_instances; delete from attempts;
-delete from team_attempts; delete from players; delete from teams;
-update app_config set value = 'test-admin' where key = 'admin_key';
-update app_config set value = 'test-staff' where key = 'staff_key';
-update game_state set phase = 'playing', join_passphrase = 'pass', started_at = now() where id = 1;
+delete from events; delete from organizations;
+insert into organizations (slug, name_zh, name_en, admin_key) values ('tc', '测试教会', 'Test Church', 'test-admin');
+insert into events (org_id, title, join_token, staff_code, screen_token, phase, started_at)
+select id, '测试场', 'join-t', 'STAFF1', 'screen-t', 'playing', now() from organizations where slug = 'tc';
 
 do $$
 declare
+  v_ev uuid := (select id from events where join_token = 'join-t');
+  t1 uuid;
+  p1 uuid;
+  v_inst uuid;
+  v_inst2 uuid;
+  v_inst3 uuid;
+  pending jsonb;
   r jsonb;
 begin
-  -- players pre-staged in "just locked at 15" state (score 16, next 35)
-  insert into players (name, code, identity, score, locked_for_life_event,
-                       pending_threshold, next_threshold) values
-    ('双倍', '2001', 'solo', 16, true, 15, 35),
-    ('加三', '2002', 'solo', 16, true, 15, 35),
-    ('扣五', '2003', 'solo', 16, true, 15, 35),
-    ('感冒', '2004', 'solo', 16, true, 15, 35),
-    ('结婚', '2005', 'solo', 16, true, 15, 35),
-    ('减半', '2006', 'solo', 16, true, 15, 35),
-    ('没锁', '2007', 'solo', 5,  false, null, 15),
-    ('扣到零', '2008', 'solo', 3, true, 15, 35),
-    ('高分双倍', '2009', 'solo', 40, true, 35, 45);
+  t1 := _make_team(v_ev, 'solo', 'solo-1');
+  insert into players (event_id, name, code, identity, color_group, team_id) values (v_ev, '独行', '101', 'solo', 'solo-1', t1)
+  returning id into p1;
 
-  -- not locked
+  -- nothing due at 0 points / 0 stations
+  assert _sync_life_event(p1) is null, 'no event owed at the start';
+  assert not (select locked_for_life_event from players where id = p1), 'not locked';
+
+  -- 15 points opens stage 1
+  update players set score = 15 where id = p1;
+  v_inst := _sync_life_event(p1);
+  assert v_inst is not null, 'the 15-point gate opens stage 1';
+  assert (select locked_for_life_event from players where id = p1), 'player is locked while an event is pending';
+  assert (select pending_stage from players where id = p1) = 1, 'pending stage recorded';
+  assert (select event_id from life_event_instances where id = v_inst) = v_ev, 'instance is stamped with the event';
+
+  -- one pending at a time
+  assert _sync_life_event(p1) is null, 'a second sync does not open another event';
+
+  -- hidden outcomes never reach the browser payload
+  pending := _pending_event_json(p1);
+  assert (pending ->> 'stage')::int = 1, 'pending payload carries its stage';
+  assert position('outcomes' in pending::text) = 0, 'hidden outcomes are stripped';
+
+  -- bad choice
   begin
-    perform apply_life_event('test-staff', '2007', 'fortune_plus3');
-    raise exception 'TEST FAILED: expected NOT_LOCKED';
+    perform choose_life_event_by_link('join-t', '101', v_inst, 'no-such-choice', 'le-bad');
+    raise exception 'TEST FAILED: expected BAD_EVENT_CHOICE';
   exception when others then
-    if sqlerrm <> 'NOT_LOCKED:2007' then raise; end if;
+    if sqlerrm <> 'BAD_EVENT_CHOICE' then raise; end if;
   end;
 
-  -- bad card
+  -- choose → resolved, unlocked, audit row written
+  r := choose_life_event_by_link('join-t', '101', v_inst, pending -> 'choices' -> 0 ->> 'key', 'le-1');
+  assert r ->> 'outcome_label' is not null, 'one outcome chosen';
+  assert (r ->> 'stage')::int = 1, 'result reports its stage';
+  assert (select state from life_event_instances where id = v_inst) = 'resolved', 'instance resolved';
+  assert not (select locked_for_life_event from players where id = p1), 'unlocked after choosing';
+  assert (select count(*) from life_events where player_id = p1 and stage = 1) = 1, 'life_events audit row';
+  assert (select event_id from life_events where player_id = p1) = v_ev, 'audit row is stamped with the event';
+
+  -- choosing again returns the stored result, nothing re-applied
+  assert choose_life_event_by_link('join-t', '101', v_inst, 'anything', 'le-1') ->> 'outcome_label' = r ->> 'outcome_label',
+         'a resolved event replays its snapshot';
+  assert (select count(*) from life_events where player_id = p1) = 1, 'no second audit row';
+
+  -- stage 2 opens at 35; admin unlock cancels it, and that stage is then over for good:
+  -- one instance per (player, stage) is enforced by the schema, so a cancelled stage
+  -- is skipped rather than re-issued.
+  update players set score = 35 where id = p1;
+  v_inst2 := _sync_life_event(p1);
+  assert (select stage from life_event_instances where id = v_inst2) = 2, 'stage 2 follows';
+  perform admin_adjust('test-admin', v_ev, '101', p_unlock => true, p_reason => '卡住了');
+  assert (select state from life_event_instances where id = v_inst2) = 'cancelled', 'admin unlock cancels the pending event';
+  assert not (select locked_for_life_event from players where id = p1), 'admin unlock releases the player';
+  assert _sync_life_event(p1) is null, 'a cancelled stage is not re-issued';
+  assert (select count(*) from life_event_instances where player_id = p1 and stage = 2) = 1, 'still exactly one stage-2 instance';
+  assert _next_stage(p1) = 3, 'the passport moves on to the final stage';
+  -- and the final stage still arrives when earned. (Assign first: a row inserted by a
+  -- function called inside a SELECT is not visible to that same statement's snapshot.)
+  update players set score = 45 where id = p1;
+  v_inst3 := _sync_life_event(p1);
+  assert v_inst3 is not null, 'stage 3 is issued after the skip';
+  assert (select stage from life_event_instances where id = v_inst3) = 3, 'and it is stage 3';
+
+  -- choosing on a cancelled instance is refused
   begin
-    perform apply_life_event('test-staff', '2001', 'no_such_card');
-    raise exception 'TEST FAILED: expected BAD_CARD';
+    perform choose_life_event_by_link('join-t', '101', v_inst2, 'x', 'le-cancelled');
+    raise exception 'TEST FAILED: expected EVENT_NOT_PENDING';
   exception when others then
-    if sqlerrm <> 'BAD_CARD:no_such_card' then raise; end if;
-  end;
-
-  -- fortune_double: 16 -> 32, still below 35 => next stays 35
-  r := apply_life_event('test-staff', '2001', 'fortune_double', 'le1');
-  assert (r ->> 'score_before')::int = 16 and (r ->> 'score_after')::int = 32, 'double math';
-  assert (select score from players where code = '2001') = 32, 'score persisted';
-  assert not (select locked_for_life_event from players where code = '2001'), 'unlocked';
-  assert (select pending_threshold from players where code = '2001') is null, 'pending cleared';
-  assert (select next_threshold from players where code = '2001') = 35, 'next unchanged';
-  assert (select count(*) from life_events e join players p on p.id = e.player_id
-          where p.code = '2001' and e.card_type = 'fortune_double'
-            and e.score_before = 16 and e.score_after = 32 and e.threshold = 15) = 1,
-         'life_events audit row';
-
-  -- idempotency replay: no double application
-  r := apply_life_event('test-staff', '2001', 'fortune_double', 'le1');
-  assert (select score from players where code = '2001') = 32, 'replay does not re-apply';
-
-  -- fortune_plus3
-  perform apply_life_event('test-staff', '2002', 'fortune_plus3');
-  assert (select score from players where code = '2002') = 19, '16 + 3 = 19';
-
-  -- bad_minus5 (and floor at 0)
-  perform apply_life_event('test-staff', '2003', 'bad_minus5');
-  assert (select score from players where code = '2003') = 11, '16 - 5 = 11';
-  perform apply_life_event('test-staff', '2008', 'bad_minus5');
-  assert (select score from players where code = '2008') = 0, '3 - 5 floors at 0';
-
-  -- bad_cap_next: no score change, effect set
-  perform apply_life_event('test-staff', '2004', 'bad_cap_next');
-  assert (select score from players where code = '2004') = 16, 'cap card keeps score';
-  assert (select status_effect ->> 'type' from players where code = '2004') = 'cap_next',
-         'cap_next effect stored';
-
-  -- unexpected_married: record only
-  perform apply_life_event('test-staff', '2005', 'unexpected_married');
-  assert (select score from players where code = '2005') = 16, 'married keeps score';
-  assert not (select locked_for_life_event from players where code = '2005'), 'still unlocks';
-
-  -- extreme_half: floor division
-  perform apply_life_event('test-staff', '2006', 'extreme_half');
-  assert (select score from players where code = '2006') = 8, 'floor(16/2) = 8';
-  -- score dropped below 15, but 15 was already triggered: next stays 35
-  assert (select next_threshold from players where code = '2006') = 35,
-         'thresholds never re-arm after a score drop';
-
-  -- double that jumps past the next threshold: 40*2=80 skips 45 without locking
-  perform apply_life_event('test-staff', '2009', 'fortune_double');
-  assert (select score from players where code = '2009') = 80, '40*2 = 80';
-  assert not (select locked_for_life_event from players where code = '2009'),
-         'card never locks';
-  assert (select next_threshold from players where code = '2009') is null,
-         'skipped threshold 45 -> next is null (no more blind boxes)';
-
-  -- unknown player
-  begin
-    perform apply_life_event('test-staff', '9999', 'fortune_plus3');
-    raise exception 'TEST FAILED: expected PLAYER_NOT_FOUND';
-  exception when others then
-    if sqlerrm <> 'PLAYER_NOT_FOUND:9999' then raise; end if;
+    if sqlerrm <> 'EVENT_NOT_PENDING' then raise; end if;
   end;
 
   raise notice 'PASS 04_life_event';

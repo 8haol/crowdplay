@@ -1,94 +1,82 @@
--- Tests: end_game / admin_adjust / admin_remove_player / admin_list_players /
--- leaderboard / staff_lookup / key separation
+-- Tests: end_game / admin_adjust / admin_remove_player / admin_list_players / staff_lookup / key separation
 begin;
-delete from rpc_results; delete from admin_actions; delete from token_usages;
-delete from life_events; delete from life_event_instances; delete from attempts;
-delete from team_attempts; delete from players; delete from teams;
-update app_config set value = 'test-admin' where key = 'admin_key';
-update app_config set value = 'test-staff' where key = 'staff_key';
-update game_state set phase = 'playing', join_passphrase = 'pass', started_at = now() where id = 1;
+delete from events; delete from organizations;
+insert into organizations (slug, name_zh, name_en, admin_key) values ('tc', '测试教会', 'Test Church', 'test-admin');
+insert into events (org_id, title, join_token, staff_code, screen_token, phase, started_at)
+select id, '测试场', 'join-t', 'STAFF1', 'screen-t', 'playing', now() from organizations where slug = 'tc';
 
 do $$
 declare
+  v_ev uuid := (select id from events where join_token = 'join-t');
   v_music int := (select id from stations where slug = 'music');
+  t1 uuid; t2 uuid; t3 uuid;
   r jsonb;
 begin
-  insert into players (name, code, identity, score) values
-    ('高分', '5001', 'solo', 30),
-    ('低分', '5002', 'solo', 5),
-    ('垃圾', '5003', null, 0);
-  update players set locked_for_life_event = true, pending_threshold = 15,
-                     next_threshold = 35,
-                     status_effect = '{"type":"cap_next","value":1}'::jsonb,
-                     token_available = false
-  where code = '5002';
+  t1 := _make_team(v_ev, 'solo', 'solo-1'); t2 := _make_team(v_ev, 'solo', 'solo-2'); t3 := _make_team(v_ev, 'solo', 'solo-3');
+  insert into players (event_id, name, code, identity, color_group, team_id, score) values
+    (v_ev, '高分', '501', 'solo', 'solo-1', t1, 30),
+    (v_ev, '低分', '502', 'solo', 'solo-2', t2, 5),
+    (v_ev, '垃圾', '503', 'solo', 'solo-3', t3, 0);
+  update players set locked_for_life_event = true, pending_threshold = 15, next_threshold = 35,
+                     status_effect = '{"type":"cap_next","value":1}'::jsonb, token_available = false
+  where code = '502';
 
-  -- staff key must NOT work for admin functions
+  -- staff code must NOT work for admin functions
   begin
-    perform end_game('test-staff');
+    perform end_game('STAFF1', v_ev);
     raise exception 'TEST FAILED: expected BAD_KEY';
   exception when others then
     if sqlerrm <> 'BAD_KEY' then raise; end if;
   end;
 
   -- admin_adjust: fix score + unlock + clear effect + restore token in one call
-  r := admin_adjust('test-admin', '5002',
-                    p_new_score => 12, p_unlock => true, p_clear_effect => true,
+  r := admin_adjust('test-admin', v_ev, '502', p_new_score => 12, p_unlock => true, p_clear_effect => true,
                     p_restore_token => true, p_reason => '现场误录，人工修正');
   assert (r ->> 'score')::int = 12, 'score corrected';
   assert not (r ->> 'locked_for_life_event')::boolean, 'unlocked';
-  assert (select status_effect from players where code = '5002') is null, 'effect cleared';
-  assert (select token_available from players where code = '5002'), 'token restored';
-  assert (select pending_threshold from players where code = '5002') is null, 'pending cleared';
-  assert (select next_threshold from players where code = '5002') = 35,
-         'untouched fields stay put';
+  assert (select status_effect from players where code = '502') is null, 'effect cleared';
+  assert (select token_available from players where code = '502'), 'token restored';
+  assert (select next_threshold from players where code = '502') = 35, 'untouched fields stay put';
   assert (select count(*) from admin_actions a join players p on p.id = a.player_id
-          where p.code = '5002' and a.action = 'adjust'
-            and a.reason = '现场误录，人工修正') = 1, 'audit row written';
+          where p.code = '502' and a.action = 'adjust' and a.reason = '现场误录，人工修正') = 1, 'audit row written';
+  assert (select event_id from admin_actions limit 1) = v_ev, 'audit row is stamped with the event';
 
-  -- admin_adjust: set next_threshold explicitly (0 sentinel = null)
-  perform admin_adjust('test-admin', '5002', p_new_next_threshold => 0, p_reason => 't');
-  assert (select next_threshold from players where code = '5002') is null, 'threshold nulled';
-  perform admin_adjust('test-admin', '5002', p_new_next_threshold => 45, p_reason => 't');
-  assert (select next_threshold from players where code = '5002') = 45, 'threshold set';
+  perform admin_adjust('test-admin', v_ev, '502', p_new_next_threshold => 0, p_reason => 't');
+  assert (select next_threshold from players where code = '502') is null, 'threshold nulled';
 
-  -- remove junk player; scoring them now fails; leaderboard hides them
-  perform admin_remove_player('test-admin', '5003');
-  assert (select is_removed from players where code = '5003'), 'soft deleted';
+  -- remove junk player; staff can no longer resolve them
+  perform admin_remove_player('test-admin', v_ev, '503');
+  assert (select is_removed from players where code = '503'), 'soft deleted';
   begin
-    perform award_scores('test-staff', '[{"code":"5003","score":6}]'::jsonb, v_music, 'a1');
-    raise exception 'TEST FAILED: expected PLAYER_NOT_FOUND';
+    perform award_team_score('STAFF1', '503', v_music, 6, false, 'a1');
+    raise exception 'TEST FAILED: expected TEAM_NOT_FOUND';
   exception when others then
-    if sqlerrm <> 'PLAYER_NOT_FOUND:5003' then raise; end if;
+    if sqlerrm <> 'TEAM_NOT_FOUND:503' then raise; end if;
   end;
-  assert not exists (select 1 from leaderboard where code = '5003'),
-         'removed player absent from leaderboard';
-  assert (select code from leaderboard limit 1) = '5001',
-         'leaderboard ordered by score desc';
+  assert not exists (select 1 from jsonb_array_elements(board_snapshot('screen-t') -> 'players') p where p ->> 'name' = '垃圾'),
+         'removed player absent from the board';
 
-  -- restore via admin_adjust
-  perform admin_adjust('test-admin', '5003', p_restore => true, p_reason => '误删恢复');
-  assert not (select is_removed from players where code = '5003'), 'restored';
+  perform admin_adjust('test-admin', v_ev, '503', p_restore => true, p_reason => '误删恢复');
+  assert not (select is_removed from players where code = '503'), 'restored';
 
-  -- admin_list_players includes everyone + attempt counts
-  r := admin_list_players('test-admin');
+  r := admin_list_players('test-admin', v_ev);
   assert jsonb_array_length(r) = 3, 'all players listed';
 
   -- staff_lookup: mixed found / not found, failed-station targeting info
-  perform award_scores('test-staff', '[{"code":"5001","failed":true}]'::jsonb, v_music, 'a2');
-  r := staff_lookup('test-staff', array['5001', '0000']);
+  perform award_team_score('STAFF1', '501', v_music, 0, true, 'a2');
+  r := staff_lookup('STAFF1', array['501', '000']);
   assert (r -> 0 ->> 'found')::boolean, 'first code found';
   assert not (r -> 1 ->> 'found')::boolean, 'unknown code flagged, not an error';
-  assert r -> 0 -> 'failed_station_ids' @> to_jsonb(v_music),
-         'failed station listed as second-chance target';
+  assert r -> 0 -> 'failed_station_ids' @> to_jsonb(v_music), 'failed station listed as second-chance target';
 
   -- end_game
-  r := end_game('test-admin');
-  assert (select phase from game_state where id = 1) = 'ended', 'game ended';
+  r := end_game('test-admin', v_ev);
+  assert (select phase from events where id = v_ev) = 'ended', 'game ended';
+  assert not (select join_open from events where id = v_ev), 'ending closes registration';
 
-  -- admin_adjust still works after the game ends (post-event corrections)
-  perform admin_adjust('test-admin', '5001', p_new_score => 31, p_reason => '赛后补录');
-  assert (select score from players where code = '5001') = 31, 'post-game correction ok';
+  -- corrections still work after the game ends
+  perform admin_adjust('test-admin', v_ev, '501', p_new_score => 31, p_reason => '赛后补录');
+  assert (select score from players where code = '501') = 31, 'post-game correction ok';
 
   raise notice 'PASS 06_admin';
 end $$;

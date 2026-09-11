@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { rpc, readView, errorText } from "../lib/api";
-import type { Station } from "../lib/types";
+import type { Station, StaffSession } from "../lib/types";
 import { ActionButton, BrandMark, ErrorBanner, UpLink } from "../lib/ui";
 import { StaffCard } from "./staffUi";
 import { DemoRibbon } from "../lib/DemoRibbon";
@@ -37,6 +37,17 @@ export default function StaffPage() {
   });
   const [fetched, setFetched] = useState<Station[]>([]);
   const stations = preview ? PREVIEW_ALL_STATIONS : fetched;
+  /* The code is the event. Show which one, so a volunteer who was sent two codes
+     for two nights can tell at a glance that they are in tonight's. */
+  const [eventTitle, setEventTitle] = useState<string | null>(preview ? "演示场次" : null);
+  useEffect(() => {
+    if (preview || !staffKey) return;
+    let cancelled = false;
+    rpc<StaffSession>("staff_session", { p_staff_key: staffKey })
+      .then((session) => { if (!cancelled) setEventTitle(session.title); })
+      .catch(() => { /* header falls back to the station name alone */ });
+    return () => { cancelled = true; };
+  }, [preview, staffKey]);
 
   useEffect(() => {
     if (preview) return;
@@ -66,7 +77,12 @@ export default function StaffPage() {
 
   if (!station) {
     return (
-      <Shell demo={preview} title="选择你负责的站点" subtitle="选好之后这台手机会记住" onLogout={() => logout(setStaffKey)}>
+      <Shell
+        demo={preview}
+        title="选择你负责的站点"
+        subtitle={eventTitle ? `${eventTitle} · 选好之后这台手机会记住` : "选好之后这台手机会记住"}
+        onLogout={() => logout(setStaffKey)}
+      >
         <StationPicker
           stations={stations}
           onPick={(id) => {
@@ -82,7 +98,7 @@ export default function StaffPage() {
     <Shell
       demo={preview}
       title={station.name_zh}
-      subtitle={stationSubtitle(station)}
+      subtitle={eventTitle ? `${eventTitle} · ${stationSubtitle(station)}` : stationSubtitle(station)}
       badge={station.type === "main" ? `第 ${station.sort_order} 站` : station.type === "grace" ? "恩典站" : "人生盲盒"}
       onSwitch={() => {
         localStorage.removeItem(LS_STATION);
@@ -239,7 +255,7 @@ export function Login(props: { title: string; onOk: (key: string) => void; admin
         </p>
         <h1 className="mt-2 text-3xl font-black">{props.title}</h1>
         <p className="mt-2 text-center text-xs font-semibold text-ink-dim">
-          {props.admin ? "管理员密码由总控发给你" : "密码由总控在活动前发给每站负责人"}
+          {props.admin ? "管理员密码由总控发给你" : "输入本场的 6 位工作人员码 · 总控在管理端里能看到它"}
         </p>
         <form
           className="mt-7 w-full space-y-3"
@@ -247,14 +263,20 @@ export function Login(props: { title: string; onOk: (key: string) => void; admin
             event.preventDefault();
           }}
         >
+          {/* A staff code is read off a chat message and typed in a noisy room;
+              it is short, per-event and low-value, so it stays visible. The admin
+              password is a real secret and stays masked. */}
           <input
-            type="password"
-            autoComplete="current-password"
-            className="w-full rounded-[16px] bg-card px-4 py-3.5 text-lg font-bold outline-none transition-shadow duration-200 focus:shadow-[0_0_0_3px_#ffc838]"
+            type={props.admin ? "password" : "text"}
+            autoComplete={props.admin ? "current-password" : "one-time-code"}
+            autoCapitalize={props.admin ? "off" : "characters"}
+            spellCheck={false}
+            className={`w-full rounded-[16px] bg-card px-4 py-3.5 text-lg font-bold outline-none transition-shadow duration-200 focus:shadow-[0_0_0_3px_#ffc838] ${props.admin ? "" : "text-center font-mono tracking-[0.3em] uppercase"}`}
             style={{ border: "2px solid transparent" }}
-            placeholder="密码"
+            placeholder={props.admin ? "密码" : "工作人员码"}
+            maxLength={props.admin ? 64 : 6}
             value={key}
-            onChange={(event) => setKey(event.target.value)}
+            onChange={(event) => setKey(props.admin ? event.target.value : event.target.value.toUpperCase())}
           />
           <ErrorBanner text={err} />
           <ActionButton
@@ -264,9 +286,9 @@ export function Login(props: { title: string; onOk: (key: string) => void; admin
               try {
                 // cheap key validation round-trip
                 if (props.admin) {
-                  await rpc("admin_list_players", { p_admin_key: key });
+                  await rpc("admin_dashboard", { p_admin_key: key });
                 } else {
-                  await rpc("staff_lookup", { p_staff_key: key, p_codes: [] });
+                  await rpc("staff_session", { p_staff_key: key });
                 }
                 props.onOk(key);
               } catch (error) {

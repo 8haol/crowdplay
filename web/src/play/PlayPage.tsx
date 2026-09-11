@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { rpc, readView, errorText, RpcError } from "../lib/api";
 import { usePoll } from "../lib/usePoll";
 import type { GameLanding, PollResult, Station } from "../lib/types";
@@ -15,7 +15,6 @@ import { useAmbientVerse } from "../lib/scripture";
 export default function PlayPage() {
   const [searchParams] = useSearchParams();
   const { joinToken: routeToken } = useParams<{ joinToken: string }>();
-  const navigate = useNavigate();
   const preview = searchParams.get("preview");
   const [landing, setLanding] = useState<GameLanding | null>(null);
   const [landingError, setLandingError] = useState<unknown>(null);
@@ -42,19 +41,16 @@ export default function PlayPage() {
     : null;
 
   useEffect(() => {
-    if (preview) return;
+    // Without a token there is no "the current game" to fall back to: several
+    // organisations may each have one running. The bare /play route renders
+    // guidance instead (see below), so nothing is fetched here.
+    if (preview || !routeToken) return;
     let cancelled = false;
-    rpc<GameLanding>("game_landing", { p_join_token: routeToken ?? null })
-      .then((result) => {
-        if (cancelled) return;
-        setLanding(result);
-        if (!routeToken && result.join_token) {
-          navigate(`/play/${result.join_token}`, { replace: true });
-        }
-      })
+    rpc<GameLanding>("game_landing", { p_join_token: routeToken })
+      .then((result) => { if (!cancelled) setLanding(result); })
       .catch((error) => { if (!cancelled) setLandingError(error); });
     return () => { cancelled = true; };
-  }, [navigate, preview, routeToken]);
+  }, [preview, routeToken]);
 
   useEffect(() => {
     readView<Station[]>("stations?select=*&order=sort_order").then(setStations).catch(() => {
@@ -140,6 +136,10 @@ export default function PlayPage() {
     );
   }
 
+  if (!routeToken) {
+    return <NoLinkGuidance />;
+  }
+
   if (landingError) {
     return <PlayerMessage title="暂时无法连接活动" body={errorText(landingError)} />;
   }
@@ -148,7 +148,11 @@ export default function PlayPage() {
     return <PlayerLoading label="正在寻找本场活动" />;
   }
 
-  if (!landing.is_current || landing.invalid || sessionArchived || (landing.phase === "ended" && !code)) {
+  if (landing.invalid) {
+    return <NoLinkGuidance broken />;
+  }
+
+  if (!landing.is_current || sessionArchived || (landing.phase === "ended" && !code)) {
     return <ArchivedSession landing={landing} />;
   }
 
@@ -183,7 +187,7 @@ export default function PlayPage() {
   const { phase, player } = data;
 
   if (phase === "waiting") {
-    return <WaitingRoom code={player.code} name={player.name} online={online} colorGroup={player.color_group} />;
+    return <WaitingRoom code={player.code} name={player.name} online={online} colorGroup={player.color_group} orgName={data.org?.name_zh} />;
   }
 
   // Identity reveal: once per stored code, when playing begins.
@@ -253,8 +257,51 @@ function PlayerLoading({ label, error }: { label: string; error?: string }) {
   );
 }
 
+/**
+ * `/play` with no token, or with one that opens nothing. There is no "current
+ * game" to redirect to — several organisations may each have one running — so
+ * the page says how people actually get in: the QR on the wall, or the link
+ * their staff sent. Recovery needs the same link plus the code.
+ */
+function NoLinkGuidance({ broken = false }: { broken?: boolean }) {
+  return (
+    <div className="brand-stage relative min-h-dvh overflow-hidden">
+      <div className="night-sky" />
+      <main className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-6 py-12 text-center">
+        <p className="text-[11px] font-black tracking-[0.4em] text-foil-dim">
+          {broken ? "LINK NOT FOUND" : "PLAYER ENTRY"}
+        </p>
+        <h1 className="mt-3 text-[38px] font-black leading-[1.05] tracking-[-0.05em]">
+          {broken ? "这个链接打不开任何一场" : "从现场的二维码进来"}
+        </h1>
+        <div className="mt-8 rounded-[28px] bg-white px-6 py-7 text-left shadow-[0_4px_0_#e0a800]">
+          <ol className="space-y-4 text-[15px] font-bold leading-6">
+            <li className="flex gap-3">
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-foil text-sm font-black">1</span>
+              <span>用手机相机或微信扫一扫，对准大屏或海报上的<b>入场二维码</b>。</span>
+            </li>
+            <li className="flex gap-3">
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-foil text-sm font-black">2</span>
+              <span>或者点工作人员发到群里的<b>入场链接</b> —— 二维码和链接是同一样东西。</span>
+            </li>
+            <li className="flex gap-3">
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-night-raise text-sm font-black">?</span>
+              <span className="text-ink-dim">已经登记过、手机关掉了？再点一次同一个链接就回到你的护照；找回也需要本场链接加你的 3 位编号。</span>
+            </li>
+          </ol>
+        </div>
+        {broken && (
+          <p className="mx-auto mt-5 max-w-xs text-sm font-semibold leading-6 text-foil-dim">
+            链接可能抄错了一位，或者那一场已经不存在。请向现场工作人员再要一次。
+          </p>
+        )}
+        <Link to="/" className="pressable mt-7 rounded-full bg-white px-6 py-4 font-black text-ink">回到首页</Link>
+      </main>
+    </div>
+  );
+}
+
 function ArchivedSession({ landing }: { landing: GameLanding }) {
-  const canJoinCurrent = landing.current_join_open && landing.current_phase !== "ended" && landing.current_join_token;
   return (
     <div className="brand-stage relative min-h-dvh overflow-hidden">
       <div className="night-sky" />
@@ -270,15 +317,9 @@ function ArchivedSession({ landing }: { landing: GameLanding }) {
           </div>
         </div>
         <p className="mx-auto mt-5 max-w-xs text-sm font-semibold leading-6 text-foil-dim">
-          这个二维码只属于上一场活动，不会把你带进新的玩家名单。
+          这个二维码只属于已经结束的那一场。新一场有自己的二维码，请向现场工作人员要。
         </p>
-        {canJoinCurrent ? (
-          <Link to={`/play/${landing.current_join_token}`} className="pressable mt-7 rounded-full bg-ink px-6 py-4 font-black text-white shadow-[0_4px_0_#0f0d0a]">
-            加入当前场次 · {landing.current_title} →
-          </Link>
-        ) : (
-          <Link to="/" className="pressable mt-7 rounded-full bg-white px-6 py-4 font-black text-ink">回到首页</Link>
-        )}
+        <Link to="/" className="pressable mt-7 rounded-full bg-white px-6 py-4 font-black text-ink">回到首页</Link>
       </main>
     </div>
   );
@@ -313,12 +354,14 @@ const WAITING_COVER_COLORS = [
   { slug: "mint", label: "薄荷", hex: colorOf("mint")?.hex ?? "#4ECB8D" },
 ] as const;
 
-function WaitingRoom({ code, name, online, colorGroup = null, preview = false }: {
+function WaitingRoom({ code, name, online, colorGroup = null, preview = false, orgName = null }: {
   code: string;
   name: string;
   online: boolean;
   colorGroup?: string | null;
   preview?: boolean;
+  /** The organisation running this event; printed on the passport cover. */
+  orgName?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const [opening, setOpening] = useState(false);
@@ -370,6 +413,7 @@ function WaitingRoom({ code, name, online, colorGroup = null, preview = false }:
               code={code}
               name={name}
               online={online}
+              orgName={orgName}
               opening={opening}
               coverColor={coverColor.hex}
               onOpen={() => setOpening(true)}
@@ -413,6 +457,7 @@ function PassportCoverCard(props: {
   code: string;
   name: string;
   online: boolean;
+  orgName?: string | null;
   opening: boolean;
   coverColor: string;
   onOpen: () => void;
@@ -453,7 +498,7 @@ function PassportCoverCard(props: {
 
         <span className="doc-cover__content relative z-10">
           <span className="doc-cover__foil flex items-center justify-between font-mono text-[9px] font-black tracking-[0.22em]">
-            <span>格拉斯哥华人福音教会</span>
+            <span className="truncate">{props.orgName ?? "LIFE PASSPORT"}</span>
             <span className="flex items-center gap-1.5">
               <ConnDot online={props.online} />
               <span className="doc-cover__soft">{props.online ? "已连接" : "重连中"}</span>

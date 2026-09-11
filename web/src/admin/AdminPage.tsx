@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { rpc, errorText } from "../lib/api";
 import { usePoll } from "../lib/usePoll";
-import type { AdminConsoleData, AdminPlayer, StationMetric } from "../lib/types";
+import type { AdminConsoleData, AdminDashboardData, AdminPlayer, StationMetric } from "../lib/types";
+import { screenUrl } from "../lib/gameLinks";
 import { ChromeDivider, ConnDot, SuccessBanner, UpLink } from "../lib/ui";
 import { Login } from "../staff/StaffPage";
 import { AdminIcon, Btn, Panel, PhaseLabel } from "./adminUi";
@@ -63,15 +64,28 @@ function AdminConsole(props: {
   onAdminKeyChanged: (key: string) => void;
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
+  const requestedEventId = searchParams.get("event");
+  /*
+   * The console always works on one event. Which one: the event in the URL if
+   * there is one (the operator opened it from the list), otherwise the one that
+   * is live right now, otherwise the newest. The dashboard call resolves that
+   * before the per-event calls are made.
+   */
   const pollFn = useMemo(
     () => async (): Promise<AdminSnapshot> => {
+      const dashboard = await rpc<AdminDashboardData>("admin_dashboard", { p_admin_key: props.adminKey });
+      const eventId =
+        (requestedEventId && dashboard.events.some((event) => event.event_id === requestedEventId) ? requestedEventId : null)
+        ?? dashboard.live_event_id
+        ?? dashboard.events[0]?.event_id;
+      if (!eventId) throw new Error("NO_EVENTS");
       const [consoleData, players] = await Promise.all([
-        rpc<AdminConsoleData>("admin_console", { p_admin_key: props.adminKey }),
-        rpc<AdminPlayer[]>("admin_list_players", { p_admin_key: props.adminKey }),
+        rpc<AdminConsoleData>("admin_console", { p_admin_key: props.adminKey, p_event_id: eventId }),
+        rpc<AdminPlayer[]>("admin_list_players", { p_admin_key: props.adminKey, p_event_id: eventId }),
       ]);
       return { consoleData, players };
     },
-    [props.adminKey],
+    [props.adminKey, requestedEventId],
   );
   const poll = usePoll<AdminSnapshot>(props.previewData ? null : pollFn, 4000);
   const data = props.previewData ?? poll.data;
@@ -133,8 +147,9 @@ function AdminConsole(props: {
     <div className="tool-surface min-h-dvh" style={{ color: T.ink }}>
       <TopBar
         online={online}
-        session={data.consoleData.current.title}
+        session={`${data.consoleData.org.name_zh} · ${data.consoleData.current.title}`}
         phase={data.consoleData.current.phase}
+        screenToken={data.consoleData.current.screen_token}
         onLogout={props.onLogout}
         onMenu={() => setNavOpen((value) => !value)}
       />
@@ -144,7 +159,7 @@ function AdminConsole(props: {
           section={section}
           open={navOpen}
           liveCount={data.consoleData.stats.locked_players}
-          eventCount={data.consoleData.archives.length + 1}
+          eventCount={data.consoleData.events.length}
           onNavigate={(next) => { setNavOpen(false); navigate(next, null); }}
           onNewGame={() => { setNavOpen(false); setNewGameOpen(true); }}
         />
@@ -203,12 +218,19 @@ function AdminConsole(props: {
           current={data.consoleData.current}
           playerCount={data.consoleData.stats.players}
           onClose={() => setNewGameOpen(false)}
-          onDone={(message) => { setNewGameOpen(false); done(message); }}
+          onDone={(message, eventId) => {
+            setNewGameOpen(false);
+            done(message);
+            // Land the operator in the event they just made; that is where the
+            // new keys are.
+            if (eventId) navigate("events", eventId);
+          }}
         />
       )}
       {selectedPlayer && (
         <PlayerDrawer
           adminKey={props.adminKey}
+          eventId={data.consoleData.current.event_id}
           player={selectedPlayer}
           onClose={() => setPlayerCode(null)}
           onDone={(message) => { setPlayerCode(null); done(message); }}
@@ -232,12 +254,15 @@ function TopBar({
   online,
   session,
   phase,
+  screenToken,
   onLogout,
   onMenu,
 }: {
   online: boolean;
   session?: string;
   phase?: AdminConsoleData["current"]["phase"];
+  /** The working event's projector token; the header link opens that event's screen. */
+  screenToken?: string;
   onLogout: () => void;
   onMenu: () => void;
 }) {
@@ -276,7 +301,7 @@ function TopBar({
             {online ? "已连接" : "重连中"}
           </span>
           <a
-            href="/screen"
+            href={screenToken ? screenUrl(screenToken) : "/screen"}
             target="_blank"
             rel="noreferrer"
             className="pressable hidden items-center gap-2 rounded-lg px-3 py-2 text-xs font-black sm:inline-flex"
@@ -387,7 +412,7 @@ function SideNav({
         <div className="mt-6 pt-5" style={{ borderTop: `1px solid ${T.line}` }}>
           <Btn variant="primary" icon="plus" className="w-full" onClick={onNewGame}>创建新场次</Btn>
           <p className="mt-3 px-1 text-[11px] font-semibold leading-5" style={{ color: T.inkFaint }}>
-            创建新场次会先归档当前活动，再生成新的入场二维码。
+            新场次拿到自己的入场二维码、工作人员码和大屏链接；已有的活动原样保留。
           </p>
         </div>
       </nav>

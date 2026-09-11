@@ -8,17 +8,15 @@ import { previewState } from "./previewData";
 import { DemoRibbon } from "../lib/DemoRibbon";
 
 /*
- * The badge page used to read a bare `lp_code` key that nothing has written
- * since sessions became link-scoped. A player who finished the game therefore
- * saw either "还没有人生记录" (no key at all) or "找不到玩家 XXXX" (a stale key
- * left over from an older session). It now resolves the passport the same way
- * /play does: the join token in the URL first, then whatever this browser has
- * stored for a session.
+ * A passport is always addressed by its event link plus its code: the join
+ * token in the URL first, then whatever this browser has stored for a session.
+ * There is no token-less lookup any more — a code alone names nobody once
+ * several events can each hand out 327.
  */
 const CODE_PREFIX = "lp_code:";
 
 interface Stored {
-  token: string | null;
+  token: string;
   code: string;
 }
 
@@ -33,8 +31,7 @@ function storedPassport(preferredToken?: string): Stored | null {
     const code = localStorage.getItem(key);
     if (code) return { token: key.slice(CODE_PREFIX.length), code };
   }
-  const legacy = localStorage.getItem("lp_code"); // pre-session-link builds
-  return legacy ? { token: null, code: legacy } : null;
+  return null;
 }
 
 export default function BadgePage() {
@@ -46,13 +43,7 @@ export default function BadgePage() {
   const pollFn = useMemo(
     () =>
       !preview && stored
-        ? () =>
-            stored.token
-              ? rpc<PollResult>("poll_player_by_link", {
-                  p_join_token: stored.token,
-                  p_code: stored.code,
-                })
-              : rpc<PollResult>("poll_player", { p_code: stored.code })
+        ? () => rpc<PollResult>("poll_player_by_link", { p_join_token: stored.token, p_code: stored.code })
         : null,
     [preview, stored],
   );

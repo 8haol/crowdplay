@@ -123,6 +123,7 @@ export default function App() {
         <Route path="/staff" element={<StaffPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/screen" element={<ScreenPage />} />
+        <Route path="/screen/:screenToken" element={<ScreenPage />} />
         <Route path="/guide" element={<GuidePage />} />
         <Route path="/library" element={<LibraryPage />} />
         <Route path="/badge" element={<BadgePage />} />

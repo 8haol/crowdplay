@@ -1,8 +1,17 @@
 export type Phase = "waiting" | "playing" | "ended";
 export type Identity = "solo" | "duo" | "trio" | null;
 
+/** A church / host. Branding for every player-facing surface comes from here. */
+export interface Organization {
+  slug: string;
+  name_zh: string;
+  name_en: string;
+}
+
+/** What players and the projector may know about an event. Never carries a key. */
 export interface GameSession {
   event_id: string;
+  org_id?: string;
   title: string;
   join_token: string;
   join_open: boolean;
@@ -11,40 +20,40 @@ export interface GameSession {
   started_at: string | null;
   ended_at: string | null;
   player_count: number;
+  org?: Organization;
+}
+
+/** The admin view of the same event: the three keys that let people in. */
+export interface AdminSession extends GameSession {
+  staff_code: string;
+  screen_token: string;
+}
+
+/** One row in the org's event list. */
+export interface AdminEventSummary extends AdminSession {
+  stamps: number;
+  life_events: number;
+  tokens_used: number;
+  top_score: number;
 }
 
 export interface GameLanding extends Partial<GameSession> {
   is_current: boolean;
   invalid?: boolean;
-  current_join_token?: string;
-  current_title?: string;
-  current_phase?: Phase;
-  current_join_open?: boolean;
+  reason?: "NO_TOKEN" | "BAD_GAME_LINK";
 }
 
-export interface GameArchive {
+export interface StaffSession {
   event_id: string;
   title: string;
   phase: Phase;
-  created_at: string;
-  started_at: string | null;
-  ended_at: string | null;
-  player_count: number;
-  top_score: number;
-  stamps: number;
-  life_events?: number;
-  tokens_used?: number;
+  org: Organization;
 }
 
 export interface AdminDashboardData {
-  current: GameSession;
-  stats: {
-    players: number;
-    stamps: number;
-    life_events: number;
-    top_score: number;
-  };
-  archives: GameArchive[];
+  org: Organization & { id: string };
+  events: AdminEventSummary[];
+  live_event_id: string | null;
 }
 
 export interface StationMetric extends Station {
@@ -66,7 +75,10 @@ export interface AdminActivity {
 }
 
 export interface AdminConsoleData {
-  current: GameSession;
+  org: Organization & { id: string };
+  current: AdminSession;
+  /** Every event this organisation has run, newest first. */
+  events: AdminEventSummary[];
   stats: {
     players: number;
     teams: number;
@@ -81,12 +93,11 @@ export interface AdminConsoleData {
   teams: TeamDetail[];
   station_metrics: StationMetric[];
   activity: AdminActivity[];
-  archives: GameArchive[];
 }
 
 export interface AdminEventDetail {
   is_current: boolean;
-  session: GameSession;
+  session: AdminSession;
   players: AdminPlayerDetail[];
   station_metrics: StationMetric[];
   activity: AdminActivity[];
@@ -212,6 +223,9 @@ export interface LifeEventChoiceResult {
 export interface PollResult {
   phase: Phase;
   started_at: string | null;
+  /** Event title and organisation, so the passport cover and badge can brand themselves. */
+  title?: string;
+  org?: Organization;
   rank: number;
   team_rank?: number;
   player: PlayerState;
@@ -225,6 +239,7 @@ export interface StaffTeamLookup {
   found: boolean;
   identifier?: string;
   phase?: Phase;
+  event_title?: string;
   team_id?: string;
   /** Internal label only (audit rows, server error messages). Never shown. */
   team_code?: string;
@@ -499,6 +514,12 @@ export interface BoardAwards {
 }
 
 export interface BoardSnapshot {
+  /** One call carries everything the projector needs; there is no second poll. */
+  event_id?: string;
+  title?: string;
+  join_token?: string;
+  join_open?: boolean;
+  org?: Organization;
   phase: Phase;
   started_at: string | null;
   stations_total: number;

@@ -33,11 +33,13 @@ export default function KeepsakeBadge({ data }: { data: PollResult }) {
       score: player.score,
       rank: data.rank,
       date: eventDate,
+      orgZh: data.org?.name_zh ?? "Life Passport",
+      orgEn: data.org?.name_en ?? "Life Passport",
     })
       .then((url) => { if (active) setImageUrl(url); })
       .catch(() => { if (active) setError("纪念徽章生成失败，请刷新后再试"); });
     return () => { active = false; };
-  }, [data.rank, eventDate, identity.name, player.name, player.score, playerColor.hex, playerColor.zh]);
+  }, [data.org?.name_en, data.org?.name_zh, data.rank, eventDate, identity.name, player.name, player.score, playerColor.hex, playerColor.zh]);
 
   const filename = `人生护照-${safeFilename(player.name)}.png`;
 
@@ -126,6 +128,9 @@ type BadgeData = {
   score: number;
   rank: number;
   date: string;
+  /** The organisation that ran the event; the badge is their keepsake, not ours. */
+  orgZh: string;
+  orgEn: string;
 };
 
 async function renderBadge(data: BadgeData): Promise<string> {
@@ -165,8 +170,8 @@ async function renderBadge(data: BadgeData): Promise<string> {
   dashedLine(ctx, 145, 1592, 935, "#CBB997");
   label(ctx, "You don't have to do life alone.", 145, 1665, 31, "#F25C3D", "left", 800);
 
-  label(ctx, "格拉斯哥华人福音教会", 90, 1810, 24, "#26211B", "left", 900);
-  trackedLabel(ctx, "GLASGOW CHINESE GOSPEL CHURCH", 90, 1852, 20, 1.5, "#26211B", "left", 700);
+  label(ctx, data.orgZh, 90, 1810, 24, "#26211B", "left", 900);
+  trackedLabel(ctx, data.orgEn.toUpperCase(), 90, 1852, 20, 1.5, "#26211B", "left", 700);
   label(ctx, data.date, 990, 1832, 25, "#26211B", "right", 800);
   return canvas.toDataURL("image/png", 1);
 }

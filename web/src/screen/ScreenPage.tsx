@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { rpc, errorText } from "../lib/api";
 import { usePoll } from "../lib/usePoll";
 import type { BoardPlayer, BoardSnapshot, FeedItem, GameLanding } from "../lib/types";
@@ -20,16 +20,22 @@ const FEED_SHOWN = 12;
 
 export default function ScreenPage() {
   const [searchParams] = useSearchParams();
+  const { screenToken } = useParams<{ screenToken: string }>();
   const previewMode = searchParams.get("preview");
   const preview = previewMode === "1" || previewMode === "lobby" || previewMode === "awards" || previewMode === "ended";
-  const pollFn = useMemo(() => () => rpc<BoardSnapshot>("board_snapshot", {}), []);
+  /* The screen token names the event; one call brings the board, the title
+     and the join link, so the projector has a single 3-second heartbeat. */
+  const pollFn = useMemo(
+    () => (screenToken ? () => rpc<BoardSnapshot>("board_snapshot", { p_screen_token: screenToken }) : null),
+    [screenToken],
+  );
   const poll = usePoll<BoardSnapshot>(preview ? null : pollFn, 3000);
-  const landingFn = useMemo(() => () => rpc<GameLanding>("game_landing", { p_join_token: null }), []);
-  const landingPoll = usePoll<GameLanding>(preview ? null : landingFn, 10000);
   const data = previewData(previewMode) ?? poll.data;
-  const landing = preview
+  const landing: GameLanding | null = preview
     ? ({ title: "Glasgow 新生迎新会", join_token: "preview", join_open: true, is_current: true } as GameLanding)
-    : landingPoll.data;
+    : data
+      ? ({ title: data.title, join_token: data.join_token, join_open: data.join_open, is_current: data.phase !== "ended" } as GameLanding)
+      : null;
   const online = preview ? true : poll.online;
   const error = poll.error;
   const joinLink = landing?.join_token ? joinUrl(landing.join_token) : null;
@@ -43,6 +49,26 @@ export default function ScreenPage() {
     if (ended && !endedRef.current) setCeremonyDone(false);
     endedRef.current = ended;
   }, [data?.phase]);
+
+  if (!preview && !screenToken) {
+    /* `/screen` with no token. The projector link lives in the admin console
+       for exactly one event; there is no "current game" to guess at. */
+    return (
+      <Frame online={false}>
+        <div className="flex flex-1 flex-col items-center justify-center gap-5 px-8 text-center">
+          <p className="font-mono text-[clamp(.7rem,1vw,1rem)] font-black tracking-[0.35em] text-foil-dim">PROJECTOR</p>
+          <h1 className="font-serif text-[clamp(1.8rem,4vw,4rem)] font-black leading-tight">这台投影还没有连到任何一场</h1>
+          <p className="max-w-2xl text-[clamp(.95rem,1.4vw,1.5rem)] font-semibold leading-relaxed text-moon-dim">
+            请总控打开管理端 → 进入本场活动 → 复制「大屏链接」，在这台电脑的浏览器里打开。
+            每一场都有自己的大屏链接，链接本身就是场次。
+          </p>
+          <Link to="/admin" className="pressable rounded-full bg-ink px-6 py-3 text-[clamp(.9rem,1.2vw,1.2rem)] font-black text-white">
+            去管理端
+          </Link>
+        </div>
+      </Frame>
+    );
+  }
 
   if (!data) {
     return (

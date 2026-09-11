@@ -10,6 +10,7 @@ import { joinUrl } from "../lib/gameLinks";
 import Ceremony from "./Ceremony";
 import { DemoRibbon } from "../lib/DemoRibbon";
 import { SCREEN_AWARDS, SCREEN_PREVIEW } from "./previewData";
+import { useAmbientVerse } from "../lib/scripture";
 
 /* Projector page. No auth: it is opened on the venue laptop and shown to the
    room. It never receives 4-digit codes (see board_snapshot in SQL), so a
@@ -245,6 +246,7 @@ function Lobby({
             用<b className="text-ink">手机相机</b>或<b className="text-ink">微信扫一扫</b>对准二维码，
             填写姓名，就能领到属于你的 3 位人生编号。
           </p>
+          <ScreenVerse className="mt-[clamp(1.25rem,2.5vw,2.75rem)] max-w-2xl" />
         </div>
 
         <div className="flex flex-col items-center rounded-[clamp(1.25rem,2.5vw,2.5rem)] bg-white p-[clamp(1rem,2vw,2rem)] shadow-[0_7px_0_#e0a800]">
@@ -491,6 +493,31 @@ function RejoinCard({ url }: { url: string }) {
   );
 }
 
+/* ----------------------------------------------------------------- verse */
+
+/**
+ * Deliberately confined to the two stretches where the screen has nothing to
+ * say: the lobby, and the feed before the first broadcast lands. Once results
+ * are flowing they own the rail — a verse parked next to live scores would be
+ * competing with them, and the room is full of people visiting a church for
+ * the first time. Gentle, not preached, is a dosage decision as much as a
+ * wording one.
+ */
+function ScreenVerse({ className = "" }: { className?: string }) {
+  const verse = useAmbientVerse();
+  return (
+    <div key={verse.ref} className={`feed-in ${className}`}>
+      <div className="h-px w-[clamp(1.5rem,3vw,3rem)] bg-foil-dim/30" />
+      <p className="mt-[clamp(.5rem,1vw,1rem)] text-[clamp(1rem,1.6vw,1.8rem)] font-black leading-snug text-ink/80">
+        「{verse.text}」
+      </p>
+      <p className="mt-[clamp(.2rem,.5vw,.5rem)] font-mono text-[clamp(.55rem,.8vw,.85rem)] font-bold tracking-[0.22em] text-foil-dim/75">
+        {verse.ref} · {verse.refEn}
+      </p>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ ticker */
 
 function Ticker({ feed }: { feed: FeedItem[] }) {
@@ -516,8 +543,9 @@ function Ticker({ feed }: { feed: FeedItem[] }) {
         }}
       >
         {shown.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-[clamp(0.75rem,1.1vw,1.2rem)] text-moon-dim">
-            等待第一个人生瞬间
+          <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+            <div className="text-[clamp(0.75rem,1.1vw,1.2rem)] text-moon-dim">等待第一个人生瞬间</div>
+            <ScreenVerse className="mt-[clamp(0.75rem,1.5vw,1.5rem)]" />
           </div>
         ) : (
           <ul className="flex flex-col gap-[clamp(0.3rem,0.55vw,0.7rem)]">

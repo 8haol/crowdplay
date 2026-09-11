@@ -10,6 +10,7 @@ import { DemoRibbon } from "../lib/DemoRibbon";
 import Join, { CodeIssued } from "./Join";
 import Passport, { PassportGlobe } from "./Passport";
 import { PREVIEW_DATA, PREVIEW_STATIONS, previewState } from "./previewData";
+import { useAmbientVerse } from "../lib/scripture";
 
 export default function PlayPage() {
   const [searchParams] = useSearchParams();
@@ -382,7 +383,27 @@ function WaitingRoom({ code, name, online, colorGroup = null, preview = false }:
         <p className="text-center text-xs font-bold leading-5 text-foil-dim">
           {open ? "玩法已经写在护照内页 · 随时可以合上" : "等待主持人开始游戏 · 同行颜色会自动出现"}
         </p>
+        {/* The wait is the one dead stretch in the night, so it is where an
+            ambient line costs nothing — it fills time the player already has
+            instead of interrupting something they were doing. */}
+        <WaitingVerse />
       </div>
+    </div>
+  );
+}
+
+/** A quiet rotating line under the closed passport, only while waiting. */
+function WaitingVerse() {
+  const verse = useAmbientVerse();
+  return (
+    <div key={verse.ref} className="rise mt-4 text-center">
+      <div className="mx-auto h-px w-8 bg-foil-dim/25" />
+      <p className="mt-3 text-[13px] font-black leading-relaxed text-ink/75">
+        「{verse.text}」
+      </p>
+      <p className="mt-1 text-[10px] font-bold tracking-[0.22em] text-foil-dim/70">
+        {verse.ref}
+      </p>
     </div>
   );
 }

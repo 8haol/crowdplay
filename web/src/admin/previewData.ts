@@ -42,9 +42,9 @@ const player = (
 });
 
 const PLAYERS: AdminPlayer[] = [
-  player("林沐恩", "427", 48, 7, 3, { contact: "WeChat: muen427", identity: "duo", color_group: "navy", team_id: "t1", teammates: ["周以诺"] }),
+  player("林沐恩", "327", 48, 7, 3, { contact: "WeChat: muen427", identity: "duo", color_group: "navy", team_id: "t1", teammates: ["周以诺"] }),
   player("周以诺", "183", 42, 6, 2, { contact: "+44 7700 900183", identity: "duo", color_group: "navy", team_id: "t1", teammates: ["林沐恩"] }),
-  player("陈思语", "274", 37, 5, 1, {
+  player("陈思语", "273", 37, 5, 1, {
     identity: "trio",
     color_group: "coral",
     team_id: "t2",
@@ -101,7 +101,7 @@ export const ADMIN_PREVIEW: AdminSnapshot = {
     station_metrics: STATIONS,
     activity: [
       { id: "a1", kind: "attempt", at: now, player_name: "林沐恩 / 周以诺", player_code: null, label: "寂静图书馆", detail: "全队每人 +9 分" },
-      { id: "a2", kind: "life_event", at: now, player_name: "陈思语", player_code: "274", label: "三人投票僵局", detail: "小小试验打开了新方向" },
+      { id: "a2", kind: "life_event", at: now, player_name: "陈思语", player_code: "273", label: "三人投票僵局", detail: "小小试验打开了新方向" },
       { id: "a3", kind: "token", at: now, player_name: "梁乐知", player_code: "591", label: "Help Token", detail: "grace_card" },
     ],
     archives: [

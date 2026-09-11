@@ -118,10 +118,10 @@ export default function PlayPage() {
     return <Demo><PreviewJoinFlow /></Demo>;
   }
   if (preview === "code") {
-    return <Demo><CodeIssued code="427" onContinue={() => {}} /></Demo>;
+    return <Demo><CodeIssued code="327" onContinue={() => {}} /></Demo>;
   }
   if (preview === "waiting") {
-    return <Demo><WaitingRoom code="427" name="林沐恩" online preview /></Demo>;
+    return <Demo><WaitingRoom code="327" name="林沐恩" online preview /></Demo>;
   }
   if (["reveal", "reveal-duo", "reveal-solo"].includes(preview ?? "")) {
     const revealData = preview === "reveal-duo"
@@ -214,7 +214,7 @@ function Demo({ children }: { children: React.ReactNode }) {
  */
 function PreviewJoinFlow() {
   const [step, setStep] = useState<"form" | "code" | "waiting" | "passport">("form");
-  const [code, setCode] = useState("427");
+  const [code, setCode] = useState("327");
   const [name, setName] = useState("林沐恩");
 
   if (step === "passport") {

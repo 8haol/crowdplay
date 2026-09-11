@@ -51,9 +51,9 @@ export const PREVIEW_TEAM: StaffTeamLookup = {
   color_group: "navy",
   challenge_score: 30,
   members: [
-    member("林沐恩", "427", 33, 4, 1, { teammates: ["周以诺", "陈思语"] }),
+    member("林沐恩", "327", 33, 4, 1, { teammates: ["周以诺", "陈思语"] }),
     member("周以诺", "183", 30, 4, 1, { teammates: ["林沐恩", "陈思语"] }),
-    member("陈思语", "274", 27, 4, 1, { teammates: ["林沐恩", "周以诺"], locked_for_life_event: true, pending_stage: 2 }),
+    member("陈思语", "273", 27, 4, 1, { teammates: ["林沐恩", "周以诺"], locked_for_life_event: true, pending_stage: 2 }),
   ],
   attempted_station_ids: [1, 2, 3, 4],
   retry_station_ids: [],

@@ -225,9 +225,7 @@ export default function Passport(props: {
                   {/* A granted Second Chance outranks the failure it replaces:
                       the station is open again, so a red stamp would be a lie. */}
                   {retry ? (
-                    <div className="absolute right-2.5 bottom-2.5 rounded-lg border border-foil-dim/70 bg-foil/20 px-2 py-1 text-[11px] font-black text-foil-dim">
-                      ✨ 可重新挑战
-                    </div>
+                    <VisaStamp tone="retry" big={<RetryGlyph />} small="再挑战" />
                   ) : passed ? (
                     <VisaStamp tone="pass" big={`+${passed.score}`} small="通过" />
                   ) : failed ? (
@@ -660,10 +658,48 @@ function FinishedCard({ player }: { player: PollResult["player"] }) {
 }
 
 /** Double-ring visa stamp, slammed onto the page. */
-function VisaStamp({ tone, big, small }: { tone: "pass" | "fail"; big: string; small: string }) {
-  const cls = tone === "pass" ? "border-leaf text-leaf" : "border-seal text-seal";
+/**
+ * A rotate arrow, inline so it inherits the stamp's currentColor and stays
+ * crisp at 15px. The passport keeps emoji out of its own pages — every other
+ * mark on this card is drawn, so a system emoji would be the one foreign glyph.
+ */
+function RetryGlyph() {
   return (
-    <div className={`stamp-in absolute right-2 bottom-2 h-[60px] w-[60px] rounded-full border-2 ${cls} flex items-center justify-center`}>
+    <svg
+      viewBox="0 0 24 24"
+      className="h-[15px] w-[15px]"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+      <path d="M21 3v5h-5" />
+    </svg>
+  );
+}
+
+/**
+ * `pass` and `fail` are settled: ink is on the page, so both rings are solid.
+ * `retry` is the opposite — the Second Chance reopened this station and nothing
+ * has been recorded yet. It keeps the stamp's size and slot so the grid stays
+ * even, but draws the rings dashed: an empty frame waiting for a stamp, not a
+ * verdict of its own.
+ */
+function VisaStamp({ tone, big, small }: { tone: "pass" | "fail" | "retry"; big: React.ReactNode; small: string }) {
+  const cls =
+    tone === "pass"
+      ? "border-leaf text-leaf"
+      : tone === "fail"
+        ? "border-seal text-seal"
+        : "border-foil-dim text-foil-dim";
+  /* Only the outer ring breaks. One dashed edge says "no stamp here yet";
+     dashing both turned the mark into noise at reading distance. */
+  const ring = tone === "retry" ? "border-dashed" : "";
+  return (
+    <div className={`stamp-in absolute right-2 bottom-2 h-[60px] w-[60px] rounded-full border-2 ${ring} ${cls} flex items-center justify-center`}>
       <div className={`h-[48px] w-[48px] rounded-full border ${cls} opacity-90 flex flex-col items-center justify-center`}>
         <span className="tabular font-serif font-black text-lg leading-none">{big}</span>
         <span className="text-[9px] font-bold tracking-[0.15em] mt-0.5">{small}</span>

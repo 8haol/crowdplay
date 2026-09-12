@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { rpc, errorText } from "../../lib/api";
 import { JoinQr } from "../../lib/JoinQr";
-import { joinUrl } from "../../lib/gameLinks";
+import { joinUrl, screenUrl } from "../../lib/gameLinks";
 import type { AdminConsoleData, AdminPlayer } from "../../lib/types";
 import { IDENTITY_SHORT, colorOf } from "../../lib/types";
 import { ErrorBanner } from "../../lib/ui";
@@ -42,7 +42,7 @@ export function LiveView({
         actions={
           <>
             <a
-              href="/screen"
+              href={screenUrl(session.screen_token)}
               target="_blank"
               rel="noreferrer"
               className="pressable inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black"
@@ -134,7 +134,7 @@ function OperationPanel({
               onClick={async () => {
                 setErr(null);
                 try {
-                  await rpc("start_game", { p_admin_key: adminKey, p_quota: { trio: Number(trio || 0), duo: Number(duo || 0) } });
+                  await rpc("start_game", { p_admin_key: adminKey, p_event_id: session.event_id, p_quota: { trio: Number(trio || 0), duo: Number(duo || 0) } });
                   onDone("游戏已开始，组队颜色已经分配");
                 } catch (error) { setErr(errorText(error)); }
               }}
@@ -167,7 +167,7 @@ function OperationPanel({
                     onClick={async () => {
                       setErr(null);
                       try {
-                        await rpc("end_game", { p_admin_key: adminKey });
+                        await rpc("end_game", { p_admin_key: adminKey, p_event_id: session.event_id });
                         onDone("本场已结束，大屏开始颁奖");
                       } catch (error) { setErr(errorText(error)); }
                     }}
@@ -192,7 +192,7 @@ function OperationPanel({
                 恩典站也仍然可以为还有 Token 的玩家兑换纪念卡。
               </p>
             </div>
-            <Btn variant="primary" icon="plus" className="mt-4" onClick={onNewGame}>归档本场并创建新场次</Btn>
+            <Btn variant="primary" icon="plus" className="mt-4" onClick={onNewGame}>创建新场次</Btn>
           </div>
         )}
       </div>
@@ -202,22 +202,64 @@ function OperationPanel({
 
 /* ------------------------------------------------------------------ panels */
 
+/*
+ * The three keys to this event, side by side. Each one is what a different
+ * group of people needs and nothing more: players scan or tap the link, staff
+ * type the six-character code, the projector laptop opens the screen link.
+ */
 function JoinPanel({ session, onDone }: { session: AdminConsoleData["current"]; onDone: (message: string) => void }) {
   const url = joinUrl(session.join_token);
+  const screen = screenUrl(session.screen_token);
+  const copy = async (text: string, message: string) => {
+    await navigator.clipboard.writeText(text);
+    onDone(message);
+  };
   return (
     <Panel className="overflow-hidden">
-      <PanelHead eyebrow="PLAYER ENTRY" title="入场二维码" note={session.join_open ? "扫码即可加入本场" : "登记当前已关闭"} />
+      <PanelHead eyebrow="EVENT KEYS" title="本场的三把钥匙" note={session.join_open ? "入场链接开放中" : "登记当前已关闭"} />
       <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-4 p-5">
         <JoinQr url={url} className="aspect-square w-full rounded-lg" />
         <div className="min-w-0 self-center">
-          <div className="truncate font-mono text-[10px]" style={{ color: T.inkFaint }}>{url}</div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Btn icon="copy" onClick={async () => { await navigator.clipboard.writeText(url); onDone("玩家链接已复制"); }}>
-              复制链接
-            </Btn>
+          <div className="text-[10px] font-black tracking-[0.25em]" style={{ color: T.inkFaint }}>玩家 · 入场链接</div>
+          <div className="mt-1 truncate font-mono text-[10px]" style={{ color: T.inkFaint }}>{url}</div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Btn icon="copy" onClick={() => copy(url, "入场链接已复制，可直接发到群里")}>复制入场链接</Btn>
           </div>
-          <p className="mt-3 text-[11px] font-semibold leading-5" style={{ color: T.inkSoft }}>
-            大屏 `/screen` 会自动显示同一个二维码，玩家中途退出也能从大屏角落重新扫码进入。
+          <p className="mt-2 text-[11px] font-semibold leading-5" style={{ color: T.inkSoft }}>
+            二维码和链接是同一样东西。大屏会显示同一个码，玩家中途退出也能从大屏角落重新扫码进入。
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-3 border-t px-5 py-4 sm:grid-cols-2" style={{ borderColor: "#ebe2d2" }}>
+        <div className="rounded-xl p-4" style={{ background: T.panelAlt }}>
+          <div className="text-[10px] font-black tracking-[0.25em]" style={{ color: T.inkFaint }}>工作人员 · 本场码</div>
+          <div className="mt-1 font-mono text-2xl font-black tracking-[0.3em]">{session.staff_code}</div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Btn icon="copy" onClick={() => copy(session.staff_code, "工作人员码已复制")}>复制</Btn>
+          </div>
+          <p className="mt-2 text-[11px] font-semibold leading-5" style={{ color: T.inkSoft }}>
+            志愿者在 /staff 输入这 6 位，就只能给这一场录分。要换码去「系统设置」。
+          </p>
+        </div>
+        <div className="rounded-xl p-4" style={{ background: T.panelAlt }}>
+          <div className="text-[10px] font-black tracking-[0.25em]" style={{ color: T.inkFaint }}>投影 · 大屏链接</div>
+          <div className="mt-1 truncate font-mono text-[10px]" style={{ color: T.inkFaint }}>{screen}</div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Btn icon="copy" onClick={() => copy(screen, "大屏链接已复制")}>复制</Btn>
+            <a
+              href={screen}
+              target="_blank"
+              rel="noreferrer"
+              className="pressable inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-black"
+              style={{ background: "#fff", border: "1px solid #d9cebc", color: T.ink }}
+            >
+              <AdminIcon name="screen" className="h-4 w-4" />
+              新窗口打开
+            </a>
+          </div>
+          <p className="mt-2 text-[11px] font-semibold leading-5" style={{ color: T.inkSoft }}>
+            在接投影的电脑上打开这条链接即可。它只显示这一场，不含任何人生编号。
           </p>
         </div>
       </div>

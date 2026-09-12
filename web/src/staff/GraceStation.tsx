@@ -143,7 +143,7 @@ function TeamHelp({
               </p>
             ) : (
               <p className="text-xs font-semibold leading-6 text-ink-dim">
-                重新挑战已经写进队伍和每位队员的护照，手机上该站会显示「✨ 可重新挑战」。
+                重新挑战已经写进队伍和每位队员的护照，手机上该站会变成虚线的「再挑战」印章。
                 请让他们回到该站；新成绩录入后会<b className="text-ink">替换旧成绩</b>，不会重复加分。
               </p>
             )}

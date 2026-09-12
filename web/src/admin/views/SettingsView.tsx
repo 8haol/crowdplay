@@ -20,7 +20,6 @@ export function SettingsView({
 }) {
   const session = consoleData.current;
   const [title, setTitle] = useState(session.title);
-  const [staffKey, setStaffKey] = useState("");
   const [adminKeyNew, setAdminKeyNew] = useState("");
   const [err, setErr] = useState<string | null>(null);
 
@@ -51,7 +50,7 @@ export function SettingsView({
                   onClick={async () => {
                     setErr(null);
                     try {
-                      await rpc("admin_update_game", { p_admin_key: adminKey, p_title: title.trim(), p_join_open: null });
+                      await rpc("admin_update_game", { p_admin_key: adminKey, p_event_id: session.event_id, p_title: title.trim(), p_join_open: null });
                       onDone("活动名称已更新");
                     } catch (error) { setErr(errorText(error)); }
                   }}
@@ -69,7 +68,7 @@ export function SettingsView({
                 onChange={async () => {
                   setErr(null);
                   try {
-                    await rpc("admin_update_game", { p_admin_key: adminKey, p_title: null, p_join_open: !session.join_open });
+                    await rpc("admin_update_game", { p_admin_key: adminKey, p_event_id: session.event_id, p_title: null, p_join_open: !session.join_open });
                     onDone(session.join_open ? "玩家登记已关闭" : "玩家登记已开放");
                   } catch (error) { setErr(errorText(error)); }
                 }}
@@ -79,20 +78,30 @@ export function SettingsView({
         </Panel>
 
         <Panel className="overflow-hidden">
-          <PanelHead eyebrow="ACCESS" title="访问控制" note="密码只以 SHA-256 摘要存在数据库里" />
+          <PanelHead eyebrow="ACCESS" title="访问控制" note="管理密码属于机构；工作人员码属于这一场" />
           <div className="p-5">
-            <Field label="新工作人员密码" hint="至少 6 位；留空表示不修改">
-              <input
-                type="password"
-                className={inputClass}
-                style={inputStyle}
-                placeholder="/staff 登录用"
-                value={staffKey}
-                onChange={(event) => setStaffKey(event.target.value)}
-              />
+            <Field label="本场工作人员码" hint="志愿者在 /staff 输入它。泄露了就换一个，旧码立即失效">
+              <div className="mt-2 flex items-center gap-3">
+                <span className="font-mono text-2xl font-black tracking-[0.3em]">{session.staff_code}</span>
+                <Btn
+                  onClick={async () => {
+                    setErr(null);
+                    try {
+                      const result = await rpc<{ staff_code: string | null }>("admin_update_access", {
+                        p_admin_key: adminKey,
+                        p_new_admin_key: null,
+                        p_rotate_staff_event_id: session.event_id,
+                      });
+                      onDone(`工作人员码已换成 ${result.staff_code ?? ""}，请重新发给同工`);
+                    } catch (error) { setErr(errorText(error)); }
+                  }}
+                >
+                  换一个
+                </Btn>
+              </div>
             </Field>
-            <div className="mt-4">
-              <Field label="新管理员密码" hint="至少 8 位；留空表示不修改。管理员密码可以通行一切工作人员操作">
+            <div className="mt-5">
+              <Field label="新管理员密码" hint="至少 8 位；留空表示不修改。这是整个机构的密码，只以 SHA-256 摘要存库">
                 <input
                   type="password"
                   className={inputClass}
@@ -106,23 +115,22 @@ export function SettingsView({
             <Btn
               variant="primary"
               className="mt-5"
-              disabled={!staffKey && !adminKeyNew}
+              disabled={!adminKeyNew}
               onClick={async () => {
                 setErr(null);
                 try {
                   await rpc("admin_update_access", {
                     p_admin_key: adminKey,
-                    p_new_staff_key: staffKey || null,
-                    p_new_admin_key: adminKeyNew || null,
+                    p_new_admin_key: adminKeyNew,
+                    p_rotate_staff_event_id: null,
                   });
-                  if (adminKeyNew) onAdminKeyChanged(adminKeyNew);
-                  setStaffKey("");
+                  onAdminKeyChanged(adminKeyNew);
                   setAdminKeyNew("");
-                  onDone("访问密码已更新");
+                  onDone("管理员密码已更新");
                 } catch (error) { setErr(errorText(error)); }
               }}
             >
-              更新访问密码
+              更新管理员密码
             </Btn>
           </div>
         </Panel>
@@ -133,10 +141,11 @@ export function SettingsView({
       <Panel tone="danger" className="mt-5 p-5">
         <h2 className="text-lg font-black" style={{ color: "#963c2e" }}>场次生命周期</h2>
         <p className="mt-1 max-w-2xl text-sm font-semibold leading-6" style={{ color: T.inkSoft }}>
-          创建新场次会先把当前数据完整归档（玩家、队伍、站点成绩、人生事件、管理记录），
-          再生成新的二维码和统计空间。历史场次不会被删除，随时可以在「全部活动」里回看。
+          每一场都有自己的入场二维码、工作人员码和大屏链接。新建场次不会动现有任何一场的数据；
+          结束的场次带着完整的玩家、成绩和记录留在「全部活动」里，随时可以点进去。
+          同一机构同时只能有一场在进行中。
         </p>
-        <Btn variant="danger" className="mt-5" onClick={onNewGame}>归档当前场次并创建新场次</Btn>
+        <Btn variant="danger" className="mt-5" onClick={onNewGame}>创建新场次</Btn>
       </Panel>
     </div>
   );

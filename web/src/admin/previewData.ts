@@ -42,9 +42,9 @@ const player = (
 });
 
 const PLAYERS: AdminPlayer[] = [
-  player("林沐恩", "427", 48, 7, 3, { contact: "WeChat: muen427", identity: "duo", color_group: "navy", team_id: "t1", teammates: ["周以诺"] }),
+  player("林沐恩", "327", 48, 7, 3, { contact: "WeChat: muen427", identity: "duo", color_group: "navy", team_id: "t1", teammates: ["周以诺"] }),
   player("周以诺", "183", 42, 6, 2, { contact: "+44 7700 900183", identity: "duo", color_group: "navy", team_id: "t1", teammates: ["林沐恩"] }),
-  player("陈思语", "274", 37, 5, 1, {
+  player("陈思语", "273", 37, 5, 1, {
     identity: "trio",
     color_group: "coral",
     team_id: "t2",
@@ -71,10 +71,13 @@ const STATIONS: StationMetric[] = [
 export const ADMIN_PREVIEW: AdminSnapshot = {
   players: PLAYERS,
   consoleData: {
+    org: { id: "preview-org", slug: "gcgc", name_zh: "格拉斯哥华人福音教会", name_en: "Glasgow Chinese Gospel Church" },
     current: {
       event_id: "preview-event-0000-0000",
       title: "2026 Glasgow 新生迎新会",
       join_token: "8f23e7c51a9d4b60",
+      staff_code: "K7M2PX",
+      screen_token: "3c1e9a4d7b2f8e60",
       join_open: true,
       phase: "playing",
       created_at: now,
@@ -82,6 +85,11 @@ export const ADMIN_PREVIEW: AdminSnapshot = {
       ended_at: null,
       player_count: 47,
     },
+    events: [
+      { event_id: "preview-event-0000-0000", title: "2026 Glasgow 新生迎新会", join_token: "8f23e7c51a9d4b60", staff_code: "K7M2PX", screen_token: "3c1e9a4d7b2f8e60", join_open: true, phase: "playing", created_at: now, started_at: now, ended_at: null, player_count: 47, stamps: 68, life_events: 26, tokens_used: 9, top_score: 48 },
+      { event_id: "archive-1", title: "2025 圣诞欢乐夜", join_token: "a1b2c3d4e5f60718", staff_code: "QW8ZT3", screen_token: "9f8e7d6c5b4a3210", join_open: false, phase: "ended", created_at: "2025-12-20T18:00:00Z", started_at: "2025-12-20T19:05:00Z", ended_at: "2025-12-20T20:20:00Z", player_count: 38, top_score: 54, stamps: 61, life_events: 22, tokens_used: 12 },
+      { event_id: "archive-2", title: "2025 秋季新生迎新会", join_token: "0f1e2d3c4b5a6978", staff_code: "HN4V2R", screen_token: "5a6b7c8d9e0f1122", join_open: false, phase: "ended", created_at: "2025-09-14T17:30:00Z", started_at: "2025-09-14T18:40:00Z", ended_at: "2025-09-14T20:00:00Z", player_count: 52, top_score: 61, stamps: 84, life_events: 31, tokens_used: 18 },
+    ],
     stats: {
       players: 47,
       teams: 23,
@@ -101,12 +109,8 @@ export const ADMIN_PREVIEW: AdminSnapshot = {
     station_metrics: STATIONS,
     activity: [
       { id: "a1", kind: "attempt", at: now, player_name: "林沐恩 / 周以诺", player_code: null, label: "寂静图书馆", detail: "全队每人 +9 分" },
-      { id: "a2", kind: "life_event", at: now, player_name: "陈思语", player_code: "274", label: "三人投票僵局", detail: "小小试验打开了新方向" },
+      { id: "a2", kind: "life_event", at: now, player_name: "陈思语", player_code: "273", label: "三人投票僵局", detail: "小小试验打开了新方向" },
       { id: "a3", kind: "token", at: now, player_name: "梁乐知", player_code: "591", label: "Help Token", detail: "grace_card" },
-    ],
-    archives: [
-      { event_id: "archive-1", title: "2025 圣诞欢乐夜", phase: "ended", created_at: "2025-12-20T18:00:00Z", started_at: "2025-12-20T19:05:00Z", ended_at: "2025-12-20T20:20:00Z", player_count: 38, top_score: 54, stamps: 61, life_events: 22, tokens_used: 12 },
-      { event_id: "archive-2", title: "2025 秋季新生迎新会", phase: "ended", created_at: "2025-09-14T17:30:00Z", started_at: "2025-09-14T18:40:00Z", ended_at: "2025-09-14T20:00:00Z", player_count: 52, top_score: 61, stamps: 84, life_events: 31, tokens_used: 18 },
     ],
   },
 };

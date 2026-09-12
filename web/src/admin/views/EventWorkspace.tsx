@@ -60,7 +60,7 @@ export function EventWorkspace({
   return (
     <div>
       <PageTitle
-        eyebrow={data.is_current ? "CURRENT EVENT · 当前场次" : "ARCHIVED EVENT · 已归档场次"}
+        eyebrow={data.is_current ? "CURRENT EVENT · 当前场次" : "ENDED EVENT · 已结束场次"}
         title={data.session.title}
         description={`创建于 ${formatDate(data.session.created_at)}${data.session.ended_at ? ` · 结束于 ${formatDate(data.session.ended_at, true)}` : ""}。这一页是该场活动的完整档案。`}
         onBack={{ label: "返回全部活动", onClick: onBack }}

@@ -6,6 +6,7 @@ import { IDENTITY_SHORT, IDENTITY_ZH, colorOf, journeyProgress, soloColor } from
 import { ConnDot } from "../lib/ui";
 import { darken, readableOn } from "../lib/color";
 import { useCountUp } from "../lib/useCountUp";
+import { FINAL_STAGE_VERSE, GRACE_VERSE, SETBACK_VERSES, pickVerse } from "../lib/scripture";
 
 const STAGE_ZH = ["", "第一段人生", "第二段人生", "最后一段人生"];
 const PASSPORT_STYLES = ["cover", "visa", "epass"] as const;
@@ -28,7 +29,7 @@ export default function Passport(props: {
   const { data, stations, online } = props;
   const { player, attempts, life_events } = data;
   const [searchParams, setSearchParams] = useSearchParams();
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ text: string; note?: string } | null>(null);
   const prev = useRef<PollResult | null>(null);
   const shownScore = useCountUp(player.score);
 
@@ -61,15 +62,30 @@ export default function Passport(props: {
       show(diff > 0 ? `+${diff} 分，总分 ${data.player.score}` : `${diff} 分，总分 ${data.player.score}`);
     } else if (p.player.token_available && !data.player.token_available) {
       show("Help Token 已使用");
+    } else {
+      /* A failed station scores nothing, so the score branch above never fires
+         and the phone used to say nothing at all at the one moment the player
+         most needs an answer. Transient on purpose: comfort belongs to the
+         moment, not stamped onto the station for the rest of the night. */
+      const wasFailed = new Set(
+        p.attempts.filter((a) => a.status === "failed").map((a) => a.station_id),
+      );
+      const fresh = data.attempts.find(
+        (a) => a.status === "failed" && !wasFailed.has(a.station_id),
+      );
+      if (fresh) {
+        const verse = pickVerse(SETBACK_VERSES, String(fresh.station_id));
+        show(`「${verse.text}」`, verse.ref, 6500);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
   const toastTimer = useRef<number | null>(null);
-  function show(msg: string) {
-    setToast(msg);
+  function show(text: string, note?: string, ms = 4000) {
+    setToast({ text, note });
     if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = window.setTimeout(() => setToast(null), 4000);
+    toastTimer.current = window.setTimeout(() => setToast(null), ms);
   }
 
   if (data.phase === "ended") {
@@ -225,9 +241,7 @@ export default function Passport(props: {
                   {/* A granted Second Chance outranks the failure it replaces:
                       the station is open again, so a red stamp would be a lie. */}
                   {retry ? (
-                    <div className="absolute right-2.5 bottom-2.5 rounded-lg border border-foil-dim/70 bg-foil/20 px-2 py-1 text-[11px] font-black text-foil-dim">
-                      ✨ 可重新挑战
-                    </div>
+                    <VisaStamp tone="retry" big={<RetryGlyph />} small="再挑战" />
                   ) : passed ? (
                     <VisaStamp tone="pass" big={`+${passed.score}`} small="通过" />
                   ) : failed ? (
@@ -258,11 +272,24 @@ export default function Passport(props: {
                   {player.token_available ? "可用" : "已用"}
                 </span>
               </div>
-              <div className="mt-1 text-xs text-moon-dim">
-                {player.token_available
-                  ? "整队可领实体恩典卡 / 重挑已玩站点；也可随时换纪念卡"
-                  : "You don't have to do life alone"}
-              </div>
+              {player.token_available ? (
+                <div className="mt-1 text-xs text-moon-dim">
+                  整队可领实体恩典卡 / 重挑已玩站点；也可随时换纪念卡
+                </div>
+              ) : (
+                /* The token is spent, so the slot is free — and this is the one
+                   place a verse is earned rather than decorative: the card that
+                   held the grace now holds the line it stood for, still there
+                   to re-read for the rest of the night. */
+                <div className="mt-1.5">
+                  <div className="text-[13px] font-black leading-snug text-ink">
+                    「{GRACE_VERSE.text}」
+                  </div>
+                  <div className="mt-0.5 text-[10px] font-bold tracking-[0.16em] text-moon-dim">
+                    {GRACE_VERSE.ref}
+                  </div>
+                </div>
+              )}
             </div>
             <div className={`grid h-14 w-14 shrink-0 place-items-center rounded-full text-[11px] font-black shadow-[inset_0_0_0_4px_rgba(255,255,255,.55),0_3px_0_#e0a800] ${player.token_available ? "bg-foil text-[#5c3d00]" : "bg-[#e1d5be] text-[#9f9278] line-through shadow-none"}`}>HELP</div>
           </div>
@@ -308,7 +335,12 @@ export default function Passport(props: {
 
         {toast && (
           <div className="toast-in fixed inset-x-5 bottom-6 z-50 mx-auto max-w-xl rounded-2xl bg-ink px-4 py-3.5 text-center font-black text-white shadow-[0_12px_32px_rgba(38,33,27,.24)]">
-            {toast}
+            {toast.text}
+            {toast.note && (
+              <div className="mt-1 text-[10px] font-bold tracking-[0.18em] text-white/55">
+                {toast.note}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -660,10 +692,48 @@ function FinishedCard({ player }: { player: PollResult["player"] }) {
 }
 
 /** Double-ring visa stamp, slammed onto the page. */
-function VisaStamp({ tone, big, small }: { tone: "pass" | "fail"; big: string; small: string }) {
-  const cls = tone === "pass" ? "border-leaf text-leaf" : "border-seal text-seal";
+/**
+ * A rotate arrow, inline so it inherits the stamp's currentColor and stays
+ * crisp at 15px. The passport keeps emoji out of its own pages — every other
+ * mark on this card is drawn, so a system emoji would be the one foreign glyph.
+ */
+function RetryGlyph() {
   return (
-    <div className={`stamp-in absolute right-2 bottom-2 h-[60px] w-[60px] rounded-full border-2 ${cls} flex items-center justify-center`}>
+    <svg
+      viewBox="0 0 24 24"
+      className="h-[15px] w-[15px]"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+      <path d="M21 3v5h-5" />
+    </svg>
+  );
+}
+
+/**
+ * `pass` and `fail` are settled: ink is on the page, so both rings are solid.
+ * `retry` is the opposite — the Second Chance reopened this station and nothing
+ * has been recorded yet. It keeps the stamp's size and slot so the grid stays
+ * even, but draws the rings dashed: an empty frame waiting for a stamp, not a
+ * verdict of its own.
+ */
+function VisaStamp({ tone, big, small }: { tone: "pass" | "fail" | "retry"; big: React.ReactNode; small: string }) {
+  const cls =
+    tone === "pass"
+      ? "border-leaf text-leaf"
+      : tone === "fail"
+        ? "border-seal text-seal"
+        : "border-foil-dim text-foil-dim";
+  /* Only the outer ring breaks. One dashed edge says "no stamp here yet";
+     dashing both turned the mark into noise at reading distance. */
+  const ring = tone === "retry" ? "border-dashed" : "";
+  return (
+    <div className={`stamp-in absolute right-2 bottom-2 h-[60px] w-[60px] rounded-full border-2 ${ring} ${cls} flex items-center justify-center`}>
       <div className={`h-[48px] w-[48px] rounded-full border ${cls} opacity-90 flex flex-col items-center justify-center`}>
         <span className="tabular font-serif font-black text-lg leading-none">{big}</span>
         <span className="text-[9px] font-bold tracking-[0.15em] mt-0.5">{small}</span>
@@ -783,14 +853,28 @@ function LifeEventExperience(props: {
             <br />
             准备好了再打开 —— 打开后需要做一个选择。
           </p>
+          {/* Only the last stage carries a verse. Printing one on every life
+              event would make it wallpaper; arriving at the final fork is the
+              beat that earns a word about handing things over. */}
+          {props.event.stage === 3 && (
+            <div className="rise mt-7" style={{ "--i": 4 } as React.CSSProperties}>
+              <div className="mx-auto h-px w-10 bg-[#7a5200]/25" />
+              <p className="mt-4 text-[15px] font-black leading-relaxed text-[#5c4a24]">
+                「{FINAL_STAGE_VERSE.text}」
+              </p>
+              <p className="mt-1.5 text-[10px] font-bold tracking-[0.22em] text-[#7a5200]/75">
+                {FINAL_STAGE_VERSE.ref}
+              </p>
+            </div>
+          )}
           <button
             className="rise pressable mt-9 rounded-full bg-ink px-6 py-4 text-[15px] font-black text-white shadow-[0_4px_0_#0f0d0a]"
-            style={{ "--i": 4 } as React.CSSProperties}
+            style={{ "--i": 5 } as React.CSSProperties}
             onClick={() => setStep("choose")}
           >
             打开这段人生 →
           </button>
-          <p className="rise mt-3 text-[11px] font-semibold text-[#7a5200]" style={{ "--i": 5 } as React.CSSProperties}>
+          <p className="rise mt-3 text-[11px] font-semibold text-[#7a5200]" style={{ "--i": 6 } as React.CSSProperties}>
             队伍不会因为你停下，可以边走边处理。
           </p>
         </main>

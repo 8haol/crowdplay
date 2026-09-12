@@ -1,117 +1,87 @@
--- Tests: board_snapshot — payload shape, privacy (no codes), feed contents
+-- Tests: board_snapshot — payload shape, privacy (no codes), feed contents, awards
 begin;
-delete from rpc_results; delete from admin_actions; delete from token_usages;
-delete from life_events; delete from life_event_instances; delete from attempts;
-delete from team_attempts; delete from players; delete from teams;
-update app_config set value = 'test-admin' where key = 'admin_key';
-update app_config set value = 'test-staff' where key = 'staff_key';
-update game_state set phase = 'playing', join_passphrase = 'pass', started_at = now() where id = 1;
+delete from events; delete from organizations;
+insert into organizations (slug, name_zh, name_en, admin_key) values ('tc', '测试教会', 'Test Church', 'test-admin');
+insert into events (org_id, title, join_token, staff_code, screen_token, phase, started_at)
+select id, '测试场', 'join-t', 'STAFF1', 'screen-t', 'playing', now() from organizations where slug = 'tc';
 
 do $$
 declare
+  v_ev uuid := (select id from events where join_token = 'join-t');
   v_music int := (select id from stations where slug = 'music');
   v_uk    int := (select id from stations where slug = 'uk-life');
+  t_red uuid; t_solo uuid; t_junk uuid;
+  pending jsonb;
   r jsonb;
   v_feed jsonb;
 begin
-  insert into players (name, code, identity, color_group) values
-    ('甲', '7001', 'trio', 'red'),
-    ('乙', '7002', 'trio', 'red'),
-    ('丙', '7003', 'solo', null),
-    ('垃圾', '7004', 'solo', null);
-  perform admin_remove_player('test-admin', '7004');
+  t_red := _make_team(v_ev, 'trio', 'red'); t_solo := _make_team(v_ev, 'solo', 'solo-1'); t_junk := _make_team(v_ev, 'solo', 'solo-2');
+  insert into players (event_id, name, code, identity, color_group, team_id) values
+    (v_ev, '甲', '701', 'trio', 'red', t_red), (v_ev, '乙', '702', 'trio', 'red', t_red),
+    (v_ev, '丙', '703', 'solo', 'solo-1', t_solo), (v_ev, '垃圾', '704', 'solo', 'solo-2', t_junk);
+  perform admin_remove_player('test-admin', v_ev, '704');
 
-  -- empty game still returns a well-formed payload
-  r := board_snapshot();
+  -- bad screen token
+  begin
+    perform board_snapshot('not-a-screen');
+    raise exception 'TEST FAILED: expected BAD_SCREEN_TOKEN';
+  exception when others then
+    if sqlerrm <> 'BAD_SCREEN_TOKEN' then raise; end if;
+  end;
+
+  -- empty game still returns a well-formed payload with what the projector needs
+  r := board_snapshot('screen-t');
   assert r ->> 'phase' = 'playing', 'phase present';
+  assert r ->> 'title' = '测试场' and r ->> 'join_token' = 'join-t', 'board carries title and join link for the QR';
+  assert r -> 'org' ->> 'name_zh' = '测试教会', 'board carries the organisation';
   assert jsonb_array_length(r -> 'players') = 3, 'removed player excluded';
   assert jsonb_array_length(r -> 'feed') = 0, 'feed empty before any action';
   assert (r -> 'stats' ->> 'players')::int = 3, 'stats count excludes removed';
 
-  -- PRIVACY: no player object carries a code field. Do not search the raw JSON
-  -- text for four digits: a random UUID can legitimately contain that sequence.
-  assert not exists (
-    select 1 from jsonb_array_elements(r -> 'players') p where p ? 'code'
-  ), 'players carry no code field';
-  assert not exists (
-    select 1 from jsonb_array_elements(r -> 'players') p where p ->> 'name' = '垃圾'
-  ), 'removed player is absent from the board';
+  -- PRIVACY
+  assert not exists (select 1 from jsonb_array_elements(r -> 'players') p where p ? 'code'), 'players carry no code field';
+  assert position('staff_code' in r::text) = 0 and position('screen_token' in r::text) = 0, 'board leaks no keys';
 
-  -- generate activity
-  perform award_scores('test-staff',
-    '[{"code":"7001","score":9},{"code":"7002","score":3},{"code":"7003","failed":true}]'::jsonb,
-    v_music, 'b1');
-  perform award_scores('test-staff', '[{"code":"7001","score":9}]'::jsonb, v_uk, 'b2');
-  perform apply_life_event('test-staff', '7001', 'fortune_plus3', 'b3');
-  perform use_token('test-staff', '7003', 'second_chance', v_music, 'b4');
+  -- generate activity: team pass, solo fail, token, life event
+  perform award_team_score('STAFF1', '701', v_music, 9, false, 'b1');
+  perform award_team_score('STAFF1', '703', v_music, 0, true, 'b2');
+  perform award_team_score('STAFF1', '701', v_uk, 9, false, 'b3');       -- red now 18 → stage 1 pending
+  perform use_team_token('STAFF1', '703', 'second_chance', v_music, 'b4');
+  pending := poll_player_by_link('join-t', '701') -> 'pending_event';
+  perform choose_life_event_by_link('join-t', '701', (pending ->> 'id')::uuid, pending -> 'choices' -> 0 ->> 'key', 'b5');
 
-  r := board_snapshot();
+  r := board_snapshot('screen-t');
   v_feed := r -> 'feed';
-
-  -- Deliberately NOT ranked by score while playing: the projector groups
-  -- teammates so nobody watches a live leaderboard for an hour.
   assert exists (select 1 from jsonb_array_elements(r -> 'players') p
-                 where p ->> 'name' = '甲' and (p ->> 'score')::int = 21
-                   and (p ->> 'stations_done')::int = 2 and p ->> 'id' is not null),
-         'score, progress and stable id present for every row';
-  assert (r ->> 'stations_total')::int = (select count(*) from stations where type = 'main'),
-         'board reports the station total the progress bar needs';
-  assert r -> 'awards' = 'null'::jsonb or r -> 'awards' is null,
-         'no awards payload while the game is still running';
+                 where p ->> 'name' = '乙' and (p ->> 'stations_done')::int = 2 and p ->> 'id' is not null),
+         'progress and stable id present for every row';
+  assert (r ->> 'stations_total')::int = (select count(*) from stations where type = 'main'), 'station total present';
+  assert r -> 'awards' = 'null'::jsonb or r -> 'awards' is null, 'no awards while running';
 
-  -- feed has every kind, newest first
-  assert jsonb_array_length(v_feed) = 6,
-         'feed = 3 attempts + 1 retry-station attempt? no: 4 attempts total? got ' ||
-         jsonb_array_length(v_feed)::text;
-  assert v_feed -> 0 ->> 'kind' = 'token', 'newest event first (token was last)';
-  assert exists (select 1 from jsonb_array_elements(v_feed) f
-                 where f ->> 'kind' = 'life_event' and f ->> 'name' = '甲'
-                   and (f ->> 'after')::int = 21), 'life_event in feed with new score';
-  assert exists (select 1 from jsonb_array_elements(v_feed) f
-                 where f ->> 'kind' = 'attempt' and (f ->> 'score')::int = 9
-                   and f ->> 'station' = '音乐之声'), 'perfect score in feed';
-  assert exists (select 1 from jsonb_array_elements(v_feed) f
-                 where f ->> 'kind' = 'attempt' and f ->> 'status' = 'failed'
-                   and f ->> 'name' = '丙'), 'failure in feed';
-  assert exists (select 1 from jsonb_array_elements(v_feed) f
-                 where f ->> 'kind' = 'token' and f ->> 'usage' = 'second_chance'
-                   and f ->> 'station' = '音乐之声'), 'token use in feed with station';
-  assert not exists (
-    select 1 from jsonb_array_elements(v_feed) f where f ? 'code'
-  ), 'feed carries no code field';
+  assert jsonb_array_length(v_feed) = 5, 'feed = 3 team attempts + 1 token + 1 life event, got ' || jsonb_array_length(v_feed)::text;
+  assert v_feed -> 0 ->> 'kind' = 'life_event', 'newest first (life event was last)';
+  assert exists (select 1 from jsonb_array_elements(v_feed) f where f ->> 'kind' = 'attempt' and (f ->> 'score')::int = 9 and f ->> 'station' = '音乐之声'), 'perfect score in feed';
+  assert exists (select 1 from jsonb_array_elements(v_feed) f where f ->> 'kind' = 'attempt' and f ->> 'status' = 'failed' and f ->> 'name' = '丙'), 'failure in feed';
+  assert exists (select 1 from jsonb_array_elements(v_feed) f where f ->> 'kind' = 'token' and f ->> 'usage' = 'second_chance' and f ->> 'station' = '音乐之声'), 'token use in feed with station';
+  assert not exists (select 1 from jsonb_array_elements(v_feed) f where f ? 'code'), 'feed carries no code field';
 
-  -- a locked player is flagged so the board can call it out
-  perform award_scores('test-staff', '[{"code":"7002","score":9}]'::jsonb, v_uk, 'b5');
-  perform award_scores('test-staff',
-    '[{"code":"7002","score":9}]'::jsonb,
-    (select id from stations where slug = 'interview'), 'b6');
-  r := board_snapshot();
-  assert exists (select 1 from jsonb_array_elements(r -> 'players') p
-                 where p ->> 'name' = '乙' and (p ->> 'locked')::boolean),
-         'locked flag exposed to the board';
+  -- locked flag (乙 still has stage 1 pending)
+  assert exists (select 1 from jsonb_array_elements(r -> 'players') p where p ->> 'name' = '乙' and (p ->> 'locked')::boolean), 'locked flag exposed';
 
   -- sick flag
-  perform apply_life_event('test-staff', '7002', 'bad_cap_next', 'b7');
-  r := board_snapshot();
-  assert exists (select 1 from jsonb_array_elements(r -> 'players') p
-                 where p ->> 'name' = '乙' and (p ->> 'sick')::boolean),
-         'cap_next surfaces as sick';
+  update players set status_effect = '{"type":"cap_next","value":1}'::jsonb where code = '703';
+  assert exists (select 1 from jsonb_array_elements(board_snapshot('screen-t') -> 'players') p where p ->> 'name' = '丙' and (p ->> 'sick')::boolean), 'cap_next surfaces as sick';
 
-  -- the ceremony payload only materialises once the game is over
-  perform end_game('test-admin');
-  r := board_snapshot();
+  -- ceremony payload only once the game is over
+  perform end_game('test-admin', v_ev);
+  r := board_snapshot('screen-t');
   assert jsonb_array_length(r -> 'awards' -> 'podium') = 3, 'podium has three places';
-  assert (r -> 'awards' -> 'podium' -> 0 ->> 'score')::int = 21, 'podium is ranked by final score';
   assert (r -> 'awards' -> 'podium' -> 0 ->> 'rank')::int = 1, 'podium carries its place';
-  assert jsonb_array_length(r -> 'awards' -> 'specials') >= 1, 'at least one special award';
-  assert not exists (
-    select 1 from jsonb_array_elements(r -> 'awards' -> 'specials') a where a ? 'code'
-  ), 'awards carry no 4-digit code';
-  update game_state set phase = 'playing', ended_at = null where id = 1;
+  assert not exists (select 1 from jsonb_array_elements(r -> 'awards' -> 'specials') a where a ? 'code'), 'awards carry no code';
 
-  -- anon can call it (it is the projector page, no auth)
+  -- anon can call it (projector page, no auth)
   set local role anon;
-  r := board_snapshot();
+  r := board_snapshot('screen-t');
   assert jsonb_array_length(r -> 'players') = 3, 'anon may read the board';
   reset role;
 

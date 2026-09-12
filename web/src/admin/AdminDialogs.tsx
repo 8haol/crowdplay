@@ -10,19 +10,18 @@ export function NewGameModal(props: {
   current: GameSession;
   playerCount: number;
   onClose: () => void;
-  onDone: (message: string) => void;
+  onDone: (message: string, eventId?: string) => void;
 }) {
   const [title, setTitle] = useState("");
-  const [confirmed, setConfirmed] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const needsConfirm = props.current.phase !== "ended" && props.playerCount > 0;
+  const livePlaying = props.current.phase === "playing";
 
   return (
     <Modal onClose={props.onClose}>
       <DialogHead eyebrow="创建场次" title="开始一场新的活动" onClose={props.onClose} />
       <p className="mt-4 text-sm font-semibold leading-6" style={{ color: T.inkSoft }}>
-        当前场次「{props.current.title}」会完整归档，包括玩家、站点成绩、人生事件与管理记录。
-        新场次会生成独立的入场二维码。
+        新场次拿到自己的入场二维码、工作人员码和大屏链接。
+        「{props.current.title}」原样留在活动列表里，玩家、成绩和记录一个都不会动。
       </p>
       <label className="mt-6 block">
         <span className="text-sm font-black">场次名称</span>
@@ -36,35 +35,28 @@ export function NewGameModal(props: {
           onChange={(event) => setTitle(event.target.value)}
         />
       </label>
-      {needsConfirm && (
-        <label
-          className="mt-4 flex items-start gap-3 rounded-xl p-4 text-sm font-bold"
+      {livePlaying && (
+        <div
+          className="mt-4 rounded-xl p-4 text-sm font-bold leading-6"
           style={{ background: T.dangerSoft, border: "1px solid #efc5bb", color: T.danger }}
         >
-          <input
-            type="checkbox"
-            className="mt-0.5 h-5 w-5 accent-[#c4402a]"
-            checked={confirmed}
-            onChange={(event) => setConfirmed(event.target.checked)}
-          />
-          <span>当前场次仍在使用中（{props.playerCount} 位玩家），我确认立即归档并创建新场次。</span>
-        </label>
+          「{props.current.title}」还在进行中。同一机构同时只能有一场在跑 —— 请先在现场总控结束它，再开新场。
+        </div>
       )}
       <div className="mt-4"><ErrorBanner text={err} /></div>
       <div className="mt-6 flex justify-end gap-2">
         <Btn variant="quiet" onClick={props.onClose}>取消</Btn>
         <Btn
           variant="primary"
-          disabled={!title.trim() || (needsConfirm && !confirmed)}
+          disabled={!title.trim() || livePlaying}
           onClick={async () => {
             setErr(null);
             try {
-              await rpc("admin_create_game", {
+              const created = await rpc<{ event_id: string }>("admin_create_event", {
                 p_admin_key: props.adminKey,
                 p_title: title.trim(),
-                p_force: needsConfirm && confirmed,
               });
-              props.onDone(`已创建「${title.trim()}」，二维码和玩家名单均已更新`);
+              props.onDone(`已创建「${title.trim()}」`, created.event_id);
             } catch (error) { setErr(errorText(error)); }
           }}
         >
@@ -77,6 +69,7 @@ export function NewGameModal(props: {
 
 export function PlayerDrawer(props: {
   adminKey: string;
+  eventId: string;
   player: AdminPlayer;
   onClose: () => void;
   onDone: (message: string) => void;
@@ -169,6 +162,7 @@ export function PlayerDrawer(props: {
                 try {
                   await rpc("admin_adjust", {
                     p_admin_key: props.adminKey,
+                    p_event_id: props.eventId,
                     p_player_code: player.code,
                     p_new_score: score === "" ? null : Number(score),
                     p_unlock: unlock,
@@ -200,7 +194,7 @@ export function PlayerDrawer(props: {
                   variant="dangerSolid"
                   onClick={async () => {
                     try {
-                      await rpc("admin_remove_player", { p_admin_key: props.adminKey, p_player_code: player.code });
+                      await rpc("admin_remove_player", { p_admin_key: props.adminKey, p_event_id: props.eventId, p_player_code: player.code });
                       props.onDone(`已移除 ${player.name}`);
                     } catch (error) { setErr(errorText(error)); }
                   }}

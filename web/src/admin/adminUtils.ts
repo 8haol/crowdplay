@@ -16,7 +16,7 @@ export const ADMIN_NAV: Array<{
   note: string;
   group: "运营" | "数据" | "配置";
 }> = [
-  { id: "events", label: "全部活动", short: "活动", icon: "events", note: "创建、归档、进入任意一场", group: "运营" },
+  { id: "events", label: "全部活动", short: "活动", icon: "events", note: "创建、查看、进入任意一场", group: "运营" },
   { id: "live", label: "现场总控", short: "总控", icon: "live", note: "开局、结束、入场二维码", group: "运营" },
   { id: "players", label: "玩家护照", short: "玩家", icon: "players", note: "搜索、修正、导出", group: "数据" },
   { id: "stations", label: "站点运营", short: "站点", icon: "stations", note: "完成率与计分设置", group: "数据" },

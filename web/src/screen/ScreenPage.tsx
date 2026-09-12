@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { rpc, errorText } from "../lib/api";
 import { usePoll } from "../lib/usePoll";
 import type { BoardPlayer, BoardSnapshot, FeedItem, GameLanding } from "../lib/types";
@@ -10,6 +10,7 @@ import { joinUrl } from "../lib/gameLinks";
 import Ceremony from "./Ceremony";
 import { DemoRibbon } from "../lib/DemoRibbon";
 import { SCREEN_AWARDS, SCREEN_PREVIEW } from "./previewData";
+import { useAmbientVerse } from "../lib/scripture";
 
 /* Projector page. No auth: it is opened on the venue laptop and shown to the
    room. It never receives 4-digit codes (see board_snapshot in SQL), so a
@@ -19,16 +20,22 @@ const FEED_SHOWN = 12;
 
 export default function ScreenPage() {
   const [searchParams] = useSearchParams();
+  const { screenToken } = useParams<{ screenToken: string }>();
   const previewMode = searchParams.get("preview");
   const preview = previewMode === "1" || previewMode === "lobby" || previewMode === "awards" || previewMode === "ended";
-  const pollFn = useMemo(() => () => rpc<BoardSnapshot>("board_snapshot", {}), []);
+  /* The screen token names the event; one call brings the board, the title
+     and the join link, so the projector has a single 3-second heartbeat. */
+  const pollFn = useMemo(
+    () => (screenToken ? () => rpc<BoardSnapshot>("board_snapshot", { p_screen_token: screenToken }) : null),
+    [screenToken],
+  );
   const poll = usePoll<BoardSnapshot>(preview ? null : pollFn, 3000);
-  const landingFn = useMemo(() => () => rpc<GameLanding>("game_landing", { p_join_token: null }), []);
-  const landingPoll = usePoll<GameLanding>(preview ? null : landingFn, 10000);
   const data = previewData(previewMode) ?? poll.data;
-  const landing = preview
+  const landing: GameLanding | null = preview
     ? ({ title: "Glasgow 新生迎新会", join_token: "preview", join_open: true, is_current: true } as GameLanding)
-    : landingPoll.data;
+    : data
+      ? ({ title: data.title, join_token: data.join_token, join_open: data.join_open, is_current: data.phase !== "ended" } as GameLanding)
+      : null;
   const online = preview ? true : poll.online;
   const error = poll.error;
   const joinLink = landing?.join_token ? joinUrl(landing.join_token) : null;
@@ -42,6 +49,26 @@ export default function ScreenPage() {
     if (ended && !endedRef.current) setCeremonyDone(false);
     endedRef.current = ended;
   }, [data?.phase]);
+
+  if (!preview && !screenToken) {
+    /* `/screen` with no token. The projector link lives in the admin console
+       for exactly one event; there is no "current game" to guess at. */
+    return (
+      <Frame online={false}>
+        <div className="flex flex-1 flex-col items-center justify-center gap-5 px-8 text-center">
+          <p className="font-mono text-[clamp(.7rem,1vw,1rem)] font-black tracking-[0.35em] text-foil-dim">PROJECTOR</p>
+          <h1 className="font-serif text-[clamp(1.8rem,4vw,4rem)] font-black leading-tight">这台投影还没有连到任何一场</h1>
+          <p className="max-w-2xl text-[clamp(.95rem,1.4vw,1.5rem)] font-semibold leading-relaxed text-moon-dim">
+            请总控打开管理端 → 进入本场活动 → 复制「大屏链接」，在这台电脑的浏览器里打开。
+            每一场都有自己的大屏链接，链接本身就是场次。
+          </p>
+          <Link to="/admin" className="pressable rounded-full bg-ink px-6 py-3 text-[clamp(.9rem,1.2vw,1.2rem)] font-black text-white">
+            去管理端
+          </Link>
+        </div>
+      </Frame>
+    );
+  }
 
   if (!data) {
     return (
@@ -245,6 +272,7 @@ function Lobby({
             用<b className="text-ink">手机相机</b>或<b className="text-ink">微信扫一扫</b>对准二维码，
             填写姓名，就能领到属于你的 3 位人生编号。
           </p>
+          <ScreenVerse className="mt-[clamp(1.25rem,2.5vw,2.75rem)] max-w-2xl" />
         </div>
 
         <div className="flex flex-col items-center rounded-[clamp(1.25rem,2.5vw,2.5rem)] bg-white p-[clamp(1rem,2vw,2rem)] shadow-[0_7px_0_#e0a800]">
@@ -491,6 +519,31 @@ function RejoinCard({ url }: { url: string }) {
   );
 }
 
+/* ----------------------------------------------------------------- verse */
+
+/**
+ * Deliberately confined to the two stretches where the screen has nothing to
+ * say: the lobby, and the feed before the first broadcast lands. Once results
+ * are flowing they own the rail — a verse parked next to live scores would be
+ * competing with them, and the room is full of people visiting a church for
+ * the first time. Gentle, not preached, is a dosage decision as much as a
+ * wording one.
+ */
+function ScreenVerse({ className = "" }: { className?: string }) {
+  const verse = useAmbientVerse();
+  return (
+    <div key={verse.ref} className={`feed-in ${className}`}>
+      <div className="h-px w-[clamp(1.5rem,3vw,3rem)] bg-foil-dim/30" />
+      <p className="mt-[clamp(.5rem,1vw,1rem)] text-[clamp(1rem,1.6vw,1.8rem)] font-black leading-snug text-ink/80">
+        「{verse.text}」
+      </p>
+      <p className="mt-[clamp(.2rem,.5vw,.5rem)] font-mono text-[clamp(.55rem,.8vw,.85rem)] font-bold tracking-[0.22em] text-foil-dim/75">
+        {verse.ref} · {verse.refEn}
+      </p>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ ticker */
 
 function Ticker({ feed }: { feed: FeedItem[] }) {
@@ -516,8 +569,9 @@ function Ticker({ feed }: { feed: FeedItem[] }) {
         }}
       >
         {shown.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-[clamp(0.75rem,1.1vw,1.2rem)] text-moon-dim">
-            等待第一个人生瞬间
+          <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+            <div className="text-[clamp(0.75rem,1.1vw,1.2rem)] text-moon-dim">等待第一个人生瞬间</div>
+            <ScreenVerse className="mt-[clamp(0.75rem,1.5vw,1.5rem)]" />
           </div>
         ) : (
           <ul className="flex flex-col gap-[clamp(0.3rem,0.55vw,0.7rem)]">

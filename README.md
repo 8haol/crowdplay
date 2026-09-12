@@ -14,16 +14,17 @@ Help Token、结算徽章。核心是“队伍共同闯关，个人独立人生�
       ```
       SUPABASE_URL=https://<项目>.supabase.co SUPABASE_PUBLISHABLE_KEY=<publishable key> npx tsx scripts/keepalive.ts
       ```
-- [ ] **首次部署后改掉两个占位密码**：先用默认 admin 密码登录 `/admin`，在
-      「系统设置 → 访问控制」里更新工作人员和管理员密码。也可以在 SQL Editor 执行：
+- [ ] **首次部署后改掉占位的管理密码**：先用默认 admin 密码登录 `/admin`，在
+      「系统设置 → 访问控制」里更新机构管理员密码。工作人员不再有固定密码 ——
+      每场活动自动生成一个 6 位本场码，在「现场总控」里可见、可复制、可换。
+      也可以在 SQL Editor 执行：
       ```sql
-      update app_config set value = '{sha256}' || encode(extensions.digest('当天的staff随机长密码', 'sha256'), 'hex') where key = 'staff_key';
-      update app_config set value = '{sha256}' || encode(extensions.digest('当天的admin随机长密码', 'sha256'), 'hex') where key = 'admin_key';
+      update organizations set admin_key = '{sha256}' || encode(extensions.digest('当天的admin随机长密码', 'sha256'), 'hex') where slug = 'gcgc';
       ```
 - [ ] **创建正式场次并验证二维码**：在 `/admin` 新建当天活动，把 `/screen`
       投到大屏，用手机扫码；应直接进入姓名登记并领取 3 位编号，不需要输入口令。
-- [ ] **staff 密码分发**：发给每站工作人员，让他们提前在 `/staff` 登录
-      并选好自己负责的站（会记住）。
+- [ ] **工作人员码分发**：在「现场总控」复制本场的 6 位工作人员码发给每站同工，
+      让他们提前在 `/staff` 输入并选好自己负责的站（会记住）。这个码只对本场有效。
 - [ ] **admin 密码**只给 1-2 个总控的人。
 - [ ] **打印每站纸质记分表**（容灾：网络全崩时手写一位队员的 3 位编号 + 整队分数，
       赛后用 admin 端"手动修正"补录）。
@@ -99,9 +100,9 @@ npm --prefix web run dev  # http://localhost:5173
 | 路由 | 谁用 | 说明 |
 |---|---|---|
 | `/play` | 玩家 | 加入 / 找回 / 身份揭晓 / 双分数护照 / 手机随机事件 / 结算 |
-| `/staff` | 站点工作人员 | 输入任意一位队员的 3 位编号，整队只录一次结果 |
-| `/admin` | 组织者 | 完整运营后台：总览、场次档案、玩家、站点与系统设置 |
-| `/screen` | 投影大屏 | **无需密码**，全部玩家状态 + 实时事件播报，见下 |
+| `/staff` | 站点工作人员 | 输入本场 6 位工作人员码进入；之后输入任意一位队员的 3 位编号，整队只录一次结果 |
+| `/admin` | 组织者 | 机构管理密码登录 → 全部场次 → 任意一场的工作台：总控、玩家、站点、系统设置 |
+| `/screen/:screenToken` | 投影大屏 | **无需密码**，链接本身就是场次（从管理端「现场总控」复制）；`/screen` 不带令牌会显示引导 |
 | `/badge/:token` | 已结算玩家 | 生成 1080×1920 的 9:16 人生护照分享图，支持微信长按保存、PNG 下载和系统分享 |
 | `/guide` | **同工** | **可直接分享的说明页**：流程、规则、记分、颁奖、分岗位 SOP、常见问题，
 并且每一节都能点开真实界面的演示（`?preview=`，示例数据，读不到也写不了真实活动）。
@@ -114,8 +115,10 @@ npm --prefix web run dev  # http://localhost:5173
 全场名次、活动日期、经文和教会中英文名称。未结束游戏或没有本机玩家记录时，
 `/badge` 会显示明确的引导状态，不会生成空白图片。
 
-本地默认密钥即种子值：staff `change-me-staff`、admin `change-me-admin`。
-玩家入口由每场活动独立生成的二维码链接控制，不再使用手输口令。前端不用 supabase-js，只有一个 fetch 封装
+**多租户模型**：`organizations → events → 一切游戏数据`。每个机构一个管理密码（本地种子机构 `gcgc`
+的密码是 `change-me-admin`）；每一场活动自带三把钥匙 —— 玩家的入场链接（= 二维码）、工作人员的
+6 位本场码、投影的大屏链接 —— 都在管理端「现场总控」里可复制。工作人员码随场生成、可在「系统设置」
+里换掉；没有全局的 staff 密码了。玩家编号按场次唯一，两个教会可以各有一个 327。前端不用 supabase-js，只有一个 fetch 封装
 （`web/src/lib/api.ts`）：写操作自动带幂等键 + 指数退避重试 ×2，10 秒超时。
 
 ## 部署到生产

@@ -18,7 +18,7 @@ export const PREVIEW_DATA: PollResult = {
   player: {
     player_id: "preview-player",
     name: "林沐恩",
-    code: "427",
+    code: "327",
     identity: "trio",
     color_group: "teal",
     score: 38,

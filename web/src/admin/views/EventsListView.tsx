@@ -39,37 +39,23 @@ export function EventsListView({
 }) {
   const [filter, setFilter] = useState<Filter>("all");
 
-  const rows: Row[] = (() => {
-    const current: Row = {
-      event_id: consoleData.current.event_id,
-      title: consoleData.current.title,
-      phase: consoleData.current.phase,
-      created_at: consoleData.current.created_at,
-      started_at: consoleData.current.started_at,
-      ended_at: consoleData.current.ended_at,
-      player_count: consoleData.stats.players,
-      stamps: consoleData.stats.stamps,
-      top_score: consoleData.stats.top_score,
-      life_events: consoleData.stats.life_events,
-      tokens_used: consoleData.stats.tokens_used,
-      is_current: true,
-    };
-    const archives: Row[] = consoleData.archives.map((archive) => ({
-      event_id: archive.event_id,
-      title: archive.title,
-      phase: archive.phase,
-      created_at: archive.created_at,
-      started_at: archive.started_at,
-      ended_at: archive.ended_at,
-      player_count: archive.player_count,
-      stamps: archive.stamps,
-      top_score: archive.top_score,
-      life_events: archive.life_events ?? 0,
-      tokens_used: archive.tokens_used ?? 0,
-      is_current: false,
-    }));
-    return [current, ...archives];
-  })();
+  /* Every event the organisation has run, straight from the server, newest
+     first. "Current" means still open (waiting or playing); an ended event is
+     history but keeps all its data and opens like any other. */
+  const rows: Row[] = consoleData.events.map((event) => ({
+    event_id: event.event_id,
+    title: event.title,
+    phase: event.phase,
+    created_at: event.created_at,
+    started_at: event.started_at,
+    ended_at: event.ended_at,
+    player_count: event.player_count,
+    stamps: event.stamps,
+    top_score: event.top_score,
+    life_events: event.life_events,
+    tokens_used: event.tokens_used,
+    is_current: event.phase !== "ended",
+  }));
 
   const shown = rows.filter((row) =>
     filter === "all" ? true : filter === "live" ? row.is_current : !row.is_current,
@@ -91,7 +77,7 @@ export function EventsListView({
                   "Life Passport-全部活动.csv",
                   rows.map((row) => ({
                     活动: row.title,
-                    状态: row.is_current ? "当前场次" : "已归档",
+                    状态: row.is_current ? "进行中 / 等待中" : "已结束",
                     阶段: row.phase,
                     创建: formatDate(row.created_at),
                     开始: formatDate(row.started_at, true),
@@ -112,7 +98,7 @@ export function EventsListView({
       />
 
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Metric label="活动总数" value={rows.length} note={`${rows.length - 1} 场已归档`} tone="accent" />
+        <Metric label="活动总数" value={rows.length} note={`${rows.filter((row) => !row.is_current).length} 场已结束`} tone="accent" />
         <Metric label="累计到场" value={totalPlayers} note="含当前场次" />
         <Metric label="当前场次玩家" value={consoleData.stats.players} note={`${consoleData.stats.teams} 支队伍`} />
         <Metric
@@ -130,7 +116,7 @@ export function EventsListView({
           note="当前场次固定排在最上面"
           actions={
             <div className="flex gap-1 rounded-lg p-1" style={{ background: "#eee8de" }}>
-              {([["all", "全部"], ["live", "当前"], ["archived", "已归档"]] as const).map(([id, label]) => (
+              {([["all", "全部"], ["live", "当前"], ["archived", "已结束"]] as const).map(([id, label]) => (
                 <button
                   key={id}
                   type="button"

@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { rpc, errorText } from "../lib/api";
-import type { AdminPlayer, GameSession, StationMetric } from "../lib/types";
+import type { AdminPlayer, EventStation, GameSession, ScoringMode, Station, StationType } from "../lib/types";
 import { ActionButton, ErrorBanner } from "../lib/ui";
 import { Btn, DialogHead, Drawer, Modal } from "./adminUi";
 import { T, inputClass, inputStyle } from "./adminTokens";
+import { TYPE_ZH } from "./adminUtils";
 
 export function NewGameModal(props: {
   adminKey: string;
@@ -245,31 +246,77 @@ function StateToggle({
   );
 }
 
-export function StationEditModal(props: {
+/*
+ * Library row editor. A station is now a template owned by the organisation,
+ * so this writes to the library (`admin_library_create` / `admin_library_update`)
+ * and never to a running event: events carry their own copy of the name and
+ * scoring mode, and renaming a template must not rewrite past scorecards.
+ * Builtin rows are read-only — the library view offers "copy" instead.
+ */
+export function LibraryStationModal(props: {
   adminKey: string;
-  station: StationMetric;
+  /** null = create a new station. */
+  station: Station | null;
   onClose: () => void;
   onDone: (message: string) => void;
 }) {
-  const [name, setName] = useState(props.station.name_zh);
-  const [mode, setMode] = useState(props.station.scoring_mode ?? "graded");
+  const editing = props.station;
+  const [name, setName] = useState(editing?.name_zh ?? "");
+  const [type, setType] = useState<StationType>(editing?.type ?? "main");
+  const [mode, setMode] = useState<Exclude<ScoringMode, null>>(editing?.scoring_mode ?? "graded");
   const [err, setErr] = useState<string | null>(null);
 
   return (
     <Modal onClose={props.onClose} width="max-w-md">
-      <DialogHead eyebrow="站点设置" title={`编辑 ${props.station.name_zh}`} onClose={props.onClose} />
+      <DialogHead
+        eyebrow="站点库"
+        title={editing ? `编辑 ${editing.name_zh}` : "新增站点"}
+        onClose={props.onClose}
+      />
+      <p className="mt-4 text-sm font-semibold leading-6" style={{ color: T.inkSoft }}>
+        {editing
+          ? "改的是库里的模板。已经办过的活动保留当时的站点名称与计分方式，不受影响。"
+          : "只填名字就行，内部标识由系统生成。建好之后在「本场站点」里挑进某一场才会真正启用。"}
+      </p>
       <label className="mt-6 block">
-        <span className="text-sm font-black">显示名称</span>
-        <input className={inputClass} style={inputStyle} value={name} maxLength={30} onChange={(event) => setName(event.target.value)} />
+        <span className="text-sm font-black">站点名称</span>
+        <input
+          autoFocus
+          className={inputClass}
+          style={inputStyle}
+          value={name}
+          maxLength={30}
+          placeholder="例如：默契挑战"
+          onChange={(event) => setName(event.target.value)}
+        />
       </label>
-      {props.station.type === "main" && (
+      {editing ? (
+        <p className="mt-3 text-xs font-semibold" style={{ color: T.inkFaint }}>
+          类型：{TYPE_ZH[editing.type]}（建好之后不能改，需要别的类型请新建一个）
+        </p>
+      ) : (
+        <label className="mt-4 block">
+          <span className="text-sm font-black">类型</span>
+          <select
+            className={inputClass}
+            style={inputStyle}
+            value={type}
+            onChange={(event) => setType(event.target.value as StationType)}
+          >
+            <option value="main">主线挑战（工作人员整队记分）</option>
+            <option value="grace">恩典站（Token 求助与纪念卡）</option>
+            <option value="life_event">人生盲盒（玩家手机自动完成）</option>
+          </select>
+        </label>
+      )}
+      {(editing?.type ?? type) === "main" && (
         <label className="mt-4 block">
           <span className="text-sm font-black">计分方式</span>
           <select
             className={inputClass}
             style={inputStyle}
             value={mode}
-            onChange={(event) => setMode(event.target.value as "graded" | "free" | "fixed")}
+            onChange={(event) => setMode(event.target.value as Exclude<ScoringMode, null>)}
           >
             <option value="graded">分级计分（3 / 6 / 9）</option>
             <option value="free">自由计分（0–10 整数）</option>
@@ -282,20 +329,80 @@ export function StationEditModal(props: {
         <Btn variant="quiet" onClick={props.onClose}>取消</Btn>
         <Btn
           variant="primary"
+          disabled={!name.trim()}
           onClick={async () => {
             setErr(null);
+            const clean = name.trim();
             try {
-              await rpc("admin_update_station", {
-                p_admin_key: props.adminKey,
-                p_station_id: props.station.id,
-                p_name_zh: name.trim(),
-                p_scoring_mode: props.station.type === "main" ? mode : null,
-              });
-              props.onDone(`站点「${name.trim()}」已更新`);
+              if (editing) {
+                await rpc("admin_library_update", {
+                  p_admin_key: props.adminKey,
+                  p_station_id: editing.id,
+                  p_name_zh: clean,
+                  p_scoring_mode: editing.type === "main" ? mode : null,
+                });
+                props.onDone(`站点「${clean}」已更新`);
+              } else {
+                await rpc("admin_library_create", {
+                  p_admin_key: props.adminKey,
+                  p_name_zh: clean,
+                  p_type: type,
+                  p_scoring_mode: type === "main" ? mode : null,
+                });
+                props.onDone(`已新增站点「${clean}」`);
+              }
             } catch (error) { setErr(errorText(error)); }
           }}
         >
-          保存
+          {editing ? "保存" : "新增"}
+        </Btn>
+      </div>
+    </Modal>
+  );
+}
+
+/*
+ * Withdrawing a station from a running event. Worth a confirmation because it
+ * is the one station action that happens mid-event, usually because a
+ * volunteer did not show up — and because the operator needs to be told, in
+ * the moment, that the scores already recorded there are safe.
+ */
+export function DisableStationModal(props: {
+  adminKey: string;
+  eventId: string;
+  station: EventStation;
+  onClose: () => void;
+  onDone: (message: string) => void;
+}) {
+  const [err, setErr] = useState<string | null>(null);
+
+  return (
+    <Modal onClose={props.onClose} width="max-w-md">
+      <DialogHead eyebrow="本场站点" title={`撤下「${props.station.name_zh}」`} onClose={props.onClose} />
+      <ul className="mt-5 space-y-2 text-sm font-semibold leading-6" style={{ color: T.inkSoft }}>
+        <li>· <span className="font-black" style={{ color: T.ink }}>已经记的分会保留</span>，玩家的总分不变。</li>
+        <li>· 工作人员端不再显示这个站，也不能再在这里记分。</li>
+        <li>· 玩家护照和大屏的「共几站」会少一站，进度按剩下的站重新算。</li>
+        <li>· 本场之内撤了就不能再加回来；下一场不受影响。</li>
+      </ul>
+      <div className="mt-4"><ErrorBanner text={err} /></div>
+      <div className="mt-6 flex justify-end gap-2">
+        <Btn variant="quiet" onClick={props.onClose}>取消</Btn>
+        <Btn
+          variant="dangerSolid"
+          onClick={async () => {
+            setErr(null);
+            try {
+              await rpc("admin_disable_event_station", {
+                p_admin_key: props.adminKey,
+                p_event_id: props.eventId,
+                p_station_id: props.station.station_id,
+              });
+              props.onDone(`已撤下「${props.station.name_zh}」，已记的分保留`);
+            } catch (error) { setErr(errorText(error)); }
+          }}
+        >
+          确认撤站
         </Btn>
       </div>
     </Modal>

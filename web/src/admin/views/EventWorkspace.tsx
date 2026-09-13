@@ -307,7 +307,19 @@ function StationList({ stations }: { stations: StationMetric[] }) {
         <Panel key={station.id} className="p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <div className="font-black">{station.name_zh}</div>
+              <div className="flex items-center gap-2 font-black">
+                {station.name_zh}
+                {/* Withdrawn mid-event: it stays in the archive with its
+                    numbers, because the scores it awarded are still real. */}
+                {station.disabled && (
+                  <span
+                    className="rounded px-1.5 py-0.5 text-[10px] font-black"
+                    style={{ background: T.dangerSoft, color: T.danger }}
+                  >
+                    已撤站
+                  </span>
+                )}
+              </div>
               <div className="mt-0.5 text-xs font-semibold" style={{ color: T.inkSoft }}>
                 {station.type === "main"
                   ? `${station.passed} 通过 · ${station.failed} 失手 · 累计 ${station.score_awarded} 分`

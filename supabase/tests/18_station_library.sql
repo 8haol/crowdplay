@@ -21,6 +21,7 @@ declare
   v_beta_new uuid;
   v_used int;
   v_team uuid;
+  v_player uuid;
 begin
   -- 内置站点的 org_id 为 null，所有机构可见。
   assert (select count(*) from stations where org_id is null) = 9, '9 个内置站点';
@@ -183,6 +184,22 @@ begin
   exception when others then
     if sqlerrm <> 'LIFE_EVENT_REQUIRED' then raise; end if;
   end;
+
+  -- 撤站后总数减一，已记的分仍在，但不再计入完成数。
+  -- （丙一 已在上面 join 并 start_game；这里直接用她的号，不再新开一个玩家。）
+  v_player := (select id from players where event_id = ev_c limit 1);
+  perform award_team_score((select staff_code from events where id = ev_c),
+    (select code from players where id = v_player), v_music, 9, false, 'k1');
+  assert _main_station_total(ev_c) = 2, '4 个站里 3 主站，撤掉 photo 后剩 2';
+  assert _main_stations_done(ev_c, v_player) = 1, '打过的 music 计入完成';
+  perform admin_disable_event_station('alpha-admin', ev_c, v_music);
+  assert _main_station_total(ev_c) = 1, '再撤一个主站，总数 1';
+  assert _main_stations_done(ev_c, v_player) = 0, '被撤站点的成绩不再计入完成数';
+  assert (select count(*) from team_attempts where event_id = ev_c and station_id = v_music) = 1,
+         '历史成绩仍然留在库里';
+
+  -- 撤站会下调第三段的解锁点。
+  assert _stage_unlock_at(ev_c, 3) = 1, '第三段落在最后一个启用的主站上';
 
   raise notice 'PASS 18_station_library';
 end $$;

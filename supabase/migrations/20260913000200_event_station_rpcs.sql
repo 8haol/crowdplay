@@ -197,3 +197,113 @@ $$;
 grant execute on function admin_station_library(text), admin_library_create(text, text, text, text),
   admin_library_update(text, integer, text, text, integer), admin_library_copy(text, integer),
   admin_library_delete(text, integer) to anon;
+
+-- ---------------------------------------------------------------------------
+-- 本场配置：从库里挑站点启用到这一场
+-- ---------------------------------------------------------------------------
+
+create or replace function admin_event_stations(p_admin_key text, p_event_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_event events;
+  v_org_id uuid;
+begin
+  v_event := _org_event(p_admin_key, p_event_id);
+  v_org_id := v_event.org_id;
+  return jsonb_build_object(
+    'phase', v_event.phase,
+    'rows', coalesce((select jsonb_agg(to_jsonb(es) order by es.sort_order)
+                      from event_stations es where es.event_id = p_event_id), '[]'::jsonb),
+    'candidates', coalesce((select jsonb_agg(to_jsonb(s) order by s.sort_order) from stations s
+                            where (s.org_id is null or s.org_id = v_org_id)
+                              and not exists (select 1 from event_stations es
+                                              where es.event_id = p_event_id and es.station_id = s.id)), '[]'::jsonb)
+  );
+end;
+$$;
+
+/* 整份提交本场站点。只在 waiting 阶段可用；删掉已记分的站点会被拒。 */
+create or replace function admin_set_event_stations(p_admin_key text, p_event_id uuid, p_rows jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_event events;
+  v_row jsonb;
+  v_station stations;
+  v_keep int[] := '{}';
+  v_main int := 0;
+  v_life int := 0;
+begin
+  v_event := _org_event(p_admin_key, p_event_id);
+  if v_event.phase = 'ended' then raise exception 'EVENT_ENDED'; end if;
+  if v_event.phase <> 'waiting' then raise exception 'EVENT_IN_PROGRESS'; end if;
+
+  for v_row in select * from jsonb_array_elements(coalesce(p_rows, '[]'::jsonb)) loop
+    select * into v_station from stations where id = (v_row ->> 'station_id')::int;
+    if not found then raise exception 'BAD_STATION'; end if;
+    if v_station.org_id is not null and v_station.org_id <> v_event.org_id then raise exception 'FORBIDDEN'; end if;
+    if length(trim(coalesce(v_row ->> 'name_zh', ''))) not between 1 and 30 then raise exception 'BAD_STATION_NAME'; end if;
+    if v_station.type = 'main' then
+      if coalesce(v_row ->> 'scoring_mode', '') not in ('graded', 'free', 'fixed') then raise exception 'BAD_SCORING_MODE'; end if;
+      v_main := v_main + 1;
+    elsif v_station.type = 'life_event' then
+      v_life := v_life + 1;
+    end if;
+    v_keep := v_keep || v_station.id;
+
+    insert into event_stations (event_id, station_id, name_zh, type, scoring_mode, sort_order, disabled_at)
+    values (p_event_id, v_station.id, trim(v_row ->> 'name_zh'), v_station.type,
+            case when v_station.type = 'main' then v_row ->> 'scoring_mode' else null end,
+            coalesce((v_row ->> 'sort_order')::int, 0), null)
+    on conflict (event_id, station_id) do update
+      set name_zh = excluded.name_zh, scoring_mode = excluded.scoring_mode,
+          sort_order = excluded.sort_order, disabled_at = null;
+  end loop;
+
+  if v_life < 1 then raise exception 'LIFE_EVENT_REQUIRED'; end if;
+  if v_main < 1 then raise exception 'MAIN_STATION_REQUIRED'; end if;
+
+  if exists (select 1 from team_attempts ta where ta.event_id = p_event_id and not (ta.station_id = any (v_keep))) then
+    raise exception 'STATION_IN_USE';
+  end if;
+  delete from event_stations where event_id = p_event_id and not (station_id = any (v_keep));
+
+  return admin_event_stations(p_admin_key, p_event_id);
+end;
+$$;
+
+/* 撤站。waiting 和 playing 都可用；已记的分全部保留。 */
+create or replace function admin_disable_event_station(p_admin_key text, p_event_id uuid, p_station_id integer)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_event events;
+  v_row event_stations;
+begin
+  v_event := _org_event(p_admin_key, p_event_id);
+  if v_event.phase = 'ended' then raise exception 'EVENT_ENDED'; end if;
+  select * into v_row from event_stations where event_id = p_event_id and station_id = p_station_id;
+  if not found then raise exception 'BAD_STATION'; end if;
+  if v_row.type = 'life_event' then raise exception 'LIFE_EVENT_REQUIRED'; end if;
+  if v_row.type = 'main' and (select count(*) from event_stations
+      where event_id = p_event_id and type = 'main' and disabled_at is null) <= 1 then
+    raise exception 'MAIN_STATION_REQUIRED';
+  end if;
+  update event_stations set disabled_at = now()
+  where event_id = p_event_id and station_id = p_station_id and disabled_at is null;
+  return admin_event_stations(p_admin_key, p_event_id);
+end;
+$$;
+
+grant execute on function admin_event_stations(text, uuid), admin_set_event_stations(text, uuid, jsonb),
+  admin_disable_event_station(text, uuid, integer) to anon;

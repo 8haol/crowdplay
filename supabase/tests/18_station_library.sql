@@ -13,6 +13,9 @@ declare
   ev_c uuid;
   r jsonb;
   v_ring int := (select id from stations where slug = 'ring-toss' and org_id is null);
+  v_music int := (select id from stations where slug = 'music' and org_id is null);
+  v_photo int := (select id from stations where slug = 'photo' and org_id is null);
+  v_life int := (select id from stations where slug = 'life-event' and org_id is null);
   v_copy int;
   v_beta_empty uuid;
   v_beta_new uuid;
@@ -120,6 +123,66 @@ begin
   v_beta_new := (r ->> 'event_id')::uuid;
   assert (select count(*) from event_stations where event_id = v_beta_new) = 9,
          '上一场站点名册为空时，新场回退到内置 9 个';
+
+  -- 整份提交：必须留人生盲盒和至少一个主站点。
+  begin
+    perform admin_set_event_stations('alpha-admin', ev_c,
+      (select jsonb_agg(jsonb_build_object('station_id', es.station_id, 'name_zh', es.name_zh,
+                                           'scoring_mode', es.scoring_mode, 'sort_order', es.sort_order))
+       from event_stations es where es.event_id = ev_c and es.type <> 'life_event'));
+    raise exception 'TEST FAILED: expected LIFE_EVENT_REQUIRED';
+  exception when others then
+    if sqlerrm <> 'LIFE_EVENT_REQUIRED' then raise; end if;
+  end;
+
+  begin
+    perform admin_set_event_stations('alpha-admin', ev_c,
+      (select jsonb_agg(jsonb_build_object('station_id', es.station_id, 'name_zh', es.name_zh,
+                                           'scoring_mode', es.scoring_mode, 'sort_order', es.sort_order))
+       from event_stations es where es.event_id = ev_c and es.type = 'life_event'));
+    raise exception 'TEST FAILED: expected MAIN_STATION_REQUIRED';
+  exception when others then
+    if sqlerrm <> 'MAIN_STATION_REQUIRED' then raise; end if;
+  end;
+
+  -- 合法提交：留 3 个主站 + 盲盒，顺序重排。
+  perform admin_set_event_stations('alpha-admin', ev_c,
+    (select jsonb_agg(jsonb_build_object('station_id', t.station_id, 'name_zh', t.name_zh,
+                                         'scoring_mode', t.scoring_mode, 'sort_order', t.rn))
+     from (select es.*, row_number() over (order by es.sort_order) as rn
+           from event_stations es
+           where es.event_id = ev_c and (es.type = 'life_event' or es.station_id in (v_music, v_ring, v_photo))) t));
+  assert (select count(*) from event_stations where event_id = ev_c) = 4, '本场只剩 4 个站';
+
+  -- playing 之后只能撤，不能整份改。
+  perform join_by_link('丙一', (select join_token from events where id = ev_c));
+  perform start_game('alpha-admin', ev_c, '{}'::jsonb);
+  begin
+    perform admin_set_event_stations('alpha-admin', ev_c, '[]'::jsonb);
+    raise exception 'TEST FAILED: expected EVENT_IN_PROGRESS';
+  exception when others then
+    if sqlerrm <> 'EVENT_IN_PROGRESS' then raise; end if;
+  end;
+  perform admin_disable_event_station('alpha-admin', ev_c, v_photo);
+  assert (select disabled_at from event_stations where event_id = ev_c and station_id = v_photo) is not null,
+         'playing 中可以撤站';
+
+  -- 撤到只剩一个主站还行，撤光就不行。
+  begin
+    perform admin_disable_event_station('alpha-admin', ev_c, v_music);
+    perform admin_disable_event_station('alpha-admin', ev_c, v_ring);
+    raise exception 'TEST FAILED: expected MAIN_STATION_REQUIRED';
+  exception when others then
+    if sqlerrm <> 'MAIN_STATION_REQUIRED' then raise; end if;
+  end;
+
+  -- 人生盲盒撤不掉。
+  begin
+    perform admin_disable_event_station('alpha-admin', ev_c, v_life);
+    raise exception 'TEST FAILED: expected LIFE_EVENT_REQUIRED';
+  exception when others then
+    if sqlerrm <> 'LIFE_EVENT_REQUIRED' then raise; end if;
+  end;
 
   raise notice 'PASS 18_station_library';
 end $$;

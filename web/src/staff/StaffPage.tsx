@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { rpc, errorText } from "../lib/api";
+import { usePoll } from "../lib/usePoll";
 import type { EventStation, StaffSession } from "../lib/types";
 import { ActionButton, BrandMark, ErrorBanner, UpLink } from "../lib/ui";
 import { StaffCard } from "./staffUi";
@@ -35,50 +36,42 @@ export default function StaffPage() {
     const stored = localStorage.getItem(LS_STATION);
     return stored ? Number(stored) : null;
   });
-  const [fetched, setFetched] = useState<EventStation[]>([]);
-  const stations = preview ? PREVIEW_ALL_STATIONS : fetched;
-  /* The code is the event. Show which one, so a volunteer who was sent two codes
-     for two nights can tell at a glance that they are in tonight's. */
-  const [eventTitle, setEventTitle] = useState<string | null>(preview ? "演示场次" : null);
-  useEffect(() => {
-    if (preview || !staffKey) return;
-    let cancelled = false;
-    rpc<StaffSession>("staff_session", { p_staff_key: staffKey })
-      .then((session) => { if (!cancelled) setEventTitle(session.title); })
-      .catch(() => { /* header falls back to the station name alone */ });
-    return () => { cancelled = true; };
-  }, [preview, staffKey]);
+  const [notice, setNotice] = useState<string | null>(null);
 
   /*
-   * Which stations exist is now a property of the event, not of the platform:
-   * `staff_stations` returns this event's enabled roster (a station the admin
-   * withdrew mid-event is simply gone from it). A volunteer whose phone still
-   * remembers a withdrawn station is sent back to the picker rather than left
-   * on a console that can no longer record anything.
+   * `staff_session` carries both the event title and this event's enabled
+   * station roster (`session.stations` — the same array `staff_stations`
+   * used to return separately, one extra round-trip for the same data).
+   * Polling it, instead of fetching once on mount, is what lets a station
+   * the admin withdraws mid-event reach a volunteer whose phone has been
+   * sitting open on the console all evening.
+   *
+   * Whether the stored station survived is checked right here, inside the
+   * poll function — the same place `PlayPage`'s poll reacts to a join code
+   * going bad (see `pollFn` there) — rather than in a separate effect. That
+   * gives mount (the first fetch) and every later tick the same one code
+   * path, and keeps the side effect out of a React effect body.
    */
-  useEffect(() => {
-    if (preview || !staffKey) return;
-    let cancelled = false;
-    rpc<EventStation[]>("staff_stations", { p_staff_key: staffKey })
-      .then((rows) => {
-        if (cancelled) return;
-        setFetched(rows);
-        const stored = localStorage.getItem(LS_STATION);
-        if (stored && !rows.some((row) => row.id === Number(stored))) {
-          localStorage.removeItem(LS_STATION);
-          setStationId(null);
-        }
-      })
-      .catch(() => {
-        // retried on next mount; the picker shows a loading row until then
-      });
-    return () => { cancelled = true; };
-  }, [preview, staffKey]);
-
-  const stationsTotal = useMemo(
-    () => Math.max(1, stations.filter((station) => station.type === "main").length),
-    [stations],
+  const pollFn = useMemo(
+    () => (preview || !staffKey ? null : async () => {
+      const result = await rpc<StaffSession>("staff_session", { p_staff_key: staffKey });
+      const stored = localStorage.getItem(LS_STATION);
+      if (stored && !result.stations.some((row) => row.id === Number(stored))) {
+        localStorage.removeItem(LS_STATION);
+        setStationId(null);
+        setNotice("这个站已经被撤下，请重新选择你负责的站点");
+      }
+      return result;
+    }),
+    [preview, staffKey],
   );
+  const { data: session } = usePoll<StaffSession>(pollFn, 15_000);
+  const stations = preview ? PREVIEW_ALL_STATIONS : (session?.stations ?? []);
+  /* The code is the event. Show which one, so a volunteer who was sent two codes
+     for two nights can tell at a glance that they are in tonight's. */
+  const eventTitle = preview ? "演示场次" : (session?.title ?? null);
+
+  const stationsTotal = Math.max(1, stations.filter((station) => station.type === "main").length);
 
   if (!staffKey) {
     return (
@@ -102,11 +95,17 @@ export default function StaffPage() {
         subtitle={eventTitle ? `${eventTitle} · 选好之后这台手机会记住` : "选好之后这台手机会记住"}
         onLogout={() => logout(setStaffKey)}
       >
+        {notice && (
+          <div className="mb-4">
+            <ErrorBanner text={notice} />
+          </div>
+        )}
         <StationPicker
           stations={stations}
           onPick={(id) => {
             localStorage.setItem(LS_STATION, String(id));
             setStationId(id);
+            setNotice(null);
           }}
         />
       </Shell>

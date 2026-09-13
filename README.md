@@ -128,8 +128,9 @@ npm --prefix web run dev  # http://localhost:5173
 增删站点、改名、改计分方式、排序；开场（`playing`）之后名单锁定，只剩「撤站」一个动作：撤下的站在工作人员端消失、
 不能再记分，但**已经记的分全部保留**，护照与大屏的「共几站」按剩下的站重算。
 每场必须至少留一个主线站点和那个人生盲盒站。管理端在「站点运营」页同时管这两层；
-工作人员端读 `staff_stations`（本场启用的站），玩家护照与大屏读各自快照里的站点（`poll_player_by_link` 的 `stations` /
-`board_snapshot` 的 `stations_total`）—— `stations` 表不再对外直读。
+工作人员端轮询 `staff_session`（本场标题 + 启用的站，`staff_stations` 仍是同一份数据的独立只读入口），玩家护照与
+大屏读各自快照里的站点（`poll_player_by_link` 的 `stations` / `board_snapshot` 的 `stations_total`）——
+`stations` 表不再对外直读。
 
 ## 部署到生产
 

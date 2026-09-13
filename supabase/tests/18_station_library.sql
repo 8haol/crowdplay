@@ -239,10 +239,37 @@ begin
   -- ring-toss 全局叫「套圈」，但丙场（从乙场二复制）改叫「甲家的套圈」。
   perform award_team_score('CCODE1', (select code from players where id = v_player), v_ring, 9, false, 'k4');
 
-  -- 撤站会下调第三段的解锁点（终点站从 3 落到 1），走完剩下唯一主站的玩家应当
-  -- 拿到第三段；而撤站前已经发出的第一段（k1 触发，见上）不能被这次下调回收。
-  assert (select count(*) from life_event_instances where player_id = v_player) >= 1,
-         '撤站下调终点后，走完剩余站点的玩家拿到了人生段';
+  -- Ruling 22：`count(*) >= 1` 是一条自我满足型断言——k1 那次记分早就在 2 主站
+  -- 门槛下发出了第一段（见上），光有它就能让 >=1 成立，证明不了「撤站把第三段
+  -- 也发出来了」。`_sync_life_event` 每次只发「最小的那个还没发过的段」，且有
+  -- 「同时只允许一个 pending 事件」的闸门：k4 虽然已经让 _due_stage 够到 3，
+  -- 但要先让玩家在自己手机上依次对第一段、第二段做出选择（走
+  -- choose_life_event_by_link——真实前端就是这样一段段揭晓的），闸门才会一路
+  -- 放行到第三段。（用调试脚本验证过：只消费第一段，_sync_life_event 发的是
+  -- 第二段，不是第三段；两段都消费掉之后才轮到第三段。）
+  for v_stage_seq in 1..2 loop
+    declare
+      v_stage_inst uuid;
+      v_stage_choice text;
+    begin
+      select id, scene_snapshot -> 'choices' -> 0 ->> 'key'
+        into v_stage_inst, v_stage_choice
+      from life_event_instances where player_id = v_player and stage = v_stage_seq;
+      assert v_stage_inst is not null,
+             format('丙一应该已经欠了第 %s 段（消费上一段之后应由 _sync_life_event 自动补发）', v_stage_seq);
+      perform choose_life_event_by_link(
+        (select join_token from events where id = ev_c),
+        (select code from players where id = v_player),
+        v_stage_inst, v_stage_choice, 'k4-consume-stage' || v_stage_seq);
+    end;
+  end loop;
+
+  -- 撤站会下调第三段的解锁点（终点站从 3 落到 1）：把前两段依次消费掉之后，
+  -- 走完剩下唯一主站的玩家应当真的拿到第三段；而撤站前已发出的第一段（k1
+  -- 触发）不能因为这次下调被回收——它已经被玩家选择消费掉（state = resolved），
+  -- 行还在，就是「没被回收」的证据。
+  assert exists (select 1 from life_event_instances where player_id = v_player and stage = 3),
+         '撤站把终点下调到 1 站后，走完剩余站点的玩家真的拿到了第三段';
   assert _due_stage(ev_c, v_player) = 3, '终点下调到 1 站，打完这一站即到第三段';
   assert (select count(*) from life_event_instances where player_id = v_player and stage = 1) = 1,
          '撤站前已发出的第一段没有被回收';

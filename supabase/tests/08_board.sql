@@ -60,7 +60,7 @@ begin
   assert exists (select 1 from jsonb_array_elements(r -> 'players') p
                  where p ->> 'name' = '乙' and (p ->> 'stations_done')::int = 2 and p ->> 'id' is not null),
          'progress and stable id present for every row';
-  assert (r ->> 'stations_total')::int = (select count(*) from stations where type = 'main'), 'station total present';
+  assert (r ->> 'stations_total')::int = (select count(*) from event_stations where event_id = v_ev and type = 'main' and disabled_at is null), 'station total present';
   assert r -> 'awards' = 'null'::jsonb or r -> 'awards' is null, 'no awards while running';
 
   assert jsonb_array_length(v_feed) = 5, 'feed = 3 team attempts + 1 token + 1 life event, got ' || jsonb_array_length(v_feed)::text;

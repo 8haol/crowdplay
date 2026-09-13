@@ -16,6 +16,7 @@ declare
   v_music int := (select id from stations where slug = 'music' and org_id is null);
   v_photo int := (select id from stations where slug = 'photo' and org_id is null);
   v_life int := (select id from stations where slug = 'life-event' and org_id is null);
+  v_grace int := (select id from stations where slug = 'grace' and org_id is null);
   v_copy int;
   v_beta_empty uuid;
   v_beta_new uuid;
@@ -197,6 +198,15 @@ begin
   assert _main_stations_done(ev_c, v_player) = 0, '被撤站点的成绩不再计入完成数';
   assert (select count(*) from team_attempts where event_id = ev_c and station_id = v_music) = 1,
          '历史成绩仍然留在库里';
+  assert (select stations_done from _team_stats(ev_c) where team_id = (select team_id from players where id = v_player)) = 0,
+         '撤站后，团队侧的完成数（_team_stats）也不再算被撤站点的成绩';
+
+  -- 管理端的站点指标只列本场的站，且用本场的名字；撤掉的站仍然列出但带 disabled 标记。
+  r := admin_console('alpha-admin', ev_c);
+  assert jsonb_array_length(r -> 'station_metrics') = 4, '本场 4 个站（含已撤的）';
+  assert exists (select 1 from jsonb_array_elements(r -> 'station_metrics') x
+                 where (x ->> 'station_id')::int = v_music and (x ->> 'disabled')::boolean),
+         '被撤的站带 disabled 标记';
 
   -- 撤站会下调第三段的解锁点。
   assert _stage_unlock_at(ev_c, 3) = 1, '第三段落在最后一个启用的主站上';
@@ -209,6 +219,14 @@ begin
   assert jsonb_array_length(r) = 2, '本场只剩 1 主站 + 盲盒';
   begin
     perform award_team_score('CCODE1', (select code from players where id = v_player), v_music, 6, false, 'k2');
+    raise exception 'TEST FAILED: expected BAD_STATION';
+  exception when others then
+    if sqlerrm not like 'BAD_STATION%' then raise; end if;
+  end;
+
+  -- grace 站从没进过丙场的名册（admin_set_event_stations 那步就删掉了），不是撤掉，是压根不在。
+  begin
+    perform award_team_score('CCODE1', (select code from players where id = v_player), v_grace, 6, false, 'k3');
     raise exception 'TEST FAILED: expected BAD_STATION';
   exception when others then
     if sqlerrm not like 'BAD_STATION%' then raise; end if;

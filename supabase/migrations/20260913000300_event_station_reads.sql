@@ -125,6 +125,77 @@ as $$
   );
 $$;
 
+-- _player_json 是内部函数，却从来没被收权——按 Postgres 默认对 PUBLIC 可执行。
+-- 补上，和其它 _ 前缀的内部函数一致。
+revoke execute on function _player_json(players) from public, anon, authenticated;
+
+-- _award_stats / _team_stats：生效版本在 20260912000200_tenant_resolve.sql:245 和 :281
+-- （Ruling 13：v_total 已经按本场启用主站算了，但这两个助手喂给它的 stations_done /
+-- st_done 还是走全局 stations 表，既不看本场名册也不看 disabled_at——撤站后总数下调，
+-- 完成数却仍把被撤站点的成绩算在内。改成跟 _main_stations_done 一样，按
+-- (event_id, station_id) join event_stations 且 disabled_at is null。）
+create or replace function _award_stats(p_event_id uuid)
+returns table (
+  player_id uuid, name text, color_group text, identity text, score int,
+  joined_at timestamptz, ev_net int, ev_up int, ev_down int, ev_swing int, ev_count int,
+  st_total int, st_nines int, st_done int, st_last timestamptz
+)
+language sql
+stable
+set search_path = public, pg_temp
+as $$
+  select p.id, p.name, p.color_group, p.identity, p.score, p.created_at,
+         coalesce(e.net, 0)::int, coalesce(e.up, 0)::int, coalesce(e.down, 0)::int,
+         coalesce(e.up - e.down, 0)::int, coalesce(e.n, 0)::int,
+         coalesce(s.total, 0)::int, coalesce(s.nines, 0)::int, coalesce(s.done, 0)::int,
+         s.last_at
+  from players p
+  left join (
+    select le.player_id,
+           sum(le.score_after - le.score_before) net,
+           max(le.score_after - le.score_before) up,
+           min(le.score_after - le.score_before) down,
+           count(*) n
+    from life_events le where le.event_id = p_event_id group by le.player_id
+  ) e on e.player_id = p.id
+  left join (
+    select a.player_id, sum(a.score) total,
+           count(*) filter (where a.score >= 9) nines,
+           count(*) done, max(a.created_at) last_at
+    from attempts a join event_stations st2 on st2.event_id = a.event_id and st2.station_id = a.station_id
+    where a.event_id = p_event_id and st2.type = 'main' and st2.disabled_at is null and a.status in ('passed', 'failed')
+    group by a.player_id
+  ) s on s.player_id = p.id
+  where p.event_id = p_event_id and not p.is_removed;
+$$;
+
+create or replace function _team_stats(p_event_id uuid)
+returns table (
+  team_id uuid, identity text, color_group text, members text, member_count int,
+  created_at timestamptz, stations_done int, station_score int, nines int, last_at timestamptz
+)
+language sql
+stable
+set search_path = public, pg_temp
+as $$
+  select t.id, t.identity, t.color_group,
+         coalesce((select string_agg(p.name, ' / ' order by p.created_at)
+                   from players p where p.team_id = t.id and not p.is_removed), '—'),
+         (select count(*)::int from players p where p.team_id = t.id and not p.is_removed),
+         t.created_at,
+         coalesce(a.done, 0)::int, coalesce(a.total, 0)::int, coalesce(a.nines, 0)::int, a.last_at
+  from teams t
+  left join (
+    select ta.team_id, count(*) done, sum(ta.score) total,
+           count(*) filter (where ta.score >= 9) nines, max(ta.created_at) last_at
+    from team_attempts ta join event_stations s on s.event_id = ta.event_id and s.station_id = ta.station_id
+    where ta.event_id = p_event_id and s.type = 'main' and s.disabled_at is null and ta.status in ('passed', 'failed')
+    group by ta.team_id
+  ) a on a.team_id = t.id
+  where t.event_id = p_event_id
+    and exists (select 1 from players p where p.team_id = t.id and not p.is_removed);
+$$;
+
 -- _event_awards：生效版本在 20260912000200_tenant_resolve.sql:357
 create or replace function _event_awards(p_event_id uuid)
 returns jsonb
@@ -258,14 +329,15 @@ begin
                             from players p where p.team_id = t.id and not p.is_removed), '—'),
           'color_group', t.color_group, 'identity', t.identity,
           'station', s.name_zh, 'status', a.status, 'score', a.score, 'at', a.created_at
-        ) from team_attempts a join teams t on t.id = a.team_id join stations s on s.id = a.station_id
+        ) from team_attempts a join teams t on t.id = a.team_id
+          join event_stations s on s.event_id = a.event_id and s.station_id = a.station_id
         where a.event_id = v_event.id and a.status in ('passed','failed')
         union all
         select u.created_at, jsonb_build_object(
           'id', 'u' || u.id, 'kind', 'token', 'name', p.name,
           'usage', u.usage_type, 'station', s.name_zh, 'at', u.created_at
         ) from token_usages u join players p on p.id = u.player_id
-          left join stations s on s.id = u.target_station_id
+          left join event_stations s on s.event_id = u.event_id and s.station_id = u.target_station_id
         where u.event_id = v_event.id and not p.is_removed
       ) feed_union order by created_at desc limit 60
     ) recent), '[]'::jsonb)
@@ -308,6 +380,40 @@ begin
   where id = p_player_id;
   return v_id;
 end;
+$$;
+
+-- _event_station_metrics：生效版本在 20260912000200_tenant_resolve.sql:480
+-- （管理端的站点指标曾经数全局 stations 表，现在只列本场 event_stations；撤掉的
+-- 站仍然列出，带一个 disabled 标记，而不是从列表里消失。event_stations 没有
+-- slug 列，'id' 直接用 station_id。）
+drop function if exists _current_station_metrics();
+create or replace function _event_station_metrics(p_event_id uuid)
+returns jsonb
+language sql
+stable
+set search_path = public, pg_temp
+as $$
+  with active_teams as (select count(*)::numeric as count from teams where event_id = p_event_id)
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', s.station_id, 'station_id', s.station_id, 'name_zh', s.name_zh, 'type', s.type,
+    'scoring_mode', s.scoring_mode, 'sort_order', s.sort_order,
+    'disabled', s.disabled_at is not null,
+    'visits', case
+      when s.type = 'main' then
+        (select count(*) from team_attempts a where a.event_id = p_event_id and a.station_id = s.station_id and a.status in ('passed','failed'))
+      when s.type = 'life_event' then (select count(*) from life_events where event_id = p_event_id)
+      else (select count(*) from token_usages where event_id = p_event_id)
+    end,
+    'passed', (select count(*) from team_attempts a where a.event_id = p_event_id and a.station_id = s.station_id and a.status = 'passed'),
+    'failed', (select count(*) from team_attempts a where a.event_id = p_event_id and a.station_id = s.station_id and a.status = 'failed'),
+    'score_awarded', coalesce((select sum(a.score) from team_attempts a where a.event_id = p_event_id and a.station_id = s.station_id and a.status = 'passed'), 0),
+    'completion_pct', case when s.type <> 'main' or active_teams.count = 0 then 0 else round(
+      (select count(distinct a.team_id)::numeric from team_attempts a
+       where a.event_id = p_event_id and a.station_id = s.station_id and a.status in ('passed','failed')) / active_teams.count * 100, 1)
+    end
+  ) order by s.sort_order), '[]'::jsonb)
+  from event_stations s cross join active_teams
+  where s.event_id = p_event_id;
 $$;
 
 -- ---------------------------------------------------------------------------
@@ -376,8 +482,6 @@ declare
   v_prev jsonb;
   v_lookup jsonb;
   v_team teams;
-  v_es_id int;
-  v_es_name text;
   v_es_type text;
   v_es_mode text;
   v_player players;
@@ -400,8 +504,8 @@ begin
   v_lookup := staff_lookup_team(p_staff_key, p_identifier);
   if not coalesce((v_lookup ->> 'found')::boolean, false) then raise exception 'TEAM_NOT_FOUND:%', p_identifier; end if;
   select * into v_team from teams where id = (v_lookup ->> 'team_id')::uuid for update;
-  select es.station_id, es.name_zh, es.type, es.scoring_mode
-    into v_es_id, v_es_name, v_es_type, v_es_mode
+  select es.type, es.scoring_mode
+    into v_es_type, v_es_mode
   from event_stations es
   where es.event_id = v_event.id and es.station_id = p_station_id and es.disabled_at is null;
   if not found or v_es_type <> 'main' then raise exception 'BAD_STATION'; end if;

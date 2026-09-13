@@ -238,6 +238,15 @@ begin
   -- Ruling 17：活动流的站点标签要用本场改过的名字，不是库里的旧名字。
   -- ring-toss 全局叫「套圈」，但丙场（从乙场二复制）改叫「甲家的套圈」。
   perform award_team_score('CCODE1', (select code from players where id = v_player), v_ring, 9, false, 'k4');
+
+  -- 撤站会下调第三段的解锁点（终点站从 3 落到 1），走完剩下唯一主站的玩家应当
+  -- 拿到第三段；而撤站前已经发出的第一段（k1 触发，见上）不能被这次下调回收。
+  assert (select count(*) from life_event_instances where player_id = v_player) >= 1,
+         '撤站下调终点后，走完剩余站点的玩家拿到了人生段';
+  assert _due_stage(ev_c, v_player) = 3, '终点下调到 1 站，打完这一站即到第三段';
+  assert (select count(*) from life_event_instances where player_id = v_player and stage = 1) = 1,
+         '撤站前已发出的第一段没有被回收';
+
   r := admin_console('alpha-admin', ev_c);
   assert exists (select 1 from jsonb_array_elements(r -> 'activity') x where x ->> 'label' = '甲家的套圈'),
          '活动流用本场改过的名字';

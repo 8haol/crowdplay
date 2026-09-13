@@ -187,7 +187,7 @@ begin
 
   -- 撤站后总数减一，已记的分仍在，但不再计入完成数。
   -- （丙一 已在上面 join 并 start_game；这里直接用她的号，不再新开一个玩家。）
-  v_player := (select id from players where event_id = ev_c limit 1);
+  v_player := (select id from players where event_id = ev_c and name = '丙一');
   perform award_team_score((select staff_code from events where id = ev_c),
     (select code from players where id = v_player), v_music, 9, false, 'k1');
   assert _main_station_total(ev_c) = 2, '4 个站里 3 主站，撤掉 photo 后剩 2';
@@ -200,6 +200,30 @@ begin
 
   -- 撤站会下调第三段的解锁点。
   assert _stage_unlock_at(ev_c, 3) = 1, '第三段落在最后一个启用的主站上';
+
+  -- 工作人员只看得到本场启用的站，撤掉的站不能再记分。
+  -- （admin_create_event 随机生成 staff_code，这里改成固定码方便断言，
+  --  和下面乙场同样的做法一致。）
+  update events set staff_code = 'CCODE1' where id = ev_c;
+  r := staff_stations('CCODE1');
+  assert jsonb_array_length(r) = 2, '本场只剩 1 主站 + 盲盒';
+  begin
+    perform award_team_score('CCODE1', (select code from players where id = v_player), v_music, 6, false, 'k2');
+    raise exception 'TEST FAILED: expected BAD_STATION';
+  exception when others then
+    if sqlerrm not like 'BAD_STATION%' then raise; end if;
+  end;
+
+  -- 乙场用同一个 station_id 照常记分（A 场撤站不影响 B 场）。
+  -- （用返回的 event_id 精确定位新建的这一场，避免 update 撞到乙教会已有的
+  --  其它场次，让 join_token / staff_code 的唯一约束报错。）
+  r := admin_create_event('beta-admin', '乙场一');
+  update events set join_token = 'join-b1', staff_code = 'BCODE1' where id = (r ->> 'event_id')::uuid;
+  perform join_by_link('乙玩家', 'join-b1', null, 'pb');
+  perform start_game('beta-admin', (select id from events where join_token='join-b1'), '{}'::jsonb);
+  perform award_team_score('BCODE1', (select code from players where event_id = (select id from events where join_token='join-b1')), v_music, 9, false, 'kb');
+  assert (select score from players where event_id = (select id from events where join_token='join-b1')) = 9,
+         '乙场在同一个站点上照常记分';
 
   raise notice 'PASS 18_station_library';
 end $$;

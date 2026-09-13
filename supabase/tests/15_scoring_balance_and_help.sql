@@ -4,6 +4,11 @@ delete from events; delete from organizations;
 insert into organizations (slug, name_zh, name_en, admin_key) values ('tc', '测试教会', 'Test Church', 'test-admin');
 insert into events (org_id, title, join_token, staff_code, screen_token, phase, started_at)
 select id, '测试场', 'join-t', 'STAFF1', 'screen-t', 'waiting', null from organizations where slug = 'tc';
+-- 这场是手工插入的（不经过 admin_create_event），进度助手现在按本场 event_stations
+-- 算站点数，所以要像 18_station_library.sql 里 ev_a 那样手动把内置站点铺进本场。
+insert into event_stations (event_id, station_id, name_zh, type, scoring_mode, sort_order)
+select e.id, s.id, s.name_zh, s.type, s.scoring_mode, s.sort_order
+from events e, stations s where e.join_token = 'join-t' and s.org_id is null;
 
 do $$
 declare

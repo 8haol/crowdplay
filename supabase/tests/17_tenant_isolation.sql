@@ -8,6 +8,11 @@ insert into events (org_id, title, join_token, staff_code, screen_token, phase, 
 select id, '甲场', 'join-alpha', 'ALPHA1', 'screen-alpha', 'waiting', null from organizations where slug = 'alpha';
 insert into events (org_id, title, join_token, staff_code, screen_token, phase, started_at)
 select id, '乙场', 'join-beta', 'BETA01', 'screen-beta', 'waiting', null from organizations where slug = 'beta';
+-- 这两场都是手工插入的（不经过 admin_create_event），进度助手/记分校验现在按本场
+-- event_stations 算，所以要像 18_station_library.sql 里 ev_a 那样手动把内置站点铺进两场。
+insert into event_stations (event_id, station_id, name_zh, type, scoring_mode, sort_order)
+select e.id, s.id, s.name_zh, s.type, s.scoring_mode, s.sort_order
+from events e, stations s where e.join_token in ('join-alpha', 'join-beta') and s.org_id is null;
 
 do $$
 declare

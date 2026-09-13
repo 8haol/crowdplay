@@ -8,6 +8,12 @@ select id, '测试场', 'join-t', 'STAFF1', 'screen-t', 'playing', now() from or
 -- make one station fixed-mode for this test run (rolled back with the transaction)
 update stations set scoring_mode = 'fixed' where slug = 'ring-toss';
 
+-- 这场是手工插入的（不经过 admin_create_event），进度助手现在按本场 event_stations
+-- 算站点数，所以要像 18_station_library.sql 里 ev_a 那样手动把内置站点铺进本场。
+insert into event_stations (event_id, station_id, name_zh, type, scoring_mode, sort_order)
+select e.id, s.id, s.name_zh, s.type, s.scoring_mode, s.sort_order
+from events e, stations s where e.join_token = 'join-t' and s.org_id is null;
+
 do $$
 declare
   v_ev uuid := (select id from events where join_token = 'join-t');

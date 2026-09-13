@@ -195,7 +195,12 @@ function TeamHelp({
       );
     }
 
-    const attempted = team.attempted_station_ids ?? [];
+    /* `attempted_station_ids` is history and deliberately still lists stations
+       withdrawn mid-event. A Second Chance has to be spent on a station that
+       still exists tonight, so the picker intersects that history with this
+       event's enabled roster: offering a withdrawn station would render as a
+       nameless 「站点 5」 and earn a BAD_STATION at submit. */
+    const attempted = (team.attempted_station_ids ?? []).filter((id) => stationName.has(id));
     const resultByStation = new Map((team.station_results ?? []).map((result) => [result.station_id, result]));
     return (
       <>

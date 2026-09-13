@@ -265,6 +265,9 @@ export function LibraryStationModal(props: {
   const [type, setType] = useState<StationType>(editing?.type ?? "main");
   const [mode, setMode] = useState<Exclude<ScoringMode, null>>(editing?.scoring_mode ?? "graded");
   const [err, setErr] = useState<string | null>(null);
+  /* A second tap while the first request is still out would create a second
+     station with the same name — the create RPC carries no idempotency key. */
+  const [busy, setBusy] = useState(false);
 
   return (
     <Modal onClose={props.onClose} width="max-w-md">
@@ -329,9 +332,10 @@ export function LibraryStationModal(props: {
         <Btn variant="quiet" onClick={props.onClose}>取消</Btn>
         <Btn
           variant="primary"
-          disabled={!name.trim()}
+          disabled={!name.trim() || busy}
           onClick={async () => {
             setErr(null);
+            setBusy(true);
             const clean = name.trim();
             try {
               if (editing) {
@@ -351,10 +355,14 @@ export function LibraryStationModal(props: {
                 });
                 props.onDone(`已新增站点「${clean}」`);
               }
-            } catch (error) { setErr(errorText(error)); }
+            } catch (error) {
+              setErr(errorText(error));
+            } finally {
+              setBusy(false);
+            }
           }}
         >
-          {editing ? "保存" : "新增"}
+          {busy ? "保存中…" : editing ? "保存" : "新增"}
         </Btn>
       </div>
     </Modal>
@@ -375,6 +383,7 @@ export function DisableStationModal(props: {
   onDone: (message: string) => void;
 }) {
   const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   return (
     <Modal onClose={props.onClose} width="max-w-md">
@@ -390,8 +399,10 @@ export function DisableStationModal(props: {
         <Btn variant="quiet" onClick={props.onClose}>取消</Btn>
         <Btn
           variant="dangerSolid"
+          disabled={busy}
           onClick={async () => {
             setErr(null);
+            setBusy(true);
             try {
               await rpc("admin_disable_event_station", {
                 p_admin_key: props.adminKey,
@@ -399,10 +410,14 @@ export function DisableStationModal(props: {
                 p_station_id: props.station.station_id,
               });
               props.onDone(`已撤下「${props.station.name_zh}」，已记的分保留`);
-            } catch (error) { setErr(errorText(error)); }
+            } catch (error) {
+              setErr(errorText(error));
+            } finally {
+              setBusy(false);
+            }
           }}
         >
-          确认撤站
+          {busy ? "撤站中…" : "确认撤站"}
         </Btn>
       </div>
     </Modal>

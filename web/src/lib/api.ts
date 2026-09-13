@@ -106,7 +106,7 @@ const ERROR_ZH: Record<string, string> = {
   GAME_ARCHIVED: "这一场活动已经归档",
   JOIN_CLOSED: "本场登记已关闭，请联系现场工作人员",
   BAD_GAME_TITLE: "活动名称要 1~60 个字",
-  ACTIVE_GAME_EXISTS: "当前场次仍有玩家，确认归档后才能创建新场次",
+  ACTIVE_EVENT_EXISTS: "本机构已经有一场活动在进行中。同时只能跑一场 —— 请先在现场总控结束它，再开新场。",
   EVENT_NOT_FOUND: "找不到这场活动，它可能已被移除",
   BAD_NEW_KEY: "密码长度不符合要求：工作人员至少 6 位，管理员至少 8 位",
   GAME_IN_PROGRESS: "游戏进行中不能修改站点配置",

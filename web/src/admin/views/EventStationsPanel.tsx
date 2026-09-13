@@ -210,14 +210,19 @@ export function EventStationsPanel({
                         </Btn>
                       </>
                     ) : data.phase === "playing" && row.type !== "life_event" ? (
+                      /* Same rule as the waiting sheet, same moment: the server
+                         keeps at least one main station, so the last one's
+                         button is dead before it is pressed rather than after
+                         the operator has confirmed a withdrawal. */
                       <Btn
                         variant="danger"
+                        disabled={Boolean(required(rows, index))}
                         onClick={() => {
                           const station = enabled.find((entry) => entry.station_id === row.station_id);
                           if (station) setDisabling(station);
                         }}
                       >
-                        撤站
+                        {required(rows, index) ? "必留" : "撤站"}
                       </Btn>
                     ) : null}
                   </div>
@@ -319,7 +324,8 @@ function MoveButton({
   );
 }
 
-/** Why this row cannot leave the sheet, or null if it can. */
+/** Why this row cannot leave the event — as a draft edit or as a mid-event
+    withdrawal — or null if it can. Mirrors the server's two guards. */
 function required(rows: DraftRow[], index: number): string | null {
   const row = rows[index];
   const others = rows.filter((_, i) => i !== index);

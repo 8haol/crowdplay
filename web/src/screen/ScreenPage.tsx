@@ -89,6 +89,7 @@ export default function ScreenPage() {
         <Ceremony
           awards={data.awards}
           players={data.stats.players}
+          stationsTotal={data.stations_total}
           onFinish={() => setCeremonyDone(true)}
         />
         {preview && <DemoRibbon />}

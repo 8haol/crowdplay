@@ -4,7 +4,7 @@ delete from events; delete from organizations;
 insert into organizations (slug, name_zh, name_en, admin_key) values ('tc', '测试教会', 'Test Church', 'test-admin');
 insert into events (org_id, title, join_token, staff_code, screen_token, phase, started_at)
 select id, '测试场', 'join-t', 'STAFF1', 'screen-t', 'playing', now() from organizations where slug = 'tc';
--- 这场是手工插入的（不经过 admin_create_event），进度助手现在按本场 event_stations
+-- 这场是手工插入的（不经过 admin_create_event），进度助手/记分校验现在按本场 event_stations
 -- 算站点数，所以要像 18_station_library.sql 里 ev_a 那样手动把内置站点铺进本场。
 insert into event_stations (event_id, station_id, name_zh, type, scoring_mode, sort_order)
 select e.id, s.id, s.name_zh, s.type, s.scoring_mode, s.sort_order
@@ -60,7 +60,9 @@ begin
   assert exists (select 1 from jsonb_array_elements(r -> 'players') p
                  where p ->> 'name' = '乙' and (p ->> 'stations_done')::int = 2 and p ->> 'id' is not null),
          'progress and stable id present for every row';
-  assert (r ->> 'stations_total')::int = (select count(*) from event_stations where event_id = v_ev and type = 'main' and disabled_at is null), 'station total present';
+  -- Ruling 20：硬编码而不是镜像 _main_station_total 自己的口径（夹具铺了全部 9 个内置
+  -- 站，其中 7 个是 main，一个都没撤）——镜像写法对任何名册都恒成立，测不出回归。
+  assert (r ->> 'stations_total')::int = 7, 'station total present';
   assert r -> 'awards' = 'null'::jsonb or r -> 'awards' is null, 'no awards while running';
 
   assert jsonb_array_length(v_feed) = 5, 'feed = 3 team attempts + 1 token + 1 life event, got ' || jsonb_array_length(v_feed)::text;

@@ -16,7 +16,7 @@ declare
   v_music int := (select id from stations where slug = 'music' and org_id is null);
   v_photo int := (select id from stations where slug = 'photo' and org_id is null);
   v_life int := (select id from stations where slug = 'life-event' and org_id is null);
-  v_grace int := (select id from stations where slug = 'grace' and org_id is null);
+  v_uklife int := (select id from stations where slug = 'uk-life' and org_id is null);
   v_copy int;
   v_beta_empty uuid;
   v_beta_new uuid;
@@ -224,9 +224,12 @@ begin
     if sqlerrm not like 'BAD_STATION%' then raise; end if;
   end;
 
-  -- grace 站从没进过丙场的名册（admin_set_event_stations 那步就删掉了），不是撤掉，是压根不在。
+  -- uk-life 是个 main 站，但从没进过丙场的名册（admin_set_event_stations 那步就删掉了），
+  -- 不是撤掉，是压根不在——用 main 类型的站点才能真正测到「不在本场名册」这条路径：
+  -- 换成 grace（type = 'grace'）的话，award_team_score 里 `v_es_type <> 'main'` 那一支
+  -- 也会抛 BAD_STATION，旧的「查全局 stations 表」实现一样能通过这条断言，测不出问题。
   begin
-    perform award_team_score('CCODE1', (select code from players where id = v_player), v_grace, 6, false, 'k3');
+    perform award_team_score('CCODE1', (select code from players where id = v_player), v_uklife, 6, false, 'k3');
     raise exception 'TEST FAILED: expected BAD_STATION';
   exception when others then
     if sqlerrm not like 'BAD_STATION%' then raise; end if;

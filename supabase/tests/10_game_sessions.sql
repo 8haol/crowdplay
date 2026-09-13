@@ -55,8 +55,8 @@ begin
   assert not (r ->> 'is_current')::boolean, 'ended event detail is marked historical';
   assert jsonb_array_length(r -> 'players') = 1, 'ended event keeps live relational detail';
 
-  r := admin_update_station('test-admin', (select id from stations where slug = 'music'), '音乐测试站', 'fixed');
-  assert r ->> 'name_zh' = '音乐测试站' and r ->> 'scoring_mode' = 'fixed', 'admin can edit a station while nothing is playing';
+  -- 站点改名与改计分模式的覆盖搬到 18_station_library.sql：
+  -- 库里改自建站点走 admin_library_update，改本场的名字走 admin_set_event_stations。
 
   -- access: change admin password, rotate one event's staff code
   r := admin_update_access('test-admin', 'new-admin-pass', new_ev);

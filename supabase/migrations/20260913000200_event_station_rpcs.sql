@@ -180,7 +180,15 @@ begin
   select * into v_row from stations where id = p_station_id;
   if not found then raise exception 'BAD_STATION'; end if;
   if v_row.org_id is distinct from v_org.id then raise exception 'FORBIDDEN'; end if;
-  if exists (select 1 from event_stations where station_id = p_station_id) then raise exception 'STATION_IN_USE'; end if;
+  -- 「从未被启用过」不能只看 event_stations：attempts / team_attempts / token_usages
+  -- 都对 stations(id) 有裸外键（无 on delete 动作），漏查会让 delete 撞上未捕获的
+  -- 外键违例，而不是约定好的 STATION_IN_USE。
+  if exists (select 1 from event_stations where station_id = p_station_id)
+     or exists (select 1 from attempts where station_id = p_station_id)
+     or exists (select 1 from team_attempts where station_id = p_station_id)
+     or exists (select 1 from token_usages where target_station_id = p_station_id) then
+    raise exception 'STATION_IN_USE';
+  end if;
   delete from stations where id = p_station_id;
   return jsonb_build_object('deleted', p_station_id);
 end;

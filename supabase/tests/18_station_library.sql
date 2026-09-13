@@ -16,6 +16,8 @@ declare
   v_copy int;
   v_beta_empty uuid;
   v_beta_new uuid;
+  v_used int;
+  v_team uuid;
 begin
   -- 内置站点的 org_id 为 null，所有机构可见。
   assert (select count(*) from stations where org_id is null) = 9, '9 个内置站点';
@@ -70,6 +72,13 @@ begin
     if sqlerrm <> 'FORBIDDEN' then raise; end if;
   end;
 
+  begin
+    perform admin_library_delete('alpha-admin', v_ring);
+    raise exception 'TEST FAILED: expected FORBIDDEN';
+  exception when others then
+    if sqlerrm <> 'FORBIDDEN' then raise; end if;
+  end;
+
   -- 复制内置站为自己的，再改名。
   r := admin_library_copy('alpha-admin', v_ring);
   v_copy := (r ->> 'id')::int;
@@ -87,6 +96,19 @@ begin
   -- 没被任何场次启用过才能真删。
   perform admin_library_delete('alpha-admin', v_copy);
   assert not exists (select 1 from stations where id = v_copy), '未被启用过的自建站可删';
+
+  -- event_stations 没引用，但 team_attempts 已经记过分：也不能删，得是 STATION_IN_USE 而不是裸外键错误。
+  r := admin_library_create('alpha-admin', '甲家的测试站', 'life_event');
+  v_used := (r ->> 'id')::int;
+  assert not exists (select 1 from event_stations where station_id = v_used), '新建的站还没被任何场次引用';
+  insert into teams (event_id, code, identity) values (ev_a, 'DELT', 'solo') returning id into v_team;
+  insert into team_attempts (event_id, team_id, station_id, status) values (ev_a, v_team, v_used, 'passed');
+  begin
+    perform admin_library_delete('alpha-admin', v_used);
+    raise exception 'TEST FAILED: expected STATION_IN_USE';
+  exception when others then
+    if sqlerrm <> 'STATION_IN_USE' then raise; end if;
+  end;
 
   -- Ruling 10：机构「上一场」的 event_stations 为空时，新场不能跟着复制出 0 个站，得回退到内置 9 个。
   insert into events (org_id, title, join_token, staff_code, screen_token)

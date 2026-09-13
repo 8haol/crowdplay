@@ -22,13 +22,12 @@ type PassportStyle = (typeof PASSPORT_STYLES)[number];
 
 export default function Passport(props: {
   data: PollResult;
-  /** This event's stations, when the caller has them (the `?preview=` demo). */
-  stations?: EventStation[];
+  /** This event's stations, straight off the poll. */
+  stations: EventStation[];
   online: boolean;
   joinToken: string;
 }) {
-  const { data, online } = props;
-  const stations = props.stations ?? [];
+  const { data, stations, online } = props;
   const { player, attempts, life_events } = data;
   const [searchParams, setSearchParams] = useSearchParams();
   const [toast, setToast] = useState<{ text: string; note?: string } | null>(null);
@@ -126,7 +125,7 @@ export default function Passport(props: {
   const headerSoft = color ? (headerInk === "#FFFFFF" ? "rgba(255,255,255,.74)" : "rgba(0,0,0,.6)") : "#7d7261";
   const headerLine = headerInk === "#FFFFFF" ? "rgba(255,255,255,.26)" : "rgba(0,0,0,.16)";
   const chipBg = headerInk === "#FFFFFF" ? "rgba(255,255,255,.16)" : "rgba(255,255,255,.62)";
-  const pages = visaPages(stations, attempts, player.stations_total);
+  const pages = visaPages(stations, attempts);
   const journey = journeyProgress(player);
 
   return (
@@ -691,13 +690,10 @@ function FinishedCard({ player }: { player: PollResult["player"] }) {
  * One visa page of the passport: a main station of this event, plus whatever
  * stamp the player has earned on it.
  *
- * The station list is per-event now, and the phone can only be told about it
- * by the poll it already makes. `poll_player_by_link` does not carry one yet,
- * so when the caller has no roster to give (every live game today) the pages
- * fall back to `stations_total` numbered pages, stamped in the order the
- * player earned them. The passport still counts and stamps correctly; only the
- * station names are missing, and they come back for free the day the poll
- * carries the roster — pass it to `stations` and nothing else changes.
+ * The roster is per-event and comes down with the poll (`poll_player_by_link`
+ * -> `stations`), so the names here are the event's own snapshot: a station
+ * renamed for tonight reads tonight's name, and one withdrawn mid-event stops
+ * taking up a page — which is the same set `player.stations_total` counts.
  */
 interface VisaPage {
   key: string;
@@ -707,43 +703,26 @@ interface VisaPage {
   score: number;
 }
 
-function visaPages(
-  stations: EventStation[],
-  attempts: AttemptInfo[],
-  stationsTotal: number,
-): VisaPage[] {
-  /* A granted Second Chance outranks the failure it replaces. */
+function visaPages(stations: EventStation[], attempts: AttemptInfo[]): VisaPage[] {
+  /* A granted Second Chance outranks the failure it replaces: the station is
+     open again, so a red stamp would be a lie. */
   const stateOf = (stationId: number): Pick<VisaPage, "state" | "score"> => {
     const at = (status: AttemptInfo["status"]) =>
       attempts.find((a) => a.station_id === stationId && a.status === status);
-    const retry = at("retry_granted");
-    if (retry) return { state: "retry", score: 0 };
+    if (at("retry_granted")) return { state: "retry", score: 0 };
     const passed = at("passed");
     if (passed) return { state: "passed", score: passed.score };
     return at("failed") ? { state: "failed", score: 0 } : { state: "blank", score: 0 };
   };
 
-  const mains = stations.filter((s) => s.type === "main");
-  if (mains.length > 0) {
-    return mains.map((station, index) => ({
+  return stations
+    .filter((station) => station.type === "main")
+    .map((station, index) => ({
       key: String(station.id),
       title: station.name_zh,
       note: `NO.${String(index + 1).padStart(2, "0")}`,
       ...stateOf(station.id),
     }));
-  }
-
-  const stationOrder: number[] = [];
-  for (const attempt of [...attempts].sort((a, b) => a.created_at.localeCompare(b.created_at))) {
-    if (!stationOrder.includes(attempt.station_id)) stationOrder.push(attempt.station_id);
-  }
-  const earned = stationOrder.map(stateOf);
-  return Array.from({ length: Math.max(stationsTotal, earned.length) }, (_, index) => ({
-    key: `page-${index}`,
-    title: `第 ${index + 1} 站`,
-    note: `NO.${String(index + 1).padStart(2, "0")}`,
-    ...(earned[index] ?? { state: "blank" as const, score: 0 }),
-  }));
 }
 
 /*

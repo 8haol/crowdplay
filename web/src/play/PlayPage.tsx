@@ -197,11 +197,10 @@ export default function PlayPage() {
     );
   }
 
-  /* No station list is fetched here any more: which stations an event runs
-     is per-event state, and `stations` was the one table anon could read
-     directly until phase 2 closed it. The passport counts its pages off
-     `player.stations_total`, which the poll already carries. */
-  return <Passport data={data} online={online} joinToken={activeToken} />;
+  /* The roster rides along with the poll: which stations an event runs is
+     per-event state, and `stations` was the one table anon could read directly
+     until phase 2 closed it. Nothing is fetched separately here. */
+  return <Passport data={data} stations={data.stations} online={online} joinToken={activeToken} />;
 }
 
 /** Demo wrapper: fixture screens always carry the ribbon. */

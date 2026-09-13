@@ -856,3 +856,78 @@ begin
   );
 end;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- 护照的站点格子（Ruling 21）
+--
+-- 合并前 `web/src/play/PlayPage.tsx` 直接匿名读 `stations` 表拿站点名字，Task 1
+-- 取消那条授权之后护照的格子就没有名字来源了 —— 这是本阶段引入的回归，不是取舍。
+-- spec 要求护照的格子、名字与总数都来自本场快照，所以 poll_player_by_link 补一个
+-- `stations` 键，形状与 staff_stations 相同。
+--
+-- 口径：只返回本场**启用**的站点（disabled_at is null），与 _main_station_total
+-- 同口径 —— 否则「已完成 / 总数」会和格子数自相矛盾。board_snapshot 不加这个键：
+-- 大屏只用 stations_total，不渲染站点名字。
+--
+-- poll_player_by_link 的生效版本在 20260912000300_tenant_player_rpcs.sql:89
+-- （20260827000100 的旧版本被它覆盖），以下逐字重贴，只加了返回 jsonb 里的这一个键。
+-- ---------------------------------------------------------------------------
+
+create or replace function poll_player_by_link(p_join_token text, p_code text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_event events;
+  v_player players;
+  v_rank int;
+  v_team_rank int;
+begin
+  v_event := _event_by('join', p_join_token);
+  select * into v_player from players
+  where event_id = v_event.id and code = p_code and not is_removed;
+  if not found then
+    perform _throttle_failed_attempt('player-code');
+    raise exception 'PLAYER_NOT_FOUND:%', p_code;
+  end if;
+  select count(*) + 1 into v_rank from players
+  where event_id = v_event.id and not is_removed and score > v_player.score;
+  select count(*) + 1 into v_team_rank from teams
+  where event_id = v_event.id
+    and challenge_score > coalesce((select challenge_score from teams where id = v_player.team_id), 0);
+
+  return jsonb_build_object(
+    'phase', v_event.phase,
+    'started_at', v_event.started_at,
+    'title', v_event.title,
+    'org', (select jsonb_build_object('slug', o.slug, 'name_zh', o.name_zh, 'name_en', o.name_en)
+            from organizations o where o.id = v_event.org_id),
+    'rank', v_rank,
+    'team_rank', v_team_rank,
+    'player', _player_json(v_player),
+    'team', _team_json(v_player.team_id),
+    'pending_event', _pending_event_json(v_player.id),
+    'attempts', coalesce((select jsonb_agg(jsonb_build_object(
+      'station_id', a.station_id, 'status', a.status, 'score', a.score,
+      'created_at', a.created_at) order by a.created_at)
+      from attempts a where a.player_id = v_player.id
+        and a.status in ('passed','failed','retry_granted')), '[]'::jsonb),
+    'life_events', coalesce((select jsonb_agg(jsonb_build_object(
+      'card_type', e.card_type, 'card_label', e.card_label, 'stage', e.stage,
+      'scene_title', e.scene_title, 'choice_label', e.choice_label,
+      'outcome_detail', e.outcome_detail,
+      'score_before', e.score_before, 'score_after', e.score_after,
+      'created_at', e.created_at) order by e.created_at)
+      from life_events e where e.player_id = v_player.id), '[]'::jsonb),
+    -- 本场启用的站点，形状与 staff_stations 一致。护照的格子照这个画。
+    'stations', coalesce((select jsonb_agg(jsonb_build_object(
+      'id', es.station_id, 'station_id', es.station_id, 'name_zh', es.name_zh,
+      'type', es.type, 'scoring_mode', es.scoring_mode, 'sort_order', es.sort_order
+      ) order by es.sort_order)
+      from event_stations es
+      where es.event_id = v_event.id and es.disabled_at is null), '[]'::jsonb)
+  );
+end;
+$$;

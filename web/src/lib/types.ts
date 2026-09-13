@@ -251,6 +251,10 @@ export interface PollResult {
   pending_event: PendingLifeEvent | null;
   attempts: AttemptInfo[];
   life_events: LifeEventInfo[];
+  /** The stations this event runs, enabled ones only — what the passport's
+      pages are drawn from. Names are the event's own snapshot, so a station
+      renamed for tonight reads tonight's name. */
+  stations: EventStation[];
 }
 
 export interface StaffTeamLookup {

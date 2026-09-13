@@ -15,6 +15,7 @@ export const PREVIEW_STATIONS: EventStation[] = [
 export const PREVIEW_DATA: PollResult = {
   phase: "playing",
   started_at: "2026-08-25T12:00:00.000Z",
+  stations: PREVIEW_STATIONS,
   rank: 3,
   team_rank: 2,
   player: {

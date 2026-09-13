@@ -273,6 +273,22 @@ begin
   assert (r -> 'attempted_station_ids') = jsonb_build_array(v_ring, v_music),
          'attempted_station_ids 按本场顺序排（ring 在本场排到了 music 前面）';
 
+  -- 护照的格子照本场快照画（Ruling 21）：poll_player_by_link 返回本场**启用**的
+  -- 站点。丙场现在 4 个站里 photo 和 music 都撤了，只剩 ring 和人生盲盒。
+  r := poll_player_by_link((select join_token from events where id = ev_c),
+                           (select code from players where id = v_player));
+  assert jsonb_array_length(r -> 'stations') = 2, '护照只拿到本场还启用的两个站';
+  assert (select count(*) from event_stations where event_id = ev_c and disabled_at is null) = 2,
+         '本场启用站点数正是 2 —— 护照拿到的数目与它一致';
+  assert not exists (select 1 from jsonb_array_elements(r -> 'stations') st
+                     where (st ->> 'station_id')::int = v_music),
+         '撤掉的 music 不再在护照上占一个格子';
+  assert exists (select 1 from jsonb_array_elements(r -> 'stations') st
+                 where (st ->> 'station_id')::int = v_ring
+                   and st ->> 'name_zh' = '甲家的套圈'
+                   and (st ->> 'id')::int = v_ring),
+         '护照上的站名是本场快照的名字，id 与 station_id 同义';
+
   -- 乙场用同一个 station_id 照常记分（A 场撤站不影响 B 场）。
   -- （用返回的 event_id 精确定位新建的这一场，避免 update 撞到乙教会已有的
   --  其它场次，让 join_token / staff_code 的唯一约束报错。）

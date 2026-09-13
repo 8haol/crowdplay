@@ -41,6 +41,9 @@ begin
   ev_b := (r ->> 'event_id')::uuid;
   assert (select count(*) from event_stations where event_id = ev_b) = 9, '首场默认启用内置 9 个';
 
+  -- 单事务里 now() 是冻结的，手工拉开时间差，让「最近一场」确定无疑。
+  update events set created_at = created_at - interval '1 hour' where id <> ev_b;
+
   -- 本场改名 + 撤掉恩典站，再建下一场时整份复制过来，且撤掉的恢复启用。
   update event_stations set name_zh = '甲家的套圈' where event_id = ev_b and station_id = v_ring;
   update event_stations set disabled_at = now() where event_id = ev_b and type = 'grace';

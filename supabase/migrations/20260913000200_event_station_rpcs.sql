@@ -11,11 +11,9 @@ as $$
 declare
   v_prev uuid;
 begin
-  -- created_at 在同一事务内会被冻结（now() 语义），同一测试事务连续建场时会撞出并列；
-  -- 加 ctid 作为次级排序，按物理写入顺序稳定选出真正最近的一场。
   select e.id into v_prev from events e
   where e.org_id = p_org_id and e.id <> p_event_id
-  order by e.created_at desc, e.ctid desc limit 1;
+  order by e.created_at desc limit 1;
 
   if v_prev is not null then
     insert into event_stations (event_id, station_id, name_zh, type, scoring_mode, sort_order)

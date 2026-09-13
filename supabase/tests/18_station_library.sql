@@ -232,6 +232,15 @@ begin
     if sqlerrm not like 'BAD_STATION%' then raise; end if;
   end;
 
+  -- Ruling 17：活动流的站点标签要用本场改过的名字，不是库里的旧名字。
+  -- ring-toss 全局叫「套圈」，但丙场（从乙场二复制）改叫「甲家的套圈」。
+  perform award_team_score('CCODE1', (select code from players where id = v_player), v_ring, 9, false, 'k4');
+  r := admin_console('alpha-admin', ev_c);
+  assert exists (select 1 from jsonb_array_elements(r -> 'activity') x where x ->> 'label' = '甲家的套圈'),
+         '活动流用本场改过的名字';
+  assert not exists (select 1 from jsonb_array_elements(r -> 'activity') x where x ->> 'label' = '套圈'),
+         '活动流不显示库里未经本场改名的旧名字';
+
   -- 乙场用同一个 station_id 照常记分（A 场撤站不影响 B 场）。
   -- （用返回的 event_id 精确定位新建的这一场，避免 update 撞到乙教会已有的
   --  其它场次，让 join_token / staff_code 的唯一约束报错。）

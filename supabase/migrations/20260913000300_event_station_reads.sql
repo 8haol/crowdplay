@@ -677,3 +677,57 @@ begin
   return v_result;
 end;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- Ruling 17：_event_activity 和 (A) 的 _team_stats / _award_stats 同一类问题——
+-- 活动流里团队闯关的站点标签也是 join 全局 stations 表，本场改过的名字读不到，
+-- 只能看见库里的旧名字。生效版本在 20260912000200_tenant_resolve.sql:508，
+-- 只改取站点名那一处 join；这里没有 select slug（原文只用了 name_zh），不需要
+-- 像 _event_station_metrics 那样处理 id/slug 字段。
+--
+-- 注意和 (A) 不同：这里故意不加 disabled_at is null 过滤。活动流是历史记录，
+-- 撤站前发生的团队闯关本来就该继续显示，不能因为站点后来被撤就从流水里消失。
+-- ---------------------------------------------------------------------------
+drop function if exists _current_activity(integer);
+create or replace function _event_activity(p_event_id uuid, p_limit integer default 40)
+returns jsonb
+language sql
+stable
+set search_path = public, pg_temp
+as $$
+  select coalesce(jsonb_agg(item order by occurred_at desc), '[]'::jsonb)
+  from (
+    select occurred_at, item from (
+      select a.created_at occurred_at, jsonb_build_object(
+        'id', 'team-attempt-' || a.id, 'kind', 'attempt', 'at', a.created_at,
+        'player_name', coalesce((select string_agg(p.name, ' / ' order by p.created_at)
+                                from players p where p.team_id = t.id and not p.is_removed), '—'),
+        'player_code', null, 'label', s.name_zh,
+        'detail', case when a.status = 'passed' then '全队每人 +' || a.score || ' 分' else '本队本次未得分' end
+      ) item
+      from team_attempts a join teams t on t.id = a.team_id
+        join event_stations s on s.event_id = a.event_id and s.station_id = a.station_id
+      where a.event_id = p_event_id and a.status in ('passed','failed')
+      union all
+      select e.created_at, jsonb_build_object(
+        'id', 'event-' || e.id, 'kind', 'life_event', 'at', e.created_at,
+        'player_name', p.name, 'player_code', p.code,
+        'label', coalesce(e.scene_title, '人生事件'), 'detail', e.card_label
+      ) from life_events e join players p on p.id = e.player_id
+      where e.event_id = p_event_id and not p.is_removed
+      union all
+      select u.created_at, jsonb_build_object(
+        'id', 'token-' || u.id, 'kind', 'token', 'at', u.created_at,
+        'player_name', p.name, 'player_code', p.code, 'label', 'Help Token', 'detail', u.usage_type
+      ) from token_usages u join players p on p.id = u.player_id
+      where u.event_id = p_event_id and not p.is_removed
+      union all
+      select aa.created_at, jsonb_build_object(
+        'id', 'admin-' || aa.id, 'kind', 'admin', 'at', aa.created_at,
+        'player_name', p.name, 'player_code', p.code, 'label', '管理员操作', 'detail', coalesce(aa.reason, aa.action)
+      ) from admin_actions aa left join players p on p.id = aa.player_id
+      where aa.event_id = p_event_id
+    ) activity_union order by occurred_at desc
+    limit greatest(1, least(coalesce(p_limit, 40), 200))
+  ) recent;
+$$;

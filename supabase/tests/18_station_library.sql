@@ -9,6 +9,10 @@ do $$
 declare
   org_a uuid := (select id from organizations where slug = 'alpha');
   ev_a uuid;
+  ev_b uuid;
+  ev_c uuid;
+  r jsonb;
+  v_ring int := (select id from stations where slug = 'ring-toss' and org_id is null);
 begin
   -- 内置站点的 org_id 为 null，所有机构可见。
   assert (select count(*) from stations where org_id is null) = 9, '9 个内置站点';
@@ -31,6 +35,21 @@ begin
     raise exception 'TEST FAILED: expected unique_violation';
   exception when unique_violation then null;
   end;
+
+  -- 第一次建场：内置 9 个全启用。
+  r := admin_create_event('alpha-admin', '甲场二');
+  ev_b := (r ->> 'event_id')::uuid;
+  assert (select count(*) from event_stations where event_id = ev_b) = 9, '首场默认启用内置 9 个';
+
+  -- 本场改名 + 撤掉恩典站，再建下一场时整份复制过来，且撤掉的恢复启用。
+  update event_stations set name_zh = '甲家的套圈' where event_id = ev_b and station_id = v_ring;
+  update event_stations set disabled_at = now() where event_id = ev_b and type = 'grace';
+  r := admin_create_event('alpha-admin', '甲场三');
+  ev_c := (r ->> 'event_id')::uuid;
+  assert (select name_zh from event_stations where event_id = ev_c and station_id = v_ring) = '甲家的套圈',
+         '复制上一场改过的名字';
+  assert (select count(*) from event_stations where event_id = ev_c and disabled_at is null) = 9,
+         '复制时撤掉的站恢复启用';
 
   raise notice 'PASS 18_station_library';
 end $$;

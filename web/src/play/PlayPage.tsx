@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { rpc, readView, errorText, RpcError } from "../lib/api";
+import { rpc, errorText, RpcError } from "../lib/api";
 import { usePoll } from "../lib/usePoll";
-import type { GameLanding, PollResult, Station } from "../lib/types";
+import type { GameLanding, PollResult } from "../lib/types";
 import { colorOf, soloColor } from "../lib/types";
 import { BrandMark, ConnDot } from "../lib/ui";
 import { darken, inkOnCream, lighten, readableOn } from "../lib/color";
@@ -21,7 +21,6 @@ export default function PlayPage() {
   const [joined, setJoined] = useState<{ token: string; code: string } | null>(null);
   const [invalidCodeToken, setInvalidCodeToken] = useState<string | null>(null);
   const [joinNotice, setJoinNotice] = useState<string | null>(null);
-  const [stations, setStations] = useState<Station[]>([]);
   const [revealDone, setRevealDone] = useState<{ token: string; code: string } | null>(null);
   const [recovering, setRecovering] = useState<{ token: string; code: string } | null>(null);
   const [issuedCode, setIssuedCode] = useState<string | null>(null);
@@ -51,12 +50,6 @@ export default function PlayPage() {
       .catch((error) => { if (!cancelled) setLandingError(error); });
     return () => { cancelled = true; };
   }, [preview, routeToken]);
-
-  useEffect(() => {
-    readView<Station[]>("stations?select=*&order=sort_order").then(setStations).catch(() => {
-      // retried implicitly on next mount; passport renders without names until then
-    });
-  }, []);
 
   const pollFn = useMemo(
     () => (code && activeToken ? async () => {
@@ -204,7 +197,11 @@ export default function PlayPage() {
     );
   }
 
-  return <Passport data={data} stations={stations} online={online} joinToken={activeToken} />;
+  /* No station list is fetched here any more: which stations an event runs
+     is per-event state, and `stations` was the one table anon could read
+     directly until phase 2 closed it. The passport counts its pages off
+     `player.stations_total`, which the poll already carries. */
+  return <Passport data={data} online={online} joinToken={activeToken} />;
 }
 
 /** Demo wrapper: fixture screens always carry the ribbon. */

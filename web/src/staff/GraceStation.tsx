@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { rpc, errorText, newIdemKey } from "../lib/api";
-import type { StaffTeamLookup, Station } from "../lib/types";
+import type { StaffTeamLookup, EventStation } from "../lib/types";
 import { ActionButton, ErrorBanner, SuccessBanner } from "../lib/ui";
 import { teamLabel } from "../lib/types";
 import { CodePad, MemberRow, StaffCard, StickyBar } from "./staffUi";
@@ -23,7 +23,7 @@ export default function GraceStation({
   stationsTotal,
 }: {
   staffKey: string;
-  stations: Station[];
+  stations: EventStation[];
   stationsTotal: number;
 }) {
   const [mode, setMode] = useState<Mode>("team");
@@ -59,7 +59,7 @@ function TeamHelp({
   stationsTotal,
 }: {
   staffKey: string;
-  stations: Station[];
+  stations: EventStation[];
   stationsTotal: number;
 }) {
   const [identifier, setIdentifier] = useState("");

@@ -1,4 +1,11 @@
-import type { AdminConsoleData, AdminPlayer, StationMetric } from "../lib/types";
+import type {
+  AdminConsoleData,
+  AdminPlayer,
+  EventStationsData,
+  Station,
+  StationLibrary,
+  StationMetric,
+} from "../lib/types";
 
 /** Dev-only fixture for `/admin?preview=1`, so layout work needs no live event. */
 export interface AdminSnapshot {
@@ -57,16 +64,52 @@ const PLAYERS: AdminPlayer[] = [
 ];
 
 const STATIONS: StationMetric[] = [
-  { id: 1, slug: "music", name_zh: "音乐之声", type: "main", scoring_mode: "graded", sort_order: 1, visits: 34, passed: 29, failed: 5, score_awarded: 198, completion_pct: 72.3 },
-  { id: 2, slug: "uk-life", name_zh: "英伦百事通", type: "main", scoring_mode: "graded", sort_order: 2, visits: 28, passed: 20, failed: 8, score_awarded: 147, completion_pct: 59.6 },
-  { id: 3, slug: "interview", name_zh: "灵魂拷问", type: "main", scoring_mode: "graded", sort_order: 3, visits: 22, passed: 17, failed: 5, score_awarded: 121, completion_pct: 46.8 },
-  { id: 4, slug: "photo", name_zh: "定格瞬间", type: "main", scoring_mode: "fixed", sort_order: 4, visits: 19, passed: 18, failed: 1, score_awarded: 108, completion_pct: 40.4 },
-  { id: 5, slug: "memory", name_zh: "记忆与观察", type: "main", scoring_mode: "graded", sort_order: 5, visits: 14, passed: 10, failed: 4, score_awarded: 72, completion_pct: 29.8 },
-  { id: 6, slug: "ring-toss", name_zh: "套圈", type: "main", scoring_mode: "graded", sort_order: 6, visits: 11, passed: 7, failed: 4, score_awarded: 48, completion_pct: 23.4 },
-  { id: 7, slug: "library", name_zh: "寂静图书馆", type: "main", scoring_mode: "graded", sort_order: 7, visits: 8, passed: 6, failed: 2, score_awarded: 39, completion_pct: 17.0 },
-  { id: 8, slug: "life-event", name_zh: "人生盲盒", type: "life_event", scoring_mode: null, sort_order: 8, visits: 26, passed: 0, failed: 0, score_awarded: 0, completion_pct: 0 },
-  { id: 9, slug: "grace", name_zh: "恩典站", type: "grace", scoring_mode: null, sort_order: 9, visits: 9, passed: 0, failed: 0, score_awarded: 0, completion_pct: 0 },
+  { id: 1, station_id: 1, name_zh: "音乐之声", type: "main", scoring_mode: "graded", sort_order: 1, visits: 34, passed: 29, failed: 5, score_awarded: 198, completion_pct: 72.3 },
+  { id: 2, station_id: 2, name_zh: "英伦百事通", type: "main", scoring_mode: "graded", sort_order: 2, visits: 28, passed: 20, failed: 8, score_awarded: 147, completion_pct: 59.6 },
+  { id: 3, station_id: 3, name_zh: "灵魂拷问", type: "main", scoring_mode: "free", sort_order: 3, visits: 22, passed: 17, failed: 5, score_awarded: 121, completion_pct: 46.8 },
+  { id: 4, station_id: 4, name_zh: "定格瞬间", type: "main", scoring_mode: "fixed", sort_order: 4, visits: 19, passed: 18, failed: 1, score_awarded: 108, completion_pct: 40.4 },
+  { id: 5, station_id: 5, name_zh: "记忆与观察", type: "main", scoring_mode: "graded", sort_order: 5, visits: 14, passed: 10, failed: 4, score_awarded: 72, completion_pct: 29.8 },
+  { id: 6, station_id: 6, name_zh: "套圈", type: "main", scoring_mode: "graded", sort_order: 6, visits: 11, passed: 7, failed: 4, score_awarded: 48, completion_pct: 23.4 },
+  { id: 7, station_id: 7, name_zh: "寂静图书馆", type: "main", scoring_mode: "graded", sort_order: 7, visits: 8, passed: 6, failed: 2, score_awarded: 39, completion_pct: 17.0, disabled: true },
+  { id: 8, station_id: 8, name_zh: "人生盲盒", type: "life_event", scoring_mode: null, sort_order: 8, visits: 26, passed: 0, failed: 0, score_awarded: 0, completion_pct: 0 },
+  { id: 9, station_id: 9, name_zh: "恩典站", type: "grace", scoring_mode: null, sort_order: 9, visits: 9, passed: 0, failed: 0, score_awarded: 0, completion_pct: 0 },
 ];
+
+/* The library every org starts from: the nine platform builtins, read-only. */
+const BUILTIN: Station[] = [
+  { id: 1, slug: "music", name_zh: "音乐之声", type: "main", scoring_mode: "graded", sort_order: 1 },
+  { id: 2, slug: "uk-life", name_zh: "英伦百事通", type: "main", scoring_mode: "graded", sort_order: 2 },
+  { id: 3, slug: "interview", name_zh: "灵魂拷问", type: "main", scoring_mode: "free", sort_order: 3 },
+  { id: 4, slug: "photo", name_zh: "定格瞬间", type: "main", scoring_mode: "fixed", sort_order: 4 },
+  { id: 5, slug: "memory", name_zh: "记忆与观察", type: "main", scoring_mode: "graded", sort_order: 5 },
+  { id: 6, slug: "ring-toss", name_zh: "套圈", type: "main", scoring_mode: "graded", sort_order: 6 },
+  { id: 7, slug: "library", name_zh: "寂静图书馆", type: "main", scoring_mode: "graded", sort_order: 7 },
+  { id: 8, slug: "life-event", name_zh: "人生盲盒", type: "life_event", scoring_mode: null, sort_order: 8 },
+  { id: 9, slug: "grace", name_zh: "恩典站", type: "grace", scoring_mode: null, sort_order: 9 },
+];
+
+/** `/admin?preview=1&view=stations` — the library and this event's roster. */
+export const PREVIEW_LIBRARY: StationLibrary = {
+  builtin: BUILTIN,
+  custom: [
+    { id: 40, slug: "gcgc-8f21ac", name_zh: "默契挑战", type: "main", scoring_mode: "fixed", sort_order: 100 },
+    { id: 41, slug: "gcgc-2b70d9", name_zh: "厨房里的家乡", type: "main", scoring_mode: "free", sort_order: 101 },
+  ],
+};
+
+export const PREVIEW_EVENT_STATIONS: EventStationsData = {
+  phase: "playing",
+  rows: STATIONS.map((station) => ({
+    id: station.station_id,
+    station_id: station.station_id,
+    name_zh: station.name_zh,
+    type: station.type,
+    scoring_mode: station.scoring_mode,
+    sort_order: station.sort_order,
+    disabled_at: station.disabled ? now : null,
+  })),
+  candidates: PREVIEW_LIBRARY.custom,
+};
 
 export const ADMIN_PREVIEW: AdminSnapshot = {
   players: PLAYERS,

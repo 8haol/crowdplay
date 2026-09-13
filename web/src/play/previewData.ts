@@ -1,13 +1,15 @@
-import type { PollResult, Station } from "../lib/types";
+import type { EventStation, PollResult } from "../lib/types";
 
-export const PREVIEW_STATIONS: Station[] = [
-  { id: 1, slug: "memory", name_zh: "记忆与观察", type: "main", scoring_mode: "graded", sort_order: 1 },
-  { id: 2, slug: "music", name_zh: "音乐之声", type: "main", scoring_mode: "graded", sort_order: 2 },
-  { id: 3, slug: "interview", name_zh: "灵魂拷问", type: "main", scoring_mode: "free", sort_order: 3 },
-  { id: 4, slug: "teamwork", name_zh: "同心协力", type: "main", scoring_mode: "fixed", sort_order: 4 },
-  { id: 5, slug: "language", name_zh: "你画我猜", type: "main", scoring_mode: "graded", sort_order: 5 },
-  { id: 6, slug: "balance", name_zh: "人生平衡", type: "main", scoring_mode: "fixed", sort_order: 6 },
-  { id: 7, slug: "journey", name_zh: "旅途抉择", type: "main", scoring_mode: "graded", sort_order: 7 },
+/* The demo event's own roster. Since phase 2 a station only exists inside an
+   event, so the fixture is an EventStation list, not a global station list. */
+export const PREVIEW_STATIONS: EventStation[] = [
+  { id: 1, station_id: 1, name_zh: "记忆与观察", type: "main", scoring_mode: "graded", sort_order: 1 },
+  { id: 2, station_id: 2, name_zh: "音乐之声", type: "main", scoring_mode: "graded", sort_order: 2 },
+  { id: 3, station_id: 3, name_zh: "灵魂拷问", type: "main", scoring_mode: "free", sort_order: 3 },
+  { id: 4, station_id: 4, name_zh: "同心协力", type: "main", scoring_mode: "fixed", sort_order: 4 },
+  { id: 5, station_id: 5, name_zh: "你画我猜", type: "main", scoring_mode: "graded", sort_order: 5 },
+  { id: 6, station_id: 6, name_zh: "人生平衡", type: "main", scoring_mode: "fixed", sort_order: 6 },
+  { id: 7, station_id: 7, name_zh: "旅途抉择", type: "main", scoring_mode: "graded", sort_order: 7 },
 ];
 
 export const PREVIEW_DATA: PollResult = {

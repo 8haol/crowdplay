@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { rpc, readView, errorText } from "../lib/api";
-import type { Station, StaffSession } from "../lib/types";
+import { rpc, errorText } from "../lib/api";
+import type { EventStation, StaffSession } from "../lib/types";
 import { ActionButton, BrandMark, ErrorBanner, UpLink } from "../lib/ui";
 import { StaffCard } from "./staffUi";
 import { DemoRibbon } from "../lib/DemoRibbon";
@@ -14,10 +14,10 @@ const SESSION_KEY = "lp_staff_key";
 const LS_STATION = "lp_staff_station";
 
 /** Demo roster for `/staff?preview=1`, mirroring the shipped seed. */
-const PREVIEW_ALL_STATIONS: Station[] = [
+const PREVIEW_ALL_STATIONS: EventStation[] = [
   ...PREVIEW_STATIONS,
-  { id: 8, slug: "life-event", name_zh: "人生盲盒", type: "life_event", scoring_mode: null, sort_order: 8 },
-  { id: 9, slug: "grace", name_zh: "恩典站", type: "grace", scoring_mode: null, sort_order: 9 },
+  { id: 8, station_id: 8, name_zh: "人生盲盒", type: "life_event", scoring_mode: null, sort_order: 8 },
+  { id: 9, station_id: 9, name_zh: "恩典站", type: "grace", scoring_mode: null, sort_order: 9 },
 ];
 
 /*
@@ -35,7 +35,7 @@ export default function StaffPage() {
     const stored = localStorage.getItem(LS_STATION);
     return stored ? Number(stored) : null;
   });
-  const [fetched, setFetched] = useState<Station[]>([]);
+  const [fetched, setFetched] = useState<EventStation[]>([]);
   const stations = preview ? PREVIEW_ALL_STATIONS : fetched;
   /* The code is the event. Show which one, so a volunteer who was sent two codes
      for two nights can tell at a glance that they are in tonight's. */
@@ -49,12 +49,31 @@ export default function StaffPage() {
     return () => { cancelled = true; };
   }, [preview, staffKey]);
 
+  /*
+   * Which stations exist is now a property of the event, not of the platform:
+   * `staff_stations` returns this event's enabled roster (a station the admin
+   * withdrew mid-event is simply gone from it). A volunteer whose phone still
+   * remembers a withdrawn station is sent back to the picker rather than left
+   * on a console that can no longer record anything.
+   */
   useEffect(() => {
-    if (preview) return;
-    readView<Station[]>("stations?select=*&order=sort_order").then(setFetched).catch(() => {
-      // retried on next mount; the picker shows a loading row until then
-    });
-  }, [preview]);
+    if (preview || !staffKey) return;
+    let cancelled = false;
+    rpc<EventStation[]>("staff_stations", { p_staff_key: staffKey })
+      .then((rows) => {
+        if (cancelled) return;
+        setFetched(rows);
+        const stored = localStorage.getItem(LS_STATION);
+        if (stored && !rows.some((row) => row.id === Number(stored))) {
+          localStorage.removeItem(LS_STATION);
+          setStationId(null);
+        }
+      })
+      .catch(() => {
+        // retried on next mount; the picker shows a loading row until then
+      });
+    return () => { cancelled = true; };
+  }, [preview, staffKey]);
 
   const stationsTotal = useMemo(
     () => Math.max(1, stations.filter((station) => station.type === "main").length),
@@ -117,7 +136,7 @@ export default function StaffPage() {
   );
 }
 
-function stationSubtitle(station: Station): string {
+function stationSubtitle(station: EventStation): string {
   if (station.type === "main") {
     if (station.scoring_mode === "free") return "整队一次记分 · 点选 0–10 分";
     return station.scoring_mode === "graded" ? "整队一次记分 · 3 / 6 / 9 或失败" : "整队一次记分 · 完成 6 分或失败";
@@ -185,11 +204,11 @@ function Shell(props: {
   );
 }
 
-function StationPicker({ stations, onPick }: { stations: Station[]; onPick: (id: number) => void }) {
+function StationPicker({ stations, onPick }: { stations: EventStation[]; onPick: (id: number) => void }) {
   if (stations.length === 0) {
     return <StaffCard><div className="dots text-sm font-black text-ink-dim">加载站点<span>.</span><span>.</span><span>.</span></div></StaffCard>;
   }
-  const groups: Array<{ label: string; note: string; items: Station[] }> = [
+  const groups: Array<{ label: string; note: string; items: EventStation[] }> = [
     { label: "主线挑战", note: "整队识别一次，录一次结果", items: stations.filter((s) => s.type === "main") },
     { label: "恩典站", note: "Token 求助与纪念卡兑换", items: stations.filter((s) => s.type === "grace") },
     { label: "人生盲盒", note: "已数字化，无需值守", items: stations.filter((s) => s.type === "life_event") },

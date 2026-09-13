@@ -731,3 +731,128 @@ as $$
     limit greatest(1, least(coalesce(p_limit, 40), 200))
   ) recent;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- Ruling 19：系统性清扫剩下的 A/B 两类遗漏。
+--
+-- A 类（按本场名册 + 过滤已撤，用于完成数/总数）：
+--   _event_teams_detail 的 stations_done 是内联 count(*)，没有 join stations，
+--   之前的 grep（join stations / from stations）扫不到它，但口径和撤站前的
+--   _team_stats 一样：不看本场名册也不看 disabled_at。
+--
+-- B 类（按本场名册 + 不过滤，用于历史记录的展示标签/排序）：
+--   _event_players_detail 里每条历史成绩的 station_name 还是 join 全局 stations；
+--   staff_lookup_team 的 attempted_station_ids / station_results 排序用的也是
+--   全局 stations.sort_order，不是本场（可能已经重排过）的顺序。
+-- ---------------------------------------------------------------------------
+
+-- _event_teams_detail：生效版本在 20260912000200_tenant_resolve.sql:464
+create or replace function _event_teams_detail(p_event_id uuid)
+returns jsonb
+language sql
+stable
+set search_path = public, pg_temp
+as $$
+  select coalesce(jsonb_agg(
+    _team_json(t.id) || jsonb_build_object(
+      'stations_done', (select count(*) from team_attempts a
+        join event_stations es on es.event_id = a.event_id and es.station_id = a.station_id
+        where a.team_id = t.id and es.type = 'main' and es.disabled_at is null
+          and a.status in ('passed','failed')),
+      'pending_events', (select count(*) from players p where p.team_id = t.id and not p.is_removed and p.locked_for_life_event),
+      'created_at', t.created_at
+    ) order by t.created_at
+  ), '[]'::jsonb) from teams t where t.event_id = p_event_id;
+$$;
+
+-- _event_players_detail：生效版本在 20260912000200_tenant_resolve.sql:432
+create or replace function _event_players_detail(p_event_id uuid)
+returns jsonb
+language sql
+stable
+set search_path = public, pg_temp
+as $$
+  select coalesce(jsonb_agg(
+    _player_json(p.*) || jsonb_build_object(
+      'contact', p.contact,
+      'is_removed', p.is_removed,
+      'created_at', p.created_at,
+      'attempt_count', (select count(*) from attempts a where a.player_id = p.id and a.status in ('passed','failed')),
+      'attempts', coalesce((select jsonb_agg(jsonb_build_object(
+        'station_id', a.station_id, 'station_name', s.name_zh, 'status', a.status,
+        'score', a.score, 'created_at', a.created_at
+      ) order by a.created_at) from attempts a
+        join event_stations s on s.event_id = a.event_id and s.station_id = a.station_id
+        where a.player_id = p.id and a.status in ('passed','failed')), '[]'::jsonb),
+      'life_events', coalesce((select jsonb_agg(jsonb_build_object(
+        'card_type', e.card_type, 'card_label', e.card_label,
+        'scene_title', e.scene_title, 'choice_label', e.choice_label,
+        'outcome_detail', e.outcome_detail,
+        'score_before', e.score_before, 'score_after', e.score_after,
+        'created_at', e.created_at
+      ) order by e.created_at) from life_events e where e.player_id = p.id), '[]'::jsonb),
+      'token_usages', coalesce((select jsonb_agg(jsonb_build_object(
+        'usage_type', u.usage_type, 'target_station_id', u.target_station_id, 'created_at', u.created_at
+      ) order by u.created_at) from token_usages u where u.player_id = p.id), '[]'::jsonb)
+    ) order by p.score desc, p.created_at
+  ), '[]'::jsonb) from players p where p.event_id = p_event_id;
+$$;
+
+-- staff_lookup_team：生效版本在 20260912000400_tenant_staff_rpcs.sql:70
+create or replace function staff_lookup_team(p_staff_key text, p_identifier text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_event events;
+  v_team_id uuid;
+  v_team teams;
+  v_ident text := trim(coalesce(p_identifier, ''));
+begin
+  v_event := _event_by('staff', p_staff_key);
+  select t.id into v_team_id from teams t
+  where t.event_id = v_event.id and upper(t.code) = upper(v_ident) limit 1;
+  if v_team_id is null then
+    select p.team_id into v_team_id from players p
+    where p.event_id = v_event.id and p.code = v_ident and not p.is_removed limit 1;
+  end if;
+  if v_team_id is null then
+    return jsonb_build_object('found', false, 'identifier', v_ident);
+  end if;
+  select * into v_team from teams where id = v_team_id;
+  return jsonb_build_object(
+    'found', true,
+    'phase', v_event.phase,
+    'event_title', v_event.title,
+    'team_id', v_team.id,
+    'team_code', v_team.code,
+    'identity', v_team.identity,
+    'color_group', v_team.color_group,
+    'challenge_score', v_team.challenge_score,
+    'members', coalesce((select jsonb_agg(
+      _player_json(p.*) || jsonb_build_object(
+        'attempted_station_ids', coalesce((select jsonb_agg(a.station_id) from attempts a
+          where a.player_id = p.id and a.status in ('passed','failed')), '[]'::jsonb)
+      ) order by p.created_at) from players p
+      where p.team_id = v_team.id and not p.is_removed), '[]'::jsonb),
+    'attempted_station_ids', coalesce((select jsonb_agg(a.station_id order by s.sort_order)
+      from team_attempts a join event_stations s on s.event_id = a.event_id and s.station_id = a.station_id
+      where a.team_id = v_team.id and a.status in ('passed','failed')), '[]'::jsonb),
+    'station_results', coalesce((select jsonb_agg(jsonb_build_object(
+      'station_id', a.station_id, 'score', a.score, 'status', a.status
+    ) order by s.sort_order) from team_attempts a
+      join event_stations s on s.event_id = a.event_id and s.station_id = a.station_id
+      where a.team_id = v_team.id and a.status in ('passed','failed')), '[]'::jsonb),
+    'retry_station_ids', coalesce((select jsonb_agg(a.station_id) from team_attempts a
+      where a.team_id = v_team.id and a.status = 'retry_granted'), '[]'::jsonb),
+    'failed_station_ids', coalesce((select jsonb_agg(a.station_id) from team_attempts a
+      where a.team_id = v_team.id and a.status = 'failed'
+        and not exists (select 1 from team_attempts r where r.team_id = a.team_id
+                        and r.station_id = a.station_id and r.status = 'retry_granted')), '[]'::jsonb),
+    'all_tokens_available', not exists (select 1 from players p
+      where p.team_id = v_team.id and not p.is_removed and not p.token_available)
+  );
+end;
+$$;

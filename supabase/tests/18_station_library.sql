@@ -241,6 +241,35 @@ begin
   assert not exists (select 1 from jsonb_array_elements(r -> 'activity') x where x ->> 'label' = '套圈'),
          '活动流不显示库里未经本场改名的旧名字';
 
+  -- Ruling 19：系统性清扫，一次把 A/B 两类剩下的都改掉。
+  -- _event_teams_detail 的 stations_done 是内联算的（没有 join stations，所以没被
+  -- grep 出来），但口径和撤站前的 _team_stats 一样错：不看本场名册也不看 disabled_at。
+  -- 现在丙队打过 music（已撤）和 ring（还启用），完成数应该只数 ring 那一下，
+  -- 和 _player_json/_main_stations_done 给玩家算出来的口径（1）一致。
+  assert exists (select 1 from jsonb_array_elements(r -> 'teams') x
+                 where (x ->> 'team_id')::uuid = (select team_id from players where id = v_player)
+                   and (x ->> 'stations_done')::int = 1),
+         '管理端团队列表的完成数也不再把撤掉的 music 算进去';
+
+  -- _event_players_detail 里每条历史成绩的 station_name 也是 join 全局 stations 表，
+  -- 本场改过名字的站点，玩家详情里还是显示库里的旧名字。
+  r := admin_event_detail('alpha-admin', ev_c);
+  assert exists (select 1 from jsonb_array_elements(r -> 'players') p,
+                        jsonb_array_elements(p -> 'attempts') att
+                 where (p ->> 'player_id')::uuid = v_player
+                   and (att ->> 'station_id')::int = v_ring
+                   and att ->> 'station_name' = '甲家的套圈'),
+         '玩家详情里的历史成绩用本场改过的名字';
+
+  -- staff_lookup_team 的 attempted_station_ids / station_results 排序用的是全局
+  -- stations.sort_order，不是本场顺序。把丙场里 ring 和 music 的本场顺序故意
+  -- 反过来（全局顺序 music(1) 排在 ring-toss(6) 前面），验证真按本场顺序排。
+  update event_stations set sort_order = 1 where event_id = ev_c and station_id = v_ring;
+  update event_stations set sort_order = 5 where event_id = ev_c and station_id = v_music;
+  r := staff_lookup_team('CCODE1', (select code from players where id = v_player));
+  assert (r -> 'attempted_station_ids') = jsonb_build_array(v_ring, v_music),
+         'attempted_station_ids 按本场顺序排（ring 在本场排到了 music 前面）';
+
   -- 乙场用同一个 station_id 照常记分（A 场撤站不影响 B 场）。
   -- （用返回的 event_id 精确定位新建的这一场，避免 update 撞到乙教会已有的
   --  其它场次，让 join_token / staff_code 的唯一约束报错。）

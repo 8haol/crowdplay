@@ -255,7 +255,17 @@ function StationPicker({ stations, onPick }: { stations: EventStation[]; onPick:
 
 /* ------------------------------------------------------------------- login */
 
-export function Login(props: { title: string; onOk: (key: string) => void; admin?: boolean }) {
+export function Login(props: {
+  title: string;
+  onOk: (key: string) => void;
+  admin?: boolean;
+  /** Overrides the default validation round-trip (`admin_dashboard` / `staff_session`). */
+  verify?: (key: string) => Promise<unknown>;
+  /** Overrides the `LIFE PASSPORT · ADMIN|CREW` eyebrow line. */
+  eyebrow?: string;
+  /** Overrides the caption under the title. */
+  hint?: string;
+}) {
   const [key, setKey] = useState("");
   const [err, setErr] = useState<string | null>(null);
   return (
@@ -269,11 +279,11 @@ export function Login(props: { title: string; onOk: (key: string) => void; admin
       <div className="relative z-10 flex w-full max-w-xs flex-col items-center">
         <BrandMark className="!w-[104px] !gap-1 !rounded-[18px] !p-2.5 !shadow-[0_3px_0_#e0a800]" />
         <p className="mt-6 font-mono text-[10px] font-black tracking-[0.4em] text-ink-dim">
-          LIFE PASSPORT · {props.admin ? "ADMIN" : "CREW"}
+          {props.eyebrow ?? `LIFE PASSPORT · ${props.admin ? "ADMIN" : "CREW"}`}
         </p>
         <h1 className="mt-2 text-3xl font-black">{props.title}</h1>
         <p className="mt-2 text-center text-xs font-semibold text-ink-dim">
-          {props.admin ? "管理员密码由总控发给你" : "输入本场的 6 位工作人员码 · 总控在管理端里能看到它"}
+          {props.hint ?? (props.admin ? "管理员密码由总控发给你" : "输入本场的 6 位工作人员码 · 总控在管理端里能看到它")}
         </p>
         <form
           className="mt-7 w-full space-y-3"
@@ -303,7 +313,9 @@ export function Login(props: { title: string; onOk: (key: string) => void; admin
               setErr(null);
               try {
                 // cheap key validation round-trip
-                if (props.admin) {
+                if (props.verify) {
+                  await props.verify(key);
+                } else if (props.admin) {
                   await rpc("admin_dashboard", { p_admin_key: key });
                 } else {
                   await rpc("staff_session", { p_staff_key: key });

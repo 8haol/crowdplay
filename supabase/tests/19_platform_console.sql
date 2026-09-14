@@ -49,6 +49,16 @@ begin
     if sqlerrm <> 'BAD_PLATFORM_KEY' then raise; end if;
   end;
 
+  -- 3a. 反过来，平台口令绝不能当机构口令用（/root 的登录校验必须走
+  -- platform_orgs，不能走 admin_dashboard——这条断言只证明了数据库这一侧
+  -- 的不变量，证不了前端真的调用了 platform_orgs，那部分靠人工走查）。
+  begin
+    perform admin_dashboard('root-pass');
+    raise exception 'TEST FAILED: expected BAD_KEY';
+  exception when others then
+    if sqlerrm <> 'BAD_KEY' then raise; end if;
+  end;
+
   -- 4. 新建机构
   r := platform_create_org('root-pass', 'gamma', '丙教会', 'Gamma Church', 'gamma-admin');
   v_new_id := (r ->> 'id')::uuid;

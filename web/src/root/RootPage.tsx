@@ -29,6 +29,9 @@ export default function RootPage() {
       <Login
         title="平台管理"
         admin
+        verify={(key) => rpc("platform_orgs", { p_platform_key: key })}
+        eyebrow="LIFE PASSPORT · PLATFORM"
+        hint="这是平台口令，只有你自己知道 —— 你就是总控"
         onOk={(key) => { sessionStorage.setItem(SESSION_KEY, key); setPlatformKey(key); }}
       />
     );

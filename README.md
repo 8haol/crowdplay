@@ -95,6 +95,15 @@ npm --prefix web install
 npm --prefix web run dev  # http://localhost:5173
 ```
 
+`db reset` 种下的平台口令（`/root` 用）是一个谁也不知道的随机值，本地要登录 `/root`
+就先在 SQL 编辑器（或 `docker exec -i supabase_db_life-passport-platform psql -U postgres -d postgres`）设一个：
+
+```sql
+update platform_config set super_key = '{sha256}' || encode(extensions.digest('root-pass', 'sha256'), 'hex');
+```
+
+生产环境的等价步骤见 [RUNBOOK.md](RUNBOOK.md#平台口令)。
+
 页面：
 
 | 路由 | 谁用 | 说明 |
@@ -102,6 +111,7 @@ npm --prefix web run dev  # http://localhost:5173
 | `/play` | 玩家 | 加入 / 找回 / 身份揭晓 / 双分数护照 / 手机随机事件 / 结算 |
 | `/staff` | 站点工作人员 | 输入本场 6 位工作人员码进入；之后输入任意一位队员的 3 位编号，整队只录一次结果 |
 | `/admin` | 组织者 | 机构管理密码登录 → 全部场次 → 任意一场的工作台：总控、玩家、站点、系统设置 |
+| `/root` | **平台方（业主）** | 平台口令登录 → 全部机构：新建 / 改名 / 重置管理口令 / 删除，以及「代入」某间教会免密进 `/admin`。和机构的管理口令是两套完全独立的口令，见下方本地开发一节 |
 | `/screen/:screenToken` | 投影大屏 | **无需密码**，链接本身就是场次（从管理端「现场总控」复制）；`/screen` 不带令牌会显示引导 |
 | `/badge/:token` | 已结算玩家 | 生成 1080×1920 的 9:16 人生护照分享图，支持微信长按保存、PNG 下载和系统分享 |
 | `/guide` | **同工** | **可直接分享的说明页**：流程、规则、记分、颁奖、分岗位 SOP、常见问题，

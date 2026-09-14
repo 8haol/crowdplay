@@ -72,16 +72,20 @@ security definer
 set search_path = public, pg_temp
 as $$
 declare
-  v_org organizations;
+  v_org     organizations;
+  v_name_zh text := btrim(p_name_zh);
+  v_name_en text := btrim(p_name_en);
 begin
   perform _platform_guard(p_platform_key);
 
   -- 显式校验而不是让表上的 check 抛裸约束错：前端要拿到干净的错误码。
+  -- 按 trim 后的长度校验并落库 trim 后的值——这个函数对 anon 开放，前端的
+  -- .trim() 只是体验，挡不住直接调用 RPC 传一堆空格进来。
   if p_slug is null or p_slug !~ '^[a-z0-9][a-z0-9-]{1,30}$' then
     raise exception 'BAD_SLUG';
   end if;
-  if p_name_zh is null or length(p_name_zh) not between 1 and 40
-     or p_name_en is null or length(p_name_en) not between 1 and 60 then
+  if v_name_zh is null or length(v_name_zh) not between 1 and 40
+     or v_name_en is null or length(v_name_en) not between 1 and 60 then
     raise exception 'BAD_ORG_NAME';
   end if;
   if p_admin_key is null or length(p_admin_key) not between 8 and 64 then
@@ -92,7 +96,7 @@ begin
   end if;
 
   insert into organizations (slug, name_zh, name_en, admin_key)
-  values (p_slug, p_name_zh, p_name_en,
+  values (p_slug, v_name_zh, v_name_en,
           '{sha256}' || encode(extensions.digest(p_admin_key, 'sha256'), 'hex'))
   returning * into v_org;
 
@@ -114,15 +118,17 @@ security definer
 set search_path = public, pg_temp
 as $$
 declare
-  v_org organizations;
+  v_org     organizations;
+  v_name_zh text := btrim(p_name_zh);
+  v_name_en text := btrim(p_name_en);
 begin
   perform _platform_guard(p_platform_key);
-  if p_name_zh is null or length(p_name_zh) not between 1 and 40
-     or p_name_en is null or length(p_name_en) not between 1 and 60 then
+  if v_name_zh is null or length(v_name_zh) not between 1 and 40
+     or v_name_en is null or length(v_name_en) not between 1 and 60 then
     raise exception 'BAD_ORG_NAME';
   end if;
 
-  update organizations set name_zh = p_name_zh, name_en = p_name_en
+  update organizations set name_zh = v_name_zh, name_en = v_name_en
   where id = p_org_id
   returning * into v_org;
   if not found then raise exception 'ORG_NOT_FOUND'; end if;

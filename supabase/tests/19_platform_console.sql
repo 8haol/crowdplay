@@ -123,6 +123,15 @@ begin
     if sqlerrm <> 'BAD_ORG_NAME' then raise; end if;
   end;
 
+  -- 9c. 新建机构：名字全是空格——服务端要按 trim 后的长度校验，不能被
+  -- 一串空格绕过（前端的 .trim() 挡不住直接调用 RPC）。
+  begin
+    perform platform_create_org('root-pass', 'zeta', repeat(' ', 40), 'Zeta Church', 'zeta-admin');
+    raise exception 'TEST FAILED: expected BAD_ORG_NAME';
+  exception when others then
+    if sqlerrm <> 'BAD_ORG_NAME' then raise; end if;
+  end;
+
   -- 10. 重置口令：旧的立刻失效，新的可用
   v_beta := (select id from organizations where slug = 'beta');
   assert (admin_dashboard('beta-admin') -> 'org' ->> 'slug') = 'beta', '重置前旧口令可用';

@@ -82,7 +82,7 @@ begin
   end if;
   if p_name_zh is null or length(p_name_zh) not between 1 and 40
      or p_name_en is null or length(p_name_en) not between 1 and 60 then
-    raise exception 'BAD_NAME';
+    raise exception 'BAD_ORG_NAME';
   end if;
   if p_admin_key is null or length(p_admin_key) not between 8 and 64 then
     raise exception 'BAD_NEW_KEY';
@@ -119,7 +119,7 @@ begin
   perform _platform_guard(p_platform_key);
   if p_name_zh is null or length(p_name_zh) not between 1 and 40
      or p_name_en is null or length(p_name_en) not between 1 and 60 then
-    raise exception 'BAD_NAME';
+    raise exception 'BAD_ORG_NAME';
   end if;
 
   update organizations set name_zh = p_name_zh, name_en = p_name_en
@@ -186,7 +186,7 @@ begin
   if not found then raise exception 'ORG_NOT_FOUND'; end if;
   if p_confirm_slug is distinct from v_org.slug then raise exception 'CONFIRM_MISMATCH'; end if;
   if exists (select 1 from events where org_id = p_org_id and phase = 'playing') then
-    raise exception 'EVENT_IN_PROGRESS';
+    raise exception 'ORG_HAS_LIVE_EVENT';
   end if;
 
   delete from organizations where id = p_org_id;

@@ -100,17 +100,17 @@ begin
   -- 9a. 新建机构：中文名超长
   begin
     perform platform_create_org('root-pass', 'epsilon', repeat('甲', 41), 'Epsilon Church', 'epsilon-admin');
-    raise exception 'TEST FAILED: expected BAD_NAME';
+    raise exception 'TEST FAILED: expected BAD_ORG_NAME';
   exception when others then
-    if sqlerrm <> 'BAD_NAME' then raise; end if;
+    if sqlerrm <> 'BAD_ORG_NAME' then raise; end if;
   end;
 
   -- 9b. 改名：英文名超长（丙教会还在，才能借它测）
   begin
     perform platform_rename_org('root-pass', v_new_id, '丙教会', repeat('A', 61));
-    raise exception 'TEST FAILED: expected BAD_NAME';
+    raise exception 'TEST FAILED: expected BAD_ORG_NAME';
   exception when others then
-    if sqlerrm <> 'BAD_NAME' then raise; end if;
+    if sqlerrm <> 'BAD_ORG_NAME' then raise; end if;
   end;
 
   -- 10. 重置口令：旧的立刻失效，新的可用
@@ -150,9 +150,9 @@ begin
           where x ->> 'slug' = 'alpha'), '甲场进行中，应标记为 has_live_event';
   begin
     perform platform_delete_org('root-pass', v_alpha, 'alpha');
-    raise exception 'TEST FAILED: expected EVENT_IN_PROGRESS';
+    raise exception 'TEST FAILED: expected ORG_HAS_LIVE_EVENT';
   exception when others then
-    if sqlerrm <> 'EVENT_IN_PROGRESS' then raise; end if;
+    if sqlerrm <> 'ORG_HAS_LIVE_EVENT' then raise; end if;
   end;
   update events set phase = 'waiting' where id = ev_alpha;
 

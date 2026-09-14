@@ -55,3 +55,81 @@ $$;
 
 revoke execute on function _platform_guard(text) from public, anon, authenticated;
 grant execute on function platform_orgs(text) to anon;
+
+-- ---------------------------------------------------------------------------
+-- 新建机构。不预建场次：新机构第一次建场时 _seed_event_stations 会走
+-- 「平台内置 9 站」兜底分支（阶段 2），所以开箱即用。
+-- ---------------------------------------------------------------------------
+create or replace function platform_create_org(
+  p_platform_key text,
+  p_slug text,
+  p_name_zh text,
+  p_name_en text,
+  p_admin_key text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_org organizations;
+begin
+  perform _platform_guard(p_platform_key);
+
+  -- 显式校验而不是让表上的 check 抛裸约束错：前端要拿到干净的错误码。
+  if p_slug is null or p_slug !~ '^[a-z0-9][a-z0-9-]{1,30}$' then
+    raise exception 'BAD_SLUG';
+  end if;
+  if p_name_zh is null or length(p_name_zh) not between 1 and 40
+     or p_name_en is null or length(p_name_en) not between 1 and 60 then
+    raise exception 'BAD_NAME';
+  end if;
+  if p_admin_key is null or length(p_admin_key) not between 8 and 64 then
+    raise exception 'BAD_NEW_KEY';
+  end if;
+  if exists (select 1 from organizations where slug = p_slug) then
+    raise exception 'SLUG_TAKEN';
+  end if;
+
+  insert into organizations (slug, name_zh, name_en, admin_key)
+  values (p_slug, p_name_zh, p_name_en,
+          '{sha256}' || encode(extensions.digest(p_admin_key, 'sha256'), 'hex'))
+  returning * into v_org;
+
+  return jsonb_build_object('id', v_org.id, 'slug', v_org.slug);
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 改名。slug 不可改 —— 它将来是 /o/:slug 的地址。
+-- ---------------------------------------------------------------------------
+create or replace function platform_rename_org(
+  p_platform_key text,
+  p_org_id uuid,
+  p_name_zh text,
+  p_name_en text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_org organizations;
+begin
+  perform _platform_guard(p_platform_key);
+  if p_name_zh is null or length(p_name_zh) not between 1 and 40
+     or p_name_en is null or length(p_name_en) not between 1 and 60 then
+    raise exception 'BAD_NAME';
+  end if;
+
+  update organizations set name_zh = p_name_zh, name_en = p_name_en
+  where id = p_org_id
+  returning * into v_org;
+  if not found then raise exception 'ORG_NOT_FOUND'; end if;
+
+  return jsonb_build_object('id', v_org.id, 'name_zh', v_org.name_zh, 'name_en', v_org.name_en);
+end;
+$$;
+
+grant execute on function platform_create_org(text, text, text, text, text),
+  platform_rename_org(text, uuid, text, text) to anon;

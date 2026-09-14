@@ -151,6 +151,13 @@ const ERROR_ZH: Record<string, string> = {
   RATE_LIMITED: "尝试太频繁，请稍等几秒再试",
   MISSING_IDEMPOTENCY_KEY: "系统错误：缺少幂等标识",
   NETWORK: "网络不太顺，稍等一下再试",
+  BAD_PLATFORM_KEY: "平台口令不对",
+  ORG_NOT_FOUND: "找不到这个机构",
+  SLUG_TAKEN: "这个 slug 已经被占用了",
+  BAD_SLUG: "slug 只能用小写字母、数字和连字符，2–31 位",
+  BAD_ORG_NAME: "名称长度不合法（中文名 1–40 字，英文名 1–60 字）",
+  CONFIRM_MISMATCH: "确认输入与 slug 不一致",
+  ORG_HAS_LIVE_EVENT: "这个机构有正在进行的活动，不能删除",
 };
 
 export function errorText(err: unknown): string {

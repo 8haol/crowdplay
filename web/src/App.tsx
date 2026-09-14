@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Link, useLocation } from "react-router-do
 import PlayPage from "./play/PlayPage";
 import StaffPage from "./staff/StaffPage";
 import AdminPage from "./admin/AdminPage";
+import RootPage from "./root/RootPage";
 import ScreenPage from "./screen/ScreenPage";
 import BadgePage from "./play/BadgePage";
 import GuidePage from "./guide/GuidePage";
@@ -122,6 +123,7 @@ export default function App() {
         <Route path="/play/:joinToken" element={<PlayPage />} />
         <Route path="/staff" element={<StaffPage />} />
         <Route path="/admin" element={<AdminPage />} />
+        <Route path="/root" element={<RootPage />} />
         <Route path="/screen" element={<ScreenPage />} />
         <Route path="/screen/:screenToken" element={<ScreenPage />} />
         <Route path="/guide" element={<GuidePage />} />

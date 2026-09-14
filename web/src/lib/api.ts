@@ -108,7 +108,7 @@ const ERROR_ZH: Record<string, string> = {
   BAD_GAME_TITLE: "活动名称要 1~60 个字",
   ACTIVE_EVENT_EXISTS: "本机构已经有一场活动在进行中。同时只能跑一场 —— 请先在现场总控结束它，再开新场。",
   EVENT_NOT_FOUND: "找不到这场活动，它可能已被移除",
-  BAD_NEW_KEY: "密码长度不符合要求：工作人员至少 6 位，管理员至少 8 位",
+  BAD_NEW_KEY: "密码长度不符合要求（8–64 位）",
   GAME_IN_PROGRESS: "游戏进行中不能修改站点配置",
   EVENT_IN_PROGRESS: "活动已经开场，本场站点名单不能再整份改了；临时缺人手请用「撤站」",
   EVENT_ENDED: "这场活动已经结束，站点名单只能看不能改",
@@ -151,6 +151,13 @@ const ERROR_ZH: Record<string, string> = {
   RATE_LIMITED: "尝试太频繁，请稍等几秒再试",
   MISSING_IDEMPOTENCY_KEY: "系统错误：缺少幂等标识",
   NETWORK: "网络不太顺，稍等一下再试",
+  BAD_PLATFORM_KEY: "平台口令不对",
+  ORG_NOT_FOUND: "找不到这个机构",
+  SLUG_TAKEN: "这个 slug 已经被占用了",
+  BAD_SLUG: "slug 只能用小写字母、数字和连字符，2–31 位",
+  BAD_ORG_NAME: "名称长度不合法（中文名 1–40 字，英文名 1–60 字）",
+  CONFIRM_MISMATCH: "确认输入与 slug 不一致",
+  ORG_HAS_LIVE_EVENT: "这个机构有正在进行的活动，不能删除",
 };
 
 export function errorText(err: unknown): string {

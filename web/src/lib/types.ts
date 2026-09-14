@@ -640,3 +640,26 @@ export interface LifeEventCatalog {
   };
   scenes: LifeEventSceneDefinition[];
 }
+
+/* ---------- 阶段 3 · 超级管理员控制台 ---------- */
+
+export interface PlatformOrg {
+  id: string;
+  slug: string;
+  name_zh: string;
+  name_en: string;
+  created_at: string;
+  event_count: number;
+  last_event_at: string | null;
+  has_live_event: boolean;
+}
+
+export interface PlatformOrgs {
+  orgs: PlatformOrg[];
+}
+
+export interface ImpersonateResult {
+  token: string;
+  expires_at: string;
+  org_name: string;
+}

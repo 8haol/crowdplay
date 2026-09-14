@@ -152,7 +152,7 @@ function RootConsole(props: {
           <div className="p-5 text-sm font-semibold" style={{ color: T.inkFaint }}>
             正在加载机构列表…
           </div>
-        ) : orgs.length === 0 ? (
+        ) : err && !data ? null : orgs.length === 0 ? (
           <div className="p-5">
             <EmptyState title="还没有任何机构" detail="用右上角的「新建机构」开一间。" />
           </div>

@@ -2,12 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Login } from "../staff/StaffPage";
 import { DemoRibbon } from "../lib/DemoRibbon";
-import { ErrorBanner } from "../lib/ui";
+import { ErrorBanner, SuccessBanner } from "../lib/ui";
 import { Btn, EmptyState, PageTitle, Panel, PanelHead } from "../admin/adminUi";
 import { T } from "../admin/adminTokens";
 import { rpc, errorText } from "../lib/api";
 import type { ImpersonateResult, PlatformOrg, PlatformOrgs } from "../lib/types";
 import { ROOT_PREVIEW } from "./previewData";
+import { DeleteOrgDialog, NewOrgDialog, RenameOrgDialog, ResetKeyDialog } from "./RootDialogs";
 
 const SESSION_KEY = "lp_platform_key";
 const ADMIN_SESSION_KEY = "lp_admin_key";
@@ -53,8 +54,16 @@ function RootConsole(props: {
   const navigate = useNavigate();
   const [data, setData] = useState<PlatformOrgs | null>(previewData ?? null);
   const [err, setErr] = useState<string | null>(null);
+  const [ok, setOk] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(!previewData);
+  const [dialog, setDialog] = useState<
+    | { kind: "new" }
+    | { kind: "rename"; org: PlatformOrg }
+    | { kind: "reset"; org: PlatformOrg }
+    | { kind: "delete"; org: PlatformOrg }
+    | null
+  >(null);
 
   // 组件卸载后，这次请求的收尾要变成空操作——否则 setState 落在已卸载的组件上。
   const cancelledRef = useRef(false);
@@ -106,16 +115,33 @@ function RootConsole(props: {
 
   const orgs = data?.orgs ?? [];
 
+  // 弹窗成功后统一走这里：关弹窗、报喜、重拉列表。
+  function finishDialog(message: string) {
+    setDialog(null);
+    setOk(message);
+    load();
+  }
+
   return (
     <main className="mx-auto max-w-5xl px-5 py-8" style={{ background: T.bg, minHeight: "100vh" }}>
       <PageTitle
         eyebrow="PLATFORM"
         title="机构管理"
         description="所有使用本平台的机构。代入后你会以该机构管理员的身份进入 /admin，令牌 2 小时后失效。"
-        actions={<Btn variant="quiet" onClick={props.onLogout}>退出</Btn>}
+        actions={
+          <>
+            <Btn variant="primary" disabled={Boolean(previewData)} onClick={() => setDialog({ kind: "new" })}>
+              新建机构
+            </Btn>
+            <Btn variant="quiet" onClick={props.onLogout}>退出</Btn>
+          </>
+        }
       />
 
-      <div className="mb-4"><ErrorBanner text={err} /></div>
+      <div className="mb-4 space-y-3">
+        <ErrorBanner text={err} />
+        <SuccessBanner text={ok} />
+      </div>
 
       <Panel>
         <PanelHead eyebrow="ORGANIZATIONS" title="机构列表" note={`共 ${orgs.length} 间`} />
@@ -161,13 +187,36 @@ function RootConsole(props: {
                     {org.last_event_at ? org.last_event_at.slice(0, 10) : "—"}
                   </td>
                   <td className="px-5 py-4 text-right">
-                    <Btn
-                      variant="quiet"
-                      disabled={busy || Boolean(previewData)}
-                      onClick={() => void impersonate(org)}
-                    >
-                      代入
-                    </Btn>
+                    <div className="flex justify-end gap-2">
+                      <Btn
+                        variant="quiet"
+                        disabled={busy || Boolean(previewData)}
+                        onClick={() => setDialog({ kind: "rename", org })}
+                      >
+                        改名
+                      </Btn>
+                      <Btn
+                        variant="quiet"
+                        disabled={busy || Boolean(previewData)}
+                        onClick={() => setDialog({ kind: "reset", org })}
+                      >
+                        重置口令
+                      </Btn>
+                      <Btn
+                        variant="danger"
+                        disabled={busy || Boolean(previewData)}
+                        onClick={() => setDialog({ kind: "delete", org })}
+                      >
+                        删除
+                      </Btn>
+                      <Btn
+                        variant="quiet"
+                        disabled={busy || Boolean(previewData)}
+                        onClick={() => void impersonate(org)}
+                      >
+                        代入
+                      </Btn>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -175,6 +224,38 @@ function RootConsole(props: {
           </table>
         )}
       </Panel>
+
+      {dialog?.kind === "new" && (
+        <NewOrgDialog
+          platformKey={platformKey}
+          onClose={() => setDialog(null)}
+          onDone={finishDialog}
+        />
+      )}
+      {dialog?.kind === "rename" && (
+        <RenameOrgDialog
+          platformKey={platformKey}
+          org={dialog.org}
+          onClose={() => setDialog(null)}
+          onDone={finishDialog}
+        />
+      )}
+      {dialog?.kind === "reset" && (
+        <ResetKeyDialog
+          platformKey={platformKey}
+          org={dialog.org}
+          onClose={() => setDialog(null)}
+          onDone={finishDialog}
+        />
+      )}
+      {dialog?.kind === "delete" && (
+        <DeleteOrgDialog
+          platformKey={platformKey}
+          org={dialog.org}
+          onClose={() => setDialog(null)}
+          onDone={finishDialog}
+        />
+      )}
     </main>
   );
 }

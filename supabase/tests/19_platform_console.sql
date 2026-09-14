@@ -176,7 +176,10 @@ begin
   r := platform_impersonate('root-pass', v_gamma);
   v_token := r ->> 'token';
   assert length(v_token) = 16, '令牌是 16 位十六进制';
-  assert (r ->> 'expires_at')::timestamptz > now(), '令牌还没过期';
+  assert (r ->> 'expires_at')::timestamptz
+         between now() + interval '119 minutes' and now() + interval '121 minutes',
+         '代入令牌的有效期是 2 小时';
+  assert r ->> 'org_name' = '丙教会（改）', '返回的机构名是当前名字（丙教会在第 8 步已改名）';
   assert (admin_dashboard(v_token) -> 'org' ->> 'slug') = 'gamma', '代入令牌能进丙教会的管理端';
 
   -- 拿丙教会的令牌去碰乙教会的场次：报 EVENT_NOT_FOUND，不泄漏别家场次是否存在
@@ -187,6 +190,14 @@ begin
     raise exception 'TEST FAILED: expected EVENT_NOT_FOUND';
   exception when others then
     if sqlerrm <> 'EVENT_NOT_FOUND' then raise; end if;
+  end;
+
+  -- 16a. 代入也要认平台口令：错的口令铸不出令牌
+  begin
+    perform platform_impersonate('wrong-pass', v_gamma);
+    raise exception 'TEST FAILED: expected BAD_PLATFORM_KEY';
+  exception when others then
+    if sqlerrm <> 'BAD_PLATFORM_KEY' then raise; end if;
   end;
 
   -- 17. 过期的令牌不认

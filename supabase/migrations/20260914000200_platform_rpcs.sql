@@ -196,3 +196,37 @@ $$;
 
 grant execute on function platform_reset_key(text, uuid, text),
   platform_delete_org(text, uuid, text) to anon;
+
+-- ---------------------------------------------------------------------------
+-- 代入某机构：铸一张 2 小时的令牌。前端把它塞进 /admin 用的那个 sessionStorage 位，
+-- 对 /admin 而言它就是一个普通的机构口令 —— 管理端代码一行都不用改。
+-- 令牌不可续期、不可撤销；过期即失效，重新代入就是再铸一张。
+-- ---------------------------------------------------------------------------
+create or replace function platform_impersonate(p_platform_key text, p_org_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_org     organizations;
+  v_token   text;
+  v_expires timestamptz;
+begin
+  perform _platform_guard(p_platform_key);
+
+  select * into v_org from organizations where id = p_org_id;
+  if not found then raise exception 'ORG_NOT_FOUND'; end if;
+
+  -- 顺手打扫，不需要定时任务。
+  delete from admin_sessions where expires_at < now();
+
+  v_token := _gen_hex_token();
+  v_expires := now() + interval '2 hours';
+  insert into admin_sessions (token, org_id, expires_at) values (v_token, p_org_id, v_expires);
+
+  return jsonb_build_object('token', v_token, 'expires_at', v_expires, 'org_name', v_org.name_zh);
+end;
+$$;
+
+grant execute on function platform_impersonate(text, uuid) to anon;

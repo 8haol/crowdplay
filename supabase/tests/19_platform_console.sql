@@ -20,6 +20,8 @@ declare
   v_alpha uuid;
   v_beta uuid;
   ev_alpha uuid;
+  v_token text;
+  v_gamma uuid;
 begin
   -- 1. 错的平台口令
   begin
@@ -164,6 +166,48 @@ begin
   -- 15. 删不存在的机构
   begin
     perform platform_delete_org('root-pass', v_alpha, 'alpha');
+    raise exception 'TEST FAILED: expected ORG_NOT_FOUND';
+  exception when others then
+    if sqlerrm <> 'ORG_NOT_FOUND' then raise; end if;
+  end;
+
+  -- 16. 代入：令牌能过管理端，且只解锁那一间
+  v_gamma := (select id from organizations where slug = 'gamma');
+  r := platform_impersonate('root-pass', v_gamma);
+  v_token := r ->> 'token';
+  assert length(v_token) = 16, '令牌是 16 位十六进制';
+  assert (r ->> 'expires_at')::timestamptz > now(), '令牌还没过期';
+  assert (admin_dashboard(v_token) -> 'org' ->> 'slug') = 'gamma', '代入令牌能进丙教会的管理端';
+
+  -- 拿丙教会的令牌去碰乙教会的场次：报 EVENT_NOT_FOUND，不泄漏别家场次是否存在
+  insert into events (org_id, title, join_token, staff_code, screen_token, phase)
+  values (v_beta, '乙场', 'join-beta', 'BETA01', 'screen-beta', 'waiting');
+  begin
+    perform admin_console(v_token, (select id from events where join_token = 'join-beta'));
+    raise exception 'TEST FAILED: expected EVENT_NOT_FOUND';
+  exception when others then
+    if sqlerrm <> 'EVENT_NOT_FOUND' then raise; end if;
+  end;
+
+  -- 17. 过期的令牌不认
+  update admin_sessions set expires_at = now() - interval '1 minute' where token = v_token;
+  begin
+    perform admin_dashboard(v_token);
+    raise exception 'TEST FAILED: expected BAD_KEY';
+  exception when others then
+    if sqlerrm <> 'BAD_KEY' then raise; end if;
+  end;
+
+  -- 18. 机构自己的口令完全不受影响（回归）
+  assert (admin_dashboard('beta-new-key') -> 'org' ->> 'slug') = 'beta', '机构口令照常可用';
+
+  -- 19. 铸新令牌时顺手清掉过期行
+  perform platform_impersonate('root-pass', v_gamma);
+  assert (select count(*) from admin_sessions where token = v_token) = 0, '过期令牌被顺手清掉了';
+
+  -- 20. 代入不存在的机构
+  begin
+    perform platform_impersonate('root-pass', '00000000-0000-0000-0000-000000000000');
     raise exception 'TEST FAILED: expected ORG_NOT_FOUND';
   exception when others then
     if sqlerrm <> 'ORG_NOT_FOUND' then raise; end if;

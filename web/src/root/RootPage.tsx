@@ -130,7 +130,7 @@ function RootConsole(props: {
       <PageTitle
         eyebrow="PLATFORM"
         title="机构管理"
-        description="所有使用本平台的机构。代入后你会以该机构管理员的身份进入 /admin，令牌 2 小时后失效。"
+        description="所有使用本平台的机构。代入后你会以该机构管理员的身份进入 /admin，令牌长期有效，直到你再次代入或该机构被删除。"
         actions={
           <>
             <Btn variant="primary" disabled={Boolean(previewData)} onClick={() => setDialog({ kind: "new" })}>

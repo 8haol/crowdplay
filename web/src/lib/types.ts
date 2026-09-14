@@ -660,6 +660,5 @@ export interface PlatformOrgs {
 
 export interface ImpersonateResult {
   token: string;
-  expires_at: string;
   org_name: string;
 }

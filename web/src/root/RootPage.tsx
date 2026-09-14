@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Login } from "../staff/StaffPage";
 import { DemoRibbon } from "../lib/DemoRibbon";
@@ -54,16 +54,39 @@ function RootConsole(props: {
   const [data, setData] = useState<PlatformOrgs | null>(previewData ?? null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(!previewData);
 
-  const load = useCallback(async () => {
+  // 组件卸载后，这次请求的收尾要变成空操作——否则 setState 落在已卸载的组件上。
+  const cancelledRef = useRef(false);
+  useEffect(() => {
+    cancelledRef.current = false;
+    return () => { cancelledRef.current = true; };
+  }, []);
+
+  // 用 .then(onFulfilled, onRejected) 而不是 async/await 包 try/catch：
+  // oxlint 的 set-state-in-effect 规则分析不了「await 一定会让出这一轮同步执行」，
+  // 只要 try/catch 包住了 await，它就当作 setState 可能同步发生在 effect 里而报警；
+  // 纯 Promise 链没有这个误判。cancelledRef 保证组件卸载后回调是空操作。
+  const load = useCallback(() => {
     if (previewData) return;
-    try {
-      setData(await rpc<PlatformOrgs>("platform_orgs", { p_platform_key: platformKey }));
-      setErr(null);
-    } catch (error) { setErr(errorText(error)); }
+    rpc<PlatformOrgs>("platform_orgs", { p_platform_key: platformKey })
+      .then(
+        (result) => {
+          if (cancelledRef.current) return;
+          setData(result);
+          setErr(null);
+        },
+        (error) => {
+          if (cancelledRef.current) return;
+          setErr(errorText(error));
+        },
+      )
+      .finally(() => {
+        if (!cancelledRef.current) setLoading(false);
+      });
   }, [platformKey, previewData]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { load(); }, [load]);
 
   async function impersonate(org: PlatformOrg) {
     if (previewData) return;
@@ -96,7 +119,11 @@ function RootConsole(props: {
 
       <Panel>
         <PanelHead eyebrow="ORGANIZATIONS" title="机构列表" note={`共 ${orgs.length} 间`} />
-        {orgs.length === 0 ? (
+        {loading ? (
+          <div className="p-5 text-sm font-semibold" style={{ color: T.inkFaint }}>
+            正在加载机构列表…
+          </div>
+        ) : orgs.length === 0 ? (
           <div className="p-5">
             <EmptyState title="还没有任何机构" detail="用右上角的「新建机构」开一间。" />
           </div>

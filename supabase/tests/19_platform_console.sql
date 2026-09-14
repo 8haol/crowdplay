@@ -17,6 +17,9 @@ declare
   r jsonb;
   orgs jsonb;
   v_new_id uuid;
+  v_alpha uuid;
+  v_beta uuid;
+  ev_alpha uuid;
 begin
   -- 1. 错的平台口令
   begin
@@ -87,6 +90,80 @@ begin
   -- 9. 改不存在的机构
   begin
     perform platform_rename_org('root-pass', '00000000-0000-0000-0000-000000000000', 'x', 'y');
+    raise exception 'TEST FAILED: expected ORG_NOT_FOUND';
+  exception when others then
+    if sqlerrm <> 'ORG_NOT_FOUND' then raise; end if;
+  end;
+
+  -- 9a. 新建机构：中文名超长
+  begin
+    perform platform_create_org('root-pass', 'epsilon', repeat('甲', 41), 'Epsilon Church', 'epsilon-admin');
+    raise exception 'TEST FAILED: expected BAD_NAME';
+  exception when others then
+    if sqlerrm <> 'BAD_NAME' then raise; end if;
+  end;
+
+  -- 9b. 改名：英文名超长（丙教会还在，才能借它测）
+  begin
+    perform platform_rename_org('root-pass', v_new_id, '丙教会', repeat('A', 61));
+    raise exception 'TEST FAILED: expected BAD_NAME';
+  exception when others then
+    if sqlerrm <> 'BAD_NAME' then raise; end if;
+  end;
+
+  -- 10. 重置口令：旧的立刻失效，新的可用
+  v_beta := (select id from organizations where slug = 'beta');
+  assert (admin_dashboard('beta-admin') -> 'org' ->> 'slug') = 'beta', '重置前旧口令可用';
+  perform platform_reset_key('root-pass', v_beta, 'beta-new-key');
+  begin
+    perform admin_dashboard('beta-admin');
+    raise exception 'TEST FAILED: expected BAD_KEY';
+  exception when others then
+    if sqlerrm <> 'BAD_KEY' then raise; end if;
+  end;
+  assert (admin_dashboard('beta-new-key') -> 'org' ->> 'slug') = 'beta', '重置后新口令可用';
+
+  -- 11. 重置成太短的口令
+  begin
+    perform platform_reset_key('root-pass', v_beta, 'tiny');
+    raise exception 'TEST FAILED: expected BAD_NEW_KEY';
+  exception when others then
+    if sqlerrm <> 'BAD_NEW_KEY' then raise; end if;
+  end;
+
+  -- 12. 删除：确认 slug 不匹配
+  begin
+    perform platform_delete_org('root-pass', v_beta, 'not-beta');
+    raise exception 'TEST FAILED: expected CONFIRM_MISMATCH';
+  exception when others then
+    if sqlerrm <> 'CONFIRM_MISMATCH' then raise; end if;
+  end;
+
+  -- 13. 删除：机构有进行中的场次时拒绝
+  v_alpha := (select id from organizations where slug = 'alpha');
+  ev_alpha := (select id from events where join_token = 'join-alpha');
+  update events set phase = 'playing' where id = ev_alpha;
+  assert (select (x ->> 'has_live_event')::boolean
+          from jsonb_array_elements(platform_orgs('root-pass') -> 'orgs') x
+          where x ->> 'slug' = 'alpha'), '甲场进行中，应标记为 has_live_event';
+  begin
+    perform platform_delete_org('root-pass', v_alpha, 'alpha');
+    raise exception 'TEST FAILED: expected EVENT_IN_PROGRESS';
+  exception when others then
+    if sqlerrm <> 'EVENT_IN_PROGRESS' then raise; end if;
+  end;
+  update events set phase = 'waiting' where id = ev_alpha;
+
+  -- 14. 删除成功，场次级联清掉
+  assert (select count(*) from events where org_id = v_alpha) = 1, '删之前甲教会有一场';
+  r := platform_delete_org('root-pass', v_alpha, 'alpha');
+  assert r ->> 'deleted' = 'alpha', '返回被删的 slug';
+  assert (select count(*) from organizations where id = v_alpha) = 0, '机构没了';
+  assert (select count(*) from events where org_id = v_alpha) = 0, '场次跟着级联删了';
+
+  -- 15. 删不存在的机构
+  begin
+    perform platform_delete_org('root-pass', v_alpha, 'alpha');
     raise exception 'TEST FAILED: expected ORG_NOT_FOUND';
   exception when others then
     if sqlerrm <> 'ORG_NOT_FOUND' then raise; end if;

@@ -133,3 +133,66 @@ $$;
 
 grant execute on function platform_create_org(text, text, text, text, text),
   platform_rename_org(text, uuid, text, text) to anon;
+
+-- ---------------------------------------------------------------------------
+-- 重置某机构的口令。教会忘了口令时用。已经铸出去的代入令牌不受影响（另一张表）。
+-- ---------------------------------------------------------------------------
+create or replace function platform_reset_key(
+  p_platform_key text,
+  p_org_id uuid,
+  p_new_admin_key text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_org organizations;
+begin
+  perform _platform_guard(p_platform_key);
+  if p_new_admin_key is null or length(p_new_admin_key) not between 8 and 64 then
+    raise exception 'BAD_NEW_KEY';
+  end if;
+
+  update organizations
+     set admin_key = '{sha256}' || encode(extensions.digest(p_new_admin_key, 'sha256'), 'hex')
+   where id = p_org_id
+  returning * into v_org;
+  if not found then raise exception 'ORG_NOT_FOUND'; end if;
+
+  return jsonb_build_object('id', v_org.id, 'slug', v_org.slug);
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 删除机构。级联清掉它名下的一切，不可恢复（业主确认不要回收站、不要审计）。
+-- 两道闸：手打 slug 确认，以及不允许在活动进行中删。
+-- ---------------------------------------------------------------------------
+create or replace function platform_delete_org(
+  p_platform_key text,
+  p_org_id uuid,
+  p_confirm_slug text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_org organizations;
+begin
+  perform _platform_guard(p_platform_key);
+
+  select * into v_org from organizations where id = p_org_id;
+  if not found then raise exception 'ORG_NOT_FOUND'; end if;
+  if p_confirm_slug is distinct from v_org.slug then raise exception 'CONFIRM_MISMATCH'; end if;
+  if exists (select 1 from events where org_id = p_org_id and phase = 'playing') then
+    raise exception 'EVENT_IN_PROGRESS';
+  end if;
+
+  delete from organizations where id = p_org_id;
+  return jsonb_build_object('deleted', v_org.slug);
+end;
+$$;
+
+grant execute on function platform_reset_key(text, uuid, text),
+  platform_delete_org(text, uuid, text) to anon;

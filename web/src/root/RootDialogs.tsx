@@ -198,7 +198,7 @@ export function DeleteOrgDialog(props: {
       <div className="mt-4"><ErrorBanner text={err} /></div>
       <div className="mt-6 flex justify-end gap-2">
         <Btn variant="quiet" onClick={props.onClose}>取消</Btn>
-        <Btn variant="primary" disabled={!ready || busy} onClick={async () => {
+        <Btn variant="dangerSolid" disabled={!ready || busy} onClick={async () => {
           setBusy(true); setErr(null);
           try {
             await rpc("platform_delete_org", {

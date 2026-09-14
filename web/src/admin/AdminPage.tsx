@@ -6,7 +6,7 @@ import type { AdminConsoleData, AdminDashboardData, AdminPlayer } from "../lib/t
 import { screenUrl } from "../lib/gameLinks";
 import { ChromeDivider, ConnDot, SuccessBanner, UpLink } from "../lib/ui";
 import { Login } from "../staff/StaffPage";
-import { AdminIcon, Btn, Panel, PhaseLabel } from "./adminUi";
+import { AdminIcon, Btn, EmptyState, Panel, PhaseLabel } from "./adminUi";
 import { T } from "./adminTokens";
 import { ADMIN_NAV, NAV_GROUPS, type AdminSection } from "./adminUtils";
 import { NewGameModal, PlayerDrawer } from "./AdminDialogs";
@@ -57,6 +57,16 @@ export default function AdminPage() {
   );
 }
 
+/*
+ * What one poll round-trip resolves to. Most organisations have run at least
+ * one event and get the normal console; a brand-new one from /root
+ * deliberately has none yet (no event is pre-created), which is a real,
+ * successful state — not an error — so it is carried as data, never thrown.
+ */
+type AdminScreen =
+  | { emptyOrg: false; snapshot: AdminSnapshot }
+  | { emptyOrg: true; org: AdminDashboardData["org"] };
+
 function AdminConsole(props: {
   adminKey: string;
   previewData?: AdminSnapshot;
@@ -72,23 +82,23 @@ function AdminConsole(props: {
    * before the per-event calls are made.
    */
   const pollFn = useMemo(
-    () => async (): Promise<AdminSnapshot> => {
+    () => async (): Promise<AdminScreen> => {
       const dashboard = await rpc<AdminDashboardData>("admin_dashboard", { p_admin_key: props.adminKey });
       const eventId =
         (requestedEventId && dashboard.events.some((event) => event.event_id === requestedEventId) ? requestedEventId : null)
         ?? dashboard.live_event_id
         ?? dashboard.events[0]?.event_id;
-      if (!eventId) throw new Error("NO_EVENTS");
+      if (!eventId) return { emptyOrg: true, org: dashboard.org };
       const [consoleData, players] = await Promise.all([
         rpc<AdminConsoleData>("admin_console", { p_admin_key: props.adminKey, p_event_id: eventId }),
         rpc<AdminPlayer[]>("admin_list_players", { p_admin_key: props.adminKey, p_event_id: eventId }),
       ]);
-      return { consoleData, players };
+      return { emptyOrg: false, snapshot: { consoleData, players } };
     },
     [props.adminKey, requestedEventId],
   );
-  const poll = usePoll<AdminSnapshot>(props.previewData ? null : pollFn, 4000);
-  const data = props.previewData ?? poll.data;
+  const poll = usePoll<AdminScreen>(props.previewData ? null : pollFn, 4000);
+  const data: AdminScreen | null = props.previewData ? { emptyOrg: false, snapshot: props.previewData } : poll.data;
   const online = props.previewData ? true : poll.online;
 
   const requestedSection = searchParams.get("view") as AdminSection | null;
@@ -139,16 +149,56 @@ function AdminConsole(props: {
     );
   }
 
-  const selectedPlayer = data.players.find((player) => player.code === playerCode) ?? null;
-  const common = { adminKey: props.adminKey, consoleData: data.consoleData, players: data.players, onDone: done };
+  /*
+   * A brand-new organisation from /root has no events yet — on purpose, it is
+   * not pre-created. That is not a connection failure, so it gets its own
+   * calm shell instead of the error card above: just enough chrome for 退出
+   * to work, plus a way to create the first event.
+   */
+  if (data.emptyOrg) {
+    return (
+      <div className="tool-surface min-h-dvh" style={{ color: T.ink }}>
+        <TopBar online={online} session={data.org.name_zh} onLogout={props.onLogout} onMenu={() => {}} />
+        <div className="grid min-h-[75dvh] place-items-center p-6">
+          <Panel className="w-full max-w-md">
+            <EmptyState
+              title="这间机构还没有活动"
+              detail="创建第一场就能拿到专属的入场二维码、工作人员码和大屏链接，之前的设置一个都不会丢。"
+              action={
+                <Btn variant="primary" icon="plus" onClick={() => setNewGameOpen(true)}>创建新场次</Btn>
+              }
+            />
+          </Panel>
+        </div>
+        {newGameOpen && (
+          <NewGameModal
+            adminKey={props.adminKey}
+            playerCount={0}
+            onClose={() => setNewGameOpen(false)}
+            onDone={(message, eventId) => {
+              setNewGameOpen(false);
+              done(message);
+              // Land the operator in the event they just made; that is where
+              // the new keys are.
+              if (eventId) navigate("events", eventId);
+            }}
+          />
+        )}
+      </div>
+    );
+  }
+
+  const snapshot = data.snapshot;
+  const selectedPlayer = snapshot.players.find((player) => player.code === playerCode) ?? null;
+  const common = { adminKey: props.adminKey, consoleData: snapshot.consoleData, players: snapshot.players, onDone: done };
 
   return (
     <div className="tool-surface min-h-dvh" style={{ color: T.ink }}>
       <TopBar
         online={online}
-        session={`${data.consoleData.org.name_zh} · ${data.consoleData.current.title}`}
-        phase={data.consoleData.current.phase}
-        screenToken={data.consoleData.current.screen_token}
+        session={`${snapshot.consoleData.org.name_zh} · ${snapshot.consoleData.current.title}`}
+        phase={snapshot.consoleData.current.phase}
+        screenToken={snapshot.consoleData.current.screen_token}
         onLogout={props.onLogout}
         onMenu={() => setNavOpen((value) => !value)}
       />
@@ -157,8 +207,8 @@ function AdminConsole(props: {
         <SideNav
           section={section}
           open={navOpen}
-          liveCount={data.consoleData.stats.locked_players}
-          eventCount={data.consoleData.events.length}
+          liveCount={snapshot.consoleData.stats.locked_players}
+          eventCount={snapshot.consoleData.events.length}
           onNavigate={(next) => { setNavOpen(false); navigate(next, null); }}
           onNewGame={() => { setNavOpen(false); setNewGameOpen(true); }}
         />
@@ -176,7 +226,7 @@ function AdminConsole(props: {
             <>
               {section === "events" && (
                 <EventsListView
-                  consoleData={data.consoleData}
+                  consoleData={snapshot.consoleData}
                   onOpenEvent={(eventId) => navigate("events", eventId)}
                   onNewGame={() => setNewGameOpen(true)}
                 />
@@ -189,12 +239,12 @@ function AdminConsole(props: {
                 />
               )}
               {section === "players" && (
-                <PlayersView consoleData={data.consoleData} players={data.players} onPlayer={setPlayerCode} />
+                <PlayersView consoleData={snapshot.consoleData} players={snapshot.players} onPlayer={setPlayerCode} />
               )}
               {section === "stations" && (
                 <StationsView
                   adminKey={props.adminKey}
-                  consoleData={data.consoleData}
+                  consoleData={snapshot.consoleData}
                   preview={Boolean(props.previewData)}
                   onDone={done}
                 />
@@ -205,7 +255,7 @@ function AdminConsole(props: {
               {section === "settings" && (
                 <SettingsView
                   adminKey={props.adminKey}
-                  consoleData={data.consoleData}
+                  consoleData={snapshot.consoleData}
                   onDone={done}
                   onNewGame={() => setNewGameOpen(true)}
                   onAdminKeyChanged={props.onAdminKeyChanged}
@@ -219,8 +269,8 @@ function AdminConsole(props: {
       {newGameOpen && (
         <NewGameModal
           adminKey={props.adminKey}
-          current={data.consoleData.current}
-          playerCount={data.consoleData.stats.players}
+          current={snapshot.consoleData.current}
+          playerCount={snapshot.consoleData.stats.players}
           onClose={() => setNewGameOpen(false)}
           onDone={(message, eventId) => {
             setNewGameOpen(false);
@@ -234,7 +284,7 @@ function AdminConsole(props: {
       {selectedPlayer && (
         <PlayerDrawer
           adminKey={props.adminKey}
-          eventId={data.consoleData.current.event_id}
+          eventId={snapshot.consoleData.current.event_id}
           player={selectedPlayer}
           onClose={() => setPlayerCode(null)}
           onDone={(message) => { setPlayerCode(null); done(message); }}

@@ -80,14 +80,11 @@ export async function rpc<T>(fn: string, args: Record<string, unknown>): Promise
   }
 }
 
-/** Read a deliberately exposed public table or view (currently stations). */
-export async function readView<T>(query: string): Promise<T> {
-  const res = await fetch(`${BASE}/rest/v1/${query}`, {
-    headers: { apikey: API_KEY, authorization: `Bearer ${API_KEY}` },
-  });
-  if (!res.ok) throw new RpcError(`HTTP_${res.status}`);
-  return (await res.json()) as T;
-}
+/* There is no `readView` any more. `stations` was the one table anon could read
+   directly, and phase 2 took that away: the library now holds every org's own
+   station names, and which stations an event runs is per-event state. Every
+   read goes through an RPC that scopes itself to one key (`staff_stations`,
+   `admin_event_stations`, `board_snapshot`). */
 
 export function newIdemKey(): string {
   // crypto.randomUUID needs a secure context; WeChat webviews on plain http
@@ -109,11 +106,18 @@ const ERROR_ZH: Record<string, string> = {
   GAME_ARCHIVED: "这一场活动已经归档",
   JOIN_CLOSED: "本场登记已关闭，请联系现场工作人员",
   BAD_GAME_TITLE: "活动名称要 1~60 个字",
-  ACTIVE_GAME_EXISTS: "当前场次仍有玩家，确认归档后才能创建新场次",
+  ACTIVE_EVENT_EXISTS: "本机构已经有一场活动在进行中。同时只能跑一场 —— 请先在现场总控结束它，再开新场。",
   EVENT_NOT_FOUND: "找不到这场活动，它可能已被移除",
   BAD_NEW_KEY: "密码长度不符合要求：工作人员至少 6 位，管理员至少 8 位",
   GAME_IN_PROGRESS: "游戏进行中不能修改站点配置",
+  EVENT_IN_PROGRESS: "活动已经开场，本场站点名单不能再整份改了；临时缺人手请用「撤站」",
+  EVENT_ENDED: "这场活动已经结束，站点名单只能看不能改",
+  LIFE_EVENT_REQUIRED: "每场必须保留人生盲盒站，它是玩家手机上的事件入口",
+  MAIN_STATION_REQUIRED: "至少要留一个主线站点",
+  STATION_IN_USE: "这个站点被某场活动用过，不能删，只能改名",
+  FORBIDDEN: "内置站点不能直接改，请先「复制为自己的」再改副本",
   BAD_STATION_NAME: "站点名称要 1~30 个字",
+  BAD_STATION_TYPE: "站点类型不合法",
   BAD_SCORING_MODE: "计分方式不合法",
   BAD_NAME: "名字要 1~20 个字",
   BAD_CONTACT: "联系方式最多 80 个字",

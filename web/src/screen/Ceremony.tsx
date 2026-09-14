@@ -39,10 +39,13 @@ function buildSlides(awards: BoardAwards, players: number): Slide[] {
 export default function Ceremony({
   awards,
   players,
+  stationsTotal,
   onFinish,
 }: {
   awards: BoardAwards;
   players: number;
+  /** Main stations this event actually ran — the podium counts out of it. */
+  stationsTotal: number;
   onFinish: () => void;
 }) {
   const slides = useMemo(() => buildSlides(awards, players), [awards, players]);
@@ -117,7 +120,7 @@ export default function Ceremony({
           {slide.kind === "intro" && <IntroSlide players={slide.players} awards={awards} />}
           {slide.kind === "special" && <SpecialSlide award={slide.award} />}
           {slide.kind === "team" && <TeamSlide award={slide.award} />}
-          {slide.kind === "podium" && <PodiumSlide entry={slide.entry} />}
+          {slide.kind === "podium" && <PodiumSlide entry={slide.entry} stationsTotal={stationsTotal} />}
           {slide.kind === "outro" && <OutroSlide />}
         </div>
 
@@ -253,7 +256,7 @@ const PODIUM_LOOK: Record<number, { label: string; english: string; medal: strin
   3: { label: "全场第三", english: "THIRD PLACE", medal: "🥉", size: "clamp(2.8rem,7.5vw,8.5rem)" },
 };
 
-function PodiumSlide({ entry }: { entry: PodiumEntry }) {
+function PodiumSlide({ entry, stationsTotal }: { entry: PodiumEntry; stationsTotal: number }) {
   const look = PODIUM_LOOK[entry.rank] ?? PODIUM_LOOK[3];
   const color = tone(entry.color_group, entry.name, entry.identity);
   const ink = readableOn(color);
@@ -274,7 +277,9 @@ function PodiumSlide({ entry }: { entry: PodiumEntry }) {
         </div>
         <div className="mt-[clamp(1rem,2vw,2rem)] flex flex-wrap items-end justify-center gap-[clamp(1.5rem,3.5vw,3.5rem)]">
           <PodiumStat value={String(entry.score)} label="最终人生分" ink={ink} big />
-          <PodiumStat value={`${entry.stations_done}/7`} label="完成站点" ink={ink} />
+          {/* Out of what this event ran, never a fixed 7: an event that
+              dropped two stations must not announce its winner as 5/7. */}
+          <PodiumStat value={`${entry.stations_done}/${stationsTotal}`} label="完成站点" ink={ink} />
           <PodiumStat value={`${entry.life_events}/3`} label="经历人生" ink={ink} />
           {/* The card is already painted in this player's team colour, so the
               colour name would only add a word the room does not need. */}

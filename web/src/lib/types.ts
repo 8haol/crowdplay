@@ -48,6 +48,9 @@ export interface StaffSession {
   title: string;
   phase: Phase;
   org: Organization;
+  /** The stations this event actually runs, enabled ones only — the same array
+      `staff_stations` returns. Since phase 2 there is no global station list. */
+  stations: EventStation[];
 }
 
 export interface AdminDashboardData {
@@ -56,7 +59,22 @@ export interface AdminDashboardData {
   live_event_id: string | null;
 }
 
-export interface StationMetric extends Station {
+/**
+ * One station's numbers inside one event. Deliberately NOT `extends Station`:
+ * the payload comes from `_event_station_metrics`, which reads the per-event
+ * snapshot (`event_stations`) — that table has no `slug`, because a slug
+ * identifies a row in the org's library, not a station as this event ran it.
+ */
+export interface StationMetric {
+  /** = `station_id`, so it keys the same things `Station.id` used to key. */
+  id: number;
+  station_id: number;
+  name_zh: string;
+  type: StationType;
+  scoring_mode: ScoringMode;
+  sort_order: number;
+  /** Withdrawn mid-event: still listed with its numbers, no longer staffed. */
+  disabled?: boolean;
   visits: number;
   passed: number;
   failed: number;
@@ -233,6 +251,10 @@ export interface PollResult {
   pending_event: PendingLifeEvent | null;
   attempts: AttemptInfo[];
   life_events: LifeEventInfo[];
+  /** The stations this event runs, enabled ones only — what the passport's
+      pages are drawn from. Names are the event's own snapshot, so a station
+      renamed for tonight reads tonight's name. */
+  stations: EventStation[];
 }
 
 export interface StaffTeamLookup {
@@ -273,13 +295,57 @@ export interface AwardTeamResult {
   }>;
 }
 
+export type StationType = "main" | "life_event" | "grace";
+export type ScoringMode = "graded" | "free" | "fixed" | null;
+
+/**
+ * One row of the station library: either a platform builtin (`org_id is null`)
+ * or one this organisation created. It is a template, not something an event
+ * runs — a station only reaches players once it is copied into an event.
+ */
 export interface Station {
   id: number;
   slug: string;
   name_zh: string;
-  type: "main" | "life_event" | "grace";
-  scoring_mode: "graded" | "free" | "fixed" | null;
+  type: StationType;
+  scoring_mode: ScoringMode;
   sort_order: number;
+}
+
+/**
+ * One station as a single event runs it — the snapshot in `event_stations`.
+ * Name and scoring mode are copies, so renaming the library row later never
+ * rewrites what a past event recorded.
+ *
+ * `id`: the staff/board shapes (`staff_stations`, `_event_station_metrics`)
+ * return `station_id` here, keeping the old `Station.id` meaning. The admin
+ * shape (`admin_event_stations().rows`) returns the `event_stations` row's own
+ * primary key instead — so anything that identifies a station across the two
+ * must use `station_id`, which every shape carries.
+ */
+export interface EventStation {
+  id: number;
+  station_id: number;
+  name_zh: string;
+  type: StationType;
+  scoring_mode: ScoringMode;
+  sort_order: number;
+  /** Non-null once the station was withdrawn mid-event. Scores already recorded stay. */
+  disabled_at?: string | null;
+}
+
+/** The org's library, split by who owns each row. Builtins are read-only. */
+export interface StationLibrary {
+  builtin: Station[];
+  custom: Station[];
+}
+
+/** `admin_event_stations`: this event's roster plus what else could join it. */
+export interface EventStationsData {
+  phase: Phase;
+  rows: EventStation[];
+  /** Library rows not yet on this event's roster. */
+  candidates: Station[];
 }
 
 export interface AwardResultEntry {

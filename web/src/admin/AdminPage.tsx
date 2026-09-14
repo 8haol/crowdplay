@@ -2,14 +2,14 @@ import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { rpc, errorText } from "../lib/api";
 import { usePoll } from "../lib/usePoll";
-import type { AdminConsoleData, AdminDashboardData, AdminPlayer, StationMetric } from "../lib/types";
+import type { AdminConsoleData, AdminDashboardData, AdminPlayer } from "../lib/types";
 import { screenUrl } from "../lib/gameLinks";
 import { ChromeDivider, ConnDot, SuccessBanner, UpLink } from "../lib/ui";
 import { Login } from "../staff/StaffPage";
 import { AdminIcon, Btn, Panel, PhaseLabel } from "./adminUi";
 import { T } from "./adminTokens";
 import { ADMIN_NAV, NAV_GROUPS, type AdminSection } from "./adminUtils";
-import { NewGameModal, PlayerDrawer, StationEditModal } from "./AdminDialogs";
+import { NewGameModal, PlayerDrawer } from "./AdminDialogs";
 import { LifeEventCatalogView } from "./LifeEventCatalogView";
 import { EventsListView } from "./views/EventsListView";
 import { EventWorkspace } from "./views/EventWorkspace";
@@ -108,7 +108,6 @@ function AdminConsole(props: {
   const [navOpen, setNavOpen] = useState(false);
   const [newGameOpen, setNewGameOpen] = useState(false);
   const [playerCode, setPlayerCode] = useState<string | null>(null);
-  const [station, setStation] = useState<StationMetric | null>(null);
 
   const done = (message: string) => { setBanner(message); if (!props.previewData) poll.refresh(); };
 
@@ -193,7 +192,12 @@ function AdminConsole(props: {
                 <PlayersView consoleData={data.consoleData} players={data.players} onPlayer={setPlayerCode} />
               )}
               {section === "stations" && (
-                <StationsView consoleData={data.consoleData} onStation={setStation} />
+                <StationsView
+                  adminKey={props.adminKey}
+                  consoleData={data.consoleData}
+                  preview={Boolean(props.previewData)}
+                  onDone={done}
+                />
               )}
               {section === "life-events" && (
                 <LifeEventCatalogView adminKey={props.adminKey} preview={Boolean(props.previewData)} />
@@ -234,14 +238,6 @@ function AdminConsole(props: {
           player={selectedPlayer}
           onClose={() => setPlayerCode(null)}
           onDone={(message) => { setPlayerCode(null); done(message); }}
-        />
-      )}
-      {station && (
-        <StationEditModal
-          adminKey={props.adminKey}
-          station={station}
-          onClose={() => setStation(null)}
-          onDone={(message) => { setStation(null); done(message); }}
         />
       )}
     </div>

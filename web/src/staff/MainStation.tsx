@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { rpc, errorText, newIdemKey } from "../lib/api";
-import type { AwardTeamResult, StaffTeamLookup, Station } from "../lib/types";
+import type { AwardTeamResult, StaffTeamLookup, EventStation } from "../lib/types";
 import { ActionButton, ErrorBanner, SuccessBanner } from "../lib/ui";
 import { teamLabel } from "../lib/types";
 import { CodePad, Kv, MemberRow, StaffCard, Stepper, StickyBar } from "./staffUi";
@@ -19,7 +19,7 @@ export default function MainStation({
   stationsTotal,
 }: {
   staffKey: string;
-  station: Station;
+  station: EventStation;
   stationsTotal: number;
 }) {
   const [identifier, setIdentifier] = useState("");

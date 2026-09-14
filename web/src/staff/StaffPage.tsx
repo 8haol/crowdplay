@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { rpc, readView, errorText } from "../lib/api";
-import type { Station, StaffSession } from "../lib/types";
+import { rpc, errorText } from "../lib/api";
+import { usePoll } from "../lib/usePoll";
+import type { EventStation, StaffSession } from "../lib/types";
 import { ActionButton, BrandMark, ErrorBanner, UpLink } from "../lib/ui";
 import { StaffCard } from "./staffUi";
 import { DemoRibbon } from "../lib/DemoRibbon";
@@ -14,10 +15,10 @@ const SESSION_KEY = "lp_staff_key";
 const LS_STATION = "lp_staff_station";
 
 /** Demo roster for `/staff?preview=1`, mirroring the shipped seed. */
-const PREVIEW_ALL_STATIONS: Station[] = [
+const PREVIEW_ALL_STATIONS: EventStation[] = [
   ...PREVIEW_STATIONS,
-  { id: 8, slug: "life-event", name_zh: "人生盲盒", type: "life_event", scoring_mode: null, sort_order: 8 },
-  { id: 9, slug: "grace", name_zh: "恩典站", type: "grace", scoring_mode: null, sort_order: 9 },
+  { id: 8, station_id: 8, name_zh: "人生盲盒", type: "life_event", scoring_mode: null, sort_order: 8 },
+  { id: 9, station_id: 9, name_zh: "恩典站", type: "grace", scoring_mode: null, sort_order: 9 },
 ];
 
 /*
@@ -35,31 +36,42 @@ export default function StaffPage() {
     const stored = localStorage.getItem(LS_STATION);
     return stored ? Number(stored) : null;
   });
-  const [fetched, setFetched] = useState<Station[]>([]);
-  const stations = preview ? PREVIEW_ALL_STATIONS : fetched;
+  const [notice, setNotice] = useState<string | null>(null);
+
+  /*
+   * `staff_session` carries both the event title and this event's enabled
+   * station roster (`session.stations` — the same array `staff_stations`
+   * used to return separately, one extra round-trip for the same data).
+   * Polling it, instead of fetching once on mount, is what lets a station
+   * the admin withdraws mid-event reach a volunteer whose phone has been
+   * sitting open on the console all evening.
+   *
+   * Whether the stored station survived is checked right here, inside the
+   * poll function — the same place `PlayPage`'s poll reacts to a join code
+   * going bad (see `pollFn` there) — rather than in a separate effect. That
+   * gives mount (the first fetch) and every later tick the same one code
+   * path, and keeps the side effect out of a React effect body.
+   */
+  const pollFn = useMemo(
+    () => (preview || !staffKey ? null : async () => {
+      const result = await rpc<StaffSession>("staff_session", { p_staff_key: staffKey });
+      const stored = localStorage.getItem(LS_STATION);
+      if (stored && !result.stations.some((row) => row.id === Number(stored))) {
+        localStorage.removeItem(LS_STATION);
+        setStationId(null);
+        setNotice("这个站已经被撤下，请重新选择你负责的站点");
+      }
+      return result;
+    }),
+    [preview, staffKey],
+  );
+  const { data: session } = usePoll<StaffSession>(pollFn, 15_000);
+  const stations = preview ? PREVIEW_ALL_STATIONS : (session?.stations ?? []);
   /* The code is the event. Show which one, so a volunteer who was sent two codes
      for two nights can tell at a glance that they are in tonight's. */
-  const [eventTitle, setEventTitle] = useState<string | null>(preview ? "演示场次" : null);
-  useEffect(() => {
-    if (preview || !staffKey) return;
-    let cancelled = false;
-    rpc<StaffSession>("staff_session", { p_staff_key: staffKey })
-      .then((session) => { if (!cancelled) setEventTitle(session.title); })
-      .catch(() => { /* header falls back to the station name alone */ });
-    return () => { cancelled = true; };
-  }, [preview, staffKey]);
+  const eventTitle = preview ? "演示场次" : (session?.title ?? null);
 
-  useEffect(() => {
-    if (preview) return;
-    readView<Station[]>("stations?select=*&order=sort_order").then(setFetched).catch(() => {
-      // retried on next mount; the picker shows a loading row until then
-    });
-  }, [preview]);
-
-  const stationsTotal = useMemo(
-    () => Math.max(1, stations.filter((station) => station.type === "main").length),
-    [stations],
-  );
+  const stationsTotal = Math.max(1, stations.filter((station) => station.type === "main").length);
 
   if (!staffKey) {
     return (
@@ -83,11 +95,17 @@ export default function StaffPage() {
         subtitle={eventTitle ? `${eventTitle} · 选好之后这台手机会记住` : "选好之后这台手机会记住"}
         onLogout={() => logout(setStaffKey)}
       >
+        {notice && (
+          <div className="mb-4">
+            <ErrorBanner text={notice} />
+          </div>
+        )}
         <StationPicker
           stations={stations}
           onPick={(id) => {
             localStorage.setItem(LS_STATION, String(id));
             setStationId(id);
+            setNotice(null);
           }}
         />
       </Shell>
@@ -117,7 +135,7 @@ export default function StaffPage() {
   );
 }
 
-function stationSubtitle(station: Station): string {
+function stationSubtitle(station: EventStation): string {
   if (station.type === "main") {
     if (station.scoring_mode === "free") return "整队一次记分 · 点选 0–10 分";
     return station.scoring_mode === "graded" ? "整队一次记分 · 3 / 6 / 9 或失败" : "整队一次记分 · 完成 6 分或失败";
@@ -185,11 +203,11 @@ function Shell(props: {
   );
 }
 
-function StationPicker({ stations, onPick }: { stations: Station[]; onPick: (id: number) => void }) {
+function StationPicker({ stations, onPick }: { stations: EventStation[]; onPick: (id: number) => void }) {
   if (stations.length === 0) {
     return <StaffCard><div className="dots text-sm font-black text-ink-dim">加载站点<span>.</span><span>.</span><span>.</span></div></StaffCard>;
   }
-  const groups: Array<{ label: string; note: string; items: Station[] }> = [
+  const groups: Array<{ label: string; note: string; items: EventStation[] }> = [
     { label: "主线挑战", note: "整队识别一次，录一次结果", items: stations.filter((s) => s.type === "main") },
     { label: "恩典站", note: "Token 求助与纪念卡兑换", items: stations.filter((s) => s.type === "grace") },
     { label: "人生盲盒", note: "已数字化，无需值守", items: stations.filter((s) => s.type === "life_event") },

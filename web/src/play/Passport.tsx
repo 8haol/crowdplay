@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { errorText, newIdemKey, rpc } from "../lib/api";
-import type { LifeEventChoiceResult, PendingLifeEvent, PollResult, Station } from "../lib/types";
+import type { AttemptInfo, EventStation, LifeEventChoiceResult, PendingLifeEvent, PollResult } from "../lib/types";
 import { IDENTITY_SHORT, IDENTITY_ZH, colorOf, journeyProgress, soloColor } from "../lib/types";
 import { ConnDot } from "../lib/ui";
 import { darken, readableOn } from "../lib/color";
@@ -22,7 +22,8 @@ type PassportStyle = (typeof PASSPORT_STYLES)[number];
 
 export default function Passport(props: {
   data: PollResult;
-  stations: Station[];
+  /** This event's stations, straight off the poll. */
+  stations: EventStation[];
   online: boolean;
   joinToken: string;
 }) {
@@ -124,8 +125,7 @@ export default function Passport(props: {
   const headerSoft = color ? (headerInk === "#FFFFFF" ? "rgba(255,255,255,.74)" : "rgba(0,0,0,.6)") : "#7d7261";
   const headerLine = headerInk === "#FFFFFF" ? "rgba(255,255,255,.26)" : "rgba(0,0,0,.16)";
   const chipBg = headerInk === "#FFFFFF" ? "rgba(255,255,255,.16)" : "rgba(255,255,255,.62)";
-  const mains = stations.filter((s) => s.type === "main");
-  const byStation = new Map(attempts.map((a) => [`${a.station_id}:${a.status}`, a]));
+  const pages = visaPages(stations, attempts);
   const journey = journeyProgress(player);
 
   return (
@@ -223,35 +223,30 @@ export default function Passport(props: {
             </span>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-3">
-            {mains.map((s, i) => {
-              const passed = byStation.get(`${s.id}:passed`);
-              const failed = byStation.get(`${s.id}:failed`);
-              const retry = byStation.get(`${s.id}:retry_granted`);
-              return (
-                <div
-                  key={s.id}
-                  className="rise relative min-h-[108px] rounded-[20px] bg-white p-3.5 shadow-[0_2px_0_#f0e4ce]"
-                  style={{ "--i": 3 + i } as React.CSSProperties}
-                >
-                  <div className="text-[15px] font-bold">{s.name_zh}</div>
-                  <div className="mt-0.5 font-mono text-[9px] uppercase tracking-[0.2em] text-moon-dim/70">
-                    {s.slug}
-                  </div>
-
-                  {/* A granted Second Chance outranks the failure it replaces:
-                      the station is open again, so a red stamp would be a lie. */}
-                  {retry ? (
-                    <VisaStamp tone="retry" big={<RetryGlyph />} small="再挑战" />
-                  ) : passed ? (
-                    <VisaStamp tone="pass" big={`+${passed.score}`} small="通过" />
-                  ) : failed ? (
-                    <VisaStamp tone="fail" big="✗" small="未通过" />
-                  ) : (
-                    <div className="absolute right-3 bottom-3 h-9 w-9 rounded-full bg-night-raise" />
-                  )}
+            {pages.map((page, i) => (
+              <div
+                key={page.key}
+                className="rise relative min-h-[108px] rounded-[20px] bg-white p-3.5 shadow-[0_2px_0_#f0e4ce]"
+                style={{ "--i": 3 + i } as React.CSSProperties}
+              >
+                <div className="text-[15px] font-bold">{page.title}</div>
+                <div className="mt-0.5 font-mono text-[9px] uppercase tracking-[0.2em] text-moon-dim/70">
+                  {page.note}
                 </div>
-              );
-            })}
+
+                {/* A granted Second Chance outranks the failure it replaces:
+                    the station is open again, so a red stamp would be a lie. */}
+                {page.state === "retry" ? (
+                  <VisaStamp tone="retry" big={<RetryGlyph />} small="再挑战" />
+                ) : page.state === "passed" ? (
+                  <VisaStamp tone="pass" big={`+${page.score}`} small="通过" />
+                ) : page.state === "failed" ? (
+                  <VisaStamp tone="fail" big="✗" small="未通过" />
+                ) : (
+                  <div className="absolute right-3 bottom-3 h-9 w-9 rounded-full bg-night-raise" />
+                )}
+              </div>
+            ))}
           </div>
         </section>
 
@@ -691,8 +686,46 @@ function FinishedCard({ player }: { player: PollResult["player"] }) {
   );
 }
 
-/** Double-ring visa stamp, slammed onto the page. */
 /**
+ * One visa page of the passport: a main station of this event, plus whatever
+ * stamp the player has earned on it.
+ *
+ * The roster is per-event and comes down with the poll (`poll_player_by_link`
+ * -> `stations`), so the names here are the event's own snapshot: a station
+ * renamed for tonight reads tonight's name, and one withdrawn mid-event stops
+ * taking up a page — which is the same set `player.stations_total` counts.
+ */
+interface VisaPage {
+  key: string;
+  title: string;
+  note: string;
+  state: "passed" | "failed" | "retry" | "blank";
+  score: number;
+}
+
+function visaPages(stations: EventStation[], attempts: AttemptInfo[]): VisaPage[] {
+  /* A granted Second Chance outranks the failure it replaces: the station is
+     open again, so a red stamp would be a lie. */
+  const stateOf = (stationId: number): Pick<VisaPage, "state" | "score"> => {
+    const at = (status: AttemptInfo["status"]) =>
+      attempts.find((a) => a.station_id === stationId && a.status === status);
+    if (at("retry_granted")) return { state: "retry", score: 0 };
+    const passed = at("passed");
+    if (passed) return { state: "passed", score: passed.score };
+    return at("failed") ? { state: "failed", score: 0 } : { state: "blank", score: 0 };
+  };
+
+  return stations
+    .filter((station) => station.type === "main")
+    .map((station, index) => ({
+      key: String(station.id),
+      title: station.name_zh,
+      note: `NO.${String(index + 1).padStart(2, "0")}`,
+      ...stateOf(station.id),
+    }));
+}
+
+/*
  * A rotate arrow, inline so it inherits the stamp's currentColor and stays
  * crisp at 15px. The passport keeps emoji out of its own pages — every other
  * mark on this card is drawn, so a system emoji would be the one foreign glyph.

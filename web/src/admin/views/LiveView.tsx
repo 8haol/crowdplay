@@ -316,6 +316,14 @@ function AttentionPanel({ locked, onPlayer }: { locked: AdminPlayer[]; onPlayer:
 }
 
 function TeamPanel({ consoleData }: { consoleData: AdminConsoleData }) {
+  /* How many stations this event runs, not the platform's old fixed seven —
+     same count `_event_teams_detail.stations_done` is measured against
+     (this event's roster, withdrawn ones excluded). Mirrors the Ceremony
+     podium slide's `stationsTotal`. */
+  const stationsTotal = Math.max(
+    1,
+    consoleData.station_metrics.filter((s) => s.type === "main" && !s.disabled).length,
+  );
   if (consoleData.teams.length === 0) {
     return (
       <Panel>
@@ -345,7 +353,7 @@ function TeamPanel({ consoleData }: { consoleData: AdminConsoleData }) {
                     {team.members.map((member) => member.name).join(" / ")}
                   </span>
                 </div>
-                <span className="tabular shrink-0 text-sm font-black">{team.stations_done}/7</span>
+                <span className="tabular shrink-0 text-sm font-black">{team.stations_done}/{stationsTotal}</span>
               </div>
               {team.pending_events > 0 && (
                 <div className="mt-1 text-[11px] font-bold" style={{ color: T.danger }}>

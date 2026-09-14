@@ -7,6 +7,22 @@ export type AdminSection =
   | "settings";
 
 import type { IconName } from "./adminUi";
+import type { ScoringMode, StationType } from "../lib/types";
+
+export const TYPE_ZH: Record<StationType, string> = {
+  main: "主线挑战",
+  life_event: "人生盲盒",
+  grace: "恩典站",
+};
+
+/** One line that says how a station is run, in the operator's own words. */
+export function stationRule(type: StationType, mode: ScoringMode): string {
+  if (type === "life_event") return "玩家手机自动完成 · 无需值守";
+  if (type === "grace") return "Help Token 求助与纪念卡兑换";
+  if (mode === "free") return "0–10 自由计分";
+  if (mode === "fixed") return "固定 6 分";
+  return "3 / 6 / 9 分级计分";
+}
 
 export const ADMIN_NAV: Array<{
   id: AdminSection;

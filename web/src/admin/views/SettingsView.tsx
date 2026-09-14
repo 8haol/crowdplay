@@ -101,7 +101,7 @@ export function SettingsView({
               </div>
             </Field>
             <div className="mt-5">
-              <Field label="新管理员密码" hint="至少 8 位；留空表示不修改。这是整个机构的密码，只以 SHA-256 摘要存库">
+              <Field label="新管理员密码" hint="至少 4 位；留空表示不修改。这是整个机构的密码，只以 SHA-256 摘要存库">
                 <input
                   type="password"
                   className={inputClass}

@@ -108,7 +108,7 @@ const ERROR_ZH: Record<string, string> = {
   BAD_GAME_TITLE: "活动名称要 1~60 个字",
   ACTIVE_EVENT_EXISTS: "本机构已经有一场活动在进行中。同时只能跑一场 —— 请先在现场总控结束它，再开新场。",
   EVENT_NOT_FOUND: "找不到这场活动，它可能已被移除",
-  BAD_NEW_KEY: "密码长度不符合要求（8–64 位）",
+  BAD_NEW_KEY: "密码长度不符合要求（4–64 位）",
   GAME_IN_PROGRESS: "游戏进行中不能修改站点配置",
   EVENT_IN_PROGRESS: "活动已经开场，本场站点名单不能再整份改了；临时缺人手请用「撤站」",
   EVENT_ENDED: "这场活动已经结束，站点名单只能看不能改",

@@ -84,13 +84,17 @@ begin
     if sqlerrm <> 'BAD_SLUG' then raise; end if;
   end;
 
-  -- 7. 口令太短
+  -- 7. 口令太短（新下限是 4 位，这里用 3 位才该踩到这条分支）
   begin
-    perform platform_create_org('root-pass', 'delta', '丁教会', 'Delta Church', 'short');
+    perform platform_create_org('root-pass', 'delta', '丁教会', 'Delta Church', 'sht');
     raise exception 'TEST FAILED: expected BAD_NEW_KEY';
   exception when others then
     if sqlerrm <> 'BAD_NEW_KEY' then raise; end if;
   end;
+
+  -- 7a. 4 位口令现在合法：新下限确实生效，不是只把报错行数改了
+  r := platform_create_org('root-pass', 'delta', '丁教会', 'Delta Church', '1234');
+  assert (admin_dashboard('1234') -> 'org' ->> 'slug') = 'delta', '4 位新口令建好即可登录';
 
   -- 8. 改名：slug 不变，名字变
   perform platform_rename_org('root-pass', v_new_id, '丙教会（改）', 'Gamma Church Renamed');
@@ -144,9 +148,9 @@ begin
   end;
   assert (admin_dashboard('beta-new-key') -> 'org' ->> 'slug') = 'beta', '重置后新口令可用';
 
-  -- 11. 重置成太短的口令
+  -- 11. 重置成太短的口令（3 位，新下限是 4 位）
   begin
-    perform platform_reset_key('root-pass', v_beta, 'tiny');
+    perform platform_reset_key('root-pass', v_beta, 'tny');
     raise exception 'TEST FAILED: expected BAD_NEW_KEY';
   exception when others then
     if sqlerrm <> 'BAD_NEW_KEY' then raise; end if;

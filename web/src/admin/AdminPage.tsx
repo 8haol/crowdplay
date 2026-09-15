@@ -15,7 +15,8 @@ import { EventsListView } from "./views/EventsListView";
 import { EventWorkspace } from "./views/EventWorkspace";
 import { LiveView } from "./views/LiveView";
 import { PlayersView } from "./views/PlayersView";
-import { SettingsView } from "./views/SettingsView";
+import { EventSettingsView } from "./views/EventSettingsView";
+import { OrgSettingsView } from "./views/OrgSettingsView";
 import { StationsView } from "./views/StationsView";
 import { ADMIN_PREVIEW, type AdminSnapshot } from "./previewData";
 import { DemoRibbon } from "../lib/DemoRibbon";
@@ -253,13 +254,19 @@ function AdminConsole(props: {
                 <LifeEventCatalogView adminKey={props.adminKey} preview={Boolean(props.previewData)} />
               )}
               {section === "settings" && (
-                <SettingsView
-                  adminKey={props.adminKey}
-                  consoleData={snapshot.consoleData}
-                  onDone={done}
-                  onNewGame={() => setNewGameOpen(true)}
-                  onAdminKeyChanged={props.onAdminKeyChanged}
-                />
+                <div className="space-y-6">
+                  <EventSettingsView
+                    adminKey={props.adminKey}
+                    session={snapshot.consoleData.current}
+                    onDone={done}
+                  />
+                  <OrgSettingsView
+                    adminKey={props.adminKey}
+                    orgName={snapshot.consoleData.org.name_zh}
+                    onDone={done}
+                    onAdminKeyChanged={props.onAdminKeyChanged}
+                  />
+                </div>
               )}
             </>
           )}

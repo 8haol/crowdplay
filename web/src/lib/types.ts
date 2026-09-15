@@ -648,6 +648,9 @@ export interface PlatformOrg {
   slug: string;
   name_zh: string;
   name_en: string;
+  // 明文管理口令，业主拍板要能在 /root 里看到。null = 从没记录过（这间机构
+  // 的口令是迁移前设的，只存了哈希，明文永久丢了），要重置口令才会有值。
+  admin_key_plain: string | null;
   created_at: string;
   event_count: number;
   last_event_at: string | null;

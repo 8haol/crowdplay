@@ -42,6 +42,12 @@ begin
   assert (orgs -> 1 ->> 'event_count')::int = 0, '乙教会零场';
   assert not (orgs -> 0 ->> 'has_live_event')::boolean, '甲场还在 waiting，不算进行中';
 
+  -- 2a. 这两间机构是靠 insert 直接种的，从没经过任何写 admin_key 的 RPC，
+  -- 明文从没记录过：platform_orgs 必须报 null，不能是空字符串（空字符串
+  -- 看起来像"密码就是空的"，比 null 更危险）。
+  assert orgs -> 0 -> 'admin_key_plain' = 'null'::jsonb, '甲教会口令明文从未记录，是 null 而非空串';
+  assert (orgs -> 0 ->> 'admin_key_plain') is null, 'admin_key_plain 取出来是 SQL null';
+
   -- 3. 机构口令绝不能当平台口令用
   begin
     perform platform_orgs('alpha-admin');
@@ -68,6 +74,12 @@ begin
 
   -- 新机构的初始口令立刻能用
   assert (admin_dashboard('gamma-admin') -> 'org' ->> 'slug') = 'gamma', '新机构口令可登录';
+
+  -- 4a. 新建机构存的明文就是传进去的那个口令，platform_orgs 能读出来——
+  -- 不是随便什么非空值都算过，得真的等于 'gamma-admin'。
+  assert (select x ->> 'admin_key_plain' from jsonb_array_elements(platform_orgs('root-pass') -> 'orgs') x
+          where x ->> 'slug' = 'gamma') = 'gamma-admin',
+         '新建机构存下的明文口令与传入值一致';
 
   -- 5. slug 重复
   begin
@@ -148,6 +160,12 @@ begin
     if sqlerrm <> 'BAD_KEY' then raise; end if;
   end;
   assert (admin_dashboard('beta-new-key') -> 'org' ->> 'slug') = 'beta', '重置后新口令可用';
+
+  -- 10a. 重置口令不能只改哈希：platform_orgs 里乙教会的明文必须跟着变成
+  -- 新口令，而不是停留在旧值或变成 null。
+  assert (select x ->> 'admin_key_plain' from jsonb_array_elements(platform_orgs('root-pass') -> 'orgs') x
+          where x ->> 'slug' = 'beta') = 'beta-new-key',
+         'platform_reset_key 之后，platform_orgs 返回的明文是新口令';
 
   -- 11. 重置成太短的口令（3 位，新下限是 4 位）
   begin
@@ -267,6 +285,22 @@ begin
   exception when others then
     if sqlerrm <> 'ORG_NOT_FOUND' then raise; end if;
   end;
+
+  -- 22. admin_update_access 是教会自己在 /admin 改口令的入口（不经过
+  -- /root），最容易被漏掉的一处——它也必须把明文跟着哈希一起更新。
+  -- 用第 7a 步建好的 delta（口令 '1234'）来测。
+  perform admin_update_access('1234', 'delta-new-99');
+  assert (admin_dashboard('delta-new-99') -> 'org' ->> 'slug') = 'delta',
+         'admin_update_access 改完口令后，新口令能登录';
+  begin
+    perform admin_dashboard('1234');
+    raise exception 'TEST FAILED: expected BAD_KEY';
+  exception when others then
+    if sqlerrm <> 'BAD_KEY' then raise; end if;
+  end;
+  assert (select x ->> 'admin_key_plain' from jsonb_array_elements(platform_orgs('root-pass') -> 'orgs') x
+          where x ->> 'slug' = 'delta') = 'delta-new-99',
+         'admin_update_access 之后，platform_orgs 返回的明文也是新口令，不是旧的或 null';
 
   raise notice 'PASS 19_platform_console';
 end $$;

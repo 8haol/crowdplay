@@ -10,6 +10,24 @@
 -- ---------------------------------------------------------------------------
 -- 1. 表结构:去掉 expires_at,加「一机构一行」的约束
 -- ---------------------------------------------------------------------------
+-- 先把存量数据清成「一机构一行、每行都还活着」,再动表结构。本地 db reset
+-- 时这张表是空的,这两句什么也不做;线上不是——旧的 platform_impersonate 每次
+-- 代入都 insert 一行新令牌,同一间机构两小时内被代入两次就留下两行。
+--
+-- 顺序不能反:这两句都要读 expires_at,必须赶在 drop column 之前跑。
+--
+-- 1) 已经过期的行直接删掉。它们今天是死令牌,全靠 expires_at < now() 挡着;
+--    列一旦删掉,挡它们的东西就没了,一张三周前发出去、早该失效的令牌会
+--    摇身变成永久有效的后门。过期的就该死透,不能被这次迁移复活。
+delete from admin_sessions where expires_at < now();
+
+-- 2) 同一机构只留最后铸的那一张(expires_at 最大 = 最近一次代入)。
+--    不做这一步,下面的 unique (org_id) 会直接报错,整份迁移中断。
+delete from admin_sessions a
+ using admin_sessions b
+ where a.org_id = b.org_id
+   and (a.expires_at, a.token) < (b.expires_at, b.token);
+
 -- 不留一个永远是 null 的僵尸列——过期这件事彻底不存在了,连列带索引一起删。
 drop index if exists admin_sessions_expires_idx;
 alter table admin_sessions drop column expires_at;

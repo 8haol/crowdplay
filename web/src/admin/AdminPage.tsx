@@ -17,7 +17,8 @@ import { LiveView } from "./views/LiveView";
 import { PlayersView } from "./views/PlayersView";
 import { EventSettingsView } from "./views/EventSettingsView";
 import { OrgSettingsView } from "./views/OrgSettingsView";
-import { StationsView } from "./views/StationsView";
+import { EventStationsPage } from "./views/EventStationsPage";
+import { StationLibraryPage } from "./views/StationLibraryPage";
 import { ADMIN_PREVIEW, type AdminSnapshot } from "./previewData";
 import { DemoRibbon } from "../lib/DemoRibbon";
 
@@ -243,12 +244,21 @@ function AdminConsole(props: {
                 <PlayersView consoleData={snapshot.consoleData} players={snapshot.players} onPlayer={setPlayerCode} />
               )}
               {section === "stations" && (
-                <StationsView
-                  adminKey={props.adminKey}
-                  consoleData={snapshot.consoleData}
-                  preview={Boolean(props.previewData)}
-                  onDone={done}
-                />
+                <div className="space-y-6">
+                  <EventStationsPage
+                    adminKey={props.adminKey}
+                    eventId={snapshot.consoleData.current.event_id}
+                    stationMetrics={snapshot.consoleData.station_metrics}
+                    stamps={snapshot.consoleData.stats.stamps}
+                    preview={Boolean(props.previewData)}
+                    onDone={done}
+                  />
+                  <StationLibraryPage
+                    adminKey={props.adminKey}
+                    preview={Boolean(props.previewData)}
+                    onDone={done}
+                  />
+                </div>
               )}
               {section === "life-events" && (
                 <LifeEventCatalogView adminKey={props.adminKey} preview={Boolean(props.previewData)} />

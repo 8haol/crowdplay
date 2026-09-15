@@ -12,7 +12,7 @@ import { ADMIN_NAV, NAV_GROUPS, type AdminSection } from "./adminUtils";
 import { NewGameModal, PlayerDrawer } from "./AdminDialogs";
 import { LifeEventCatalogView } from "./LifeEventCatalogView";
 import { EventsListView } from "./views/EventsListView";
-import { EventWorkspace } from "./views/EventWorkspace";
+import { EventOverview } from "./views/EventOverview";
 import { LiveView } from "./views/LiveView";
 import { PlayersView } from "./views/PlayersView";
 import { EventSettingsView } from "./views/EventSettingsView";
@@ -219,11 +219,16 @@ function AdminConsole(props: {
           {banner && <div className="mb-5"><SuccessBanner text={banner} /></div>}
 
           {openEventId ? (
-            <EventWorkspace
-              adminKey={props.adminKey}
-              eventId={openEventId}
-              onBack={() => navigate("events", null)}
-            />
+            <div>
+              <div className="mb-4">
+                <Btn variant="quiet" onClick={() => navigate("events", null)}>返回全部活动</Btn>
+              </div>
+              <EventOverview
+                adminKey={props.adminKey}
+                eventId={openEventId}
+                preview={Boolean(props.previewData)}
+              />
+            </div>
           ) : (
             <>
               {section === "events" && (

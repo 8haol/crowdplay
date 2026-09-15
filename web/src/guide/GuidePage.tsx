@@ -272,7 +272,7 @@ const PILLARS = [
 const PAGES: Array<[string, string, string]> = [
   ["/play", "玩家", "扫码入场、身份揭晓、护照、人生事件、结算"],
   ["/staff", "站点工作人员", "识别整队、录一次结果、Token 与纪念卡"],
-  ["/admin", "总控", "创建场次、开局、结束、玩家修正、全部历史活动"],
+  ["/admin", "后台", "机构层看全部活动；点进某一场才是总控、玩家、站点、本场设置"],
   ["/screen", "投影大屏", "无需密码：候场、进行中播报、结束后颁奖"],
   ["/library", "内容审核", "全部 30 个人生场景、60 个行动、180 个随机结果"],
 ];
@@ -379,7 +379,7 @@ const ALL_DEMOS: Array<{ group: string; note: string; items: DemoLink[] }> = [
     note: "演示模式，不会写入数据",
     items: [
       { href: "/staff?preview=1", title: "工作人员界面", detail: "站点选择、识别整队、录分、恩典站", emoji: "✅", phone: true },
-      { href: "/admin?preview=1", title: "管理后台", detail: "左侧导航、全部活动列表、现场总控、玩家护照", emoji: "🎛️" },
+      { href: "/admin?preview=1", title: "管理后台", detail: "机构层的全部活动列表；进入某一场后才有现场总控、玩家护照", emoji: "🎛️" },
       { href: "/library", title: "人生事件库（可审核）", detail: "30 个场景的全部选项、随机结果、概率与分数", emoji: "📚" },
     ],
   },

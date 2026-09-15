@@ -174,7 +174,7 @@ export const SOP: SopRole[] = [
       "颁奖时用 ← → 翻页、空格前进、P 暂停、Esc 跳到总榜",
     ],
     gotcha: "「创建新场次」会归档当前场次并换一个新二维码。活动当天只在开场前建一次，中途千万不要点。",
-    demo: { href: "/admin?preview=1", title: "进管理后台看看", detail: "左侧导航 + 活动列表 + 现场总控（示例数据）", emoji: "🎛️" },
+    demo: { href: "/admin?preview=1", title: "进管理后台看看", detail: "机构层的活动列表，点进某一场才有现场总控（示例数据）", emoji: "🎛️" },
   },
   {
     role: "站点工作人员",

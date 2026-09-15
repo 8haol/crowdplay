@@ -111,6 +111,13 @@ const ERROR_ZH: Record<string, string> = {
   BAD_NEW_KEY: "密码长度不符合要求（4–64 位）",
   GAME_IN_PROGRESS: "游戏进行中不能修改站点配置",
   EVENT_IN_PROGRESS: "活动已经开场，本场站点名单不能再整份改了；临时缺人手请用「撤站」",
+  // 和上面那条的区别：EVENT_IN_PROGRESS 是站点名单改不动，补救办法是「撤站」；
+  // EVENT_PLAYING 是这一场正在跑、不能删。两种情形的处置办法不同，所以分两个码，
+  // 不要"顺手"合并——合并意味着其中一边拿到答非所问的补救建议。
+  EVENT_PLAYING: "活动正在进行中，不能删除；请先在现场总控结束它",
+  // 删机构（platform_delete_org）要手敲 slug，走的是下面的 CONFIRM_MISMATCH；
+  // 删活动手敲的是活动名称，两处要求输入的东西不同，各用各的码各说各的话。
+  TITLE_MISMATCH: "输入的名称和活动名称不一致",
   EVENT_ENDED: "这场活动已经结束，站点名单只能看不能改",
   LIFE_EVENT_REQUIRED: "每场必须保留人生盲盒站，它是玩家手机上的事件入口",
   MAIN_STATION_REQUIRED: "至少要留一个主线站点",

@@ -167,14 +167,17 @@ function RootConsole(props: {
             <EmptyState title="还没有任何机构" detail="用右上角的「新建机构」开一间。" />
           </div>
         ) : (
-          <table className="w-full text-sm">
+          /* 加了「口令」一列之后，窄一点的笔记本上四个操作按钮会被压得逐字换行。
+             让表格自己横向滚动，而不是把每一列都挤扁。 */
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[56rem] text-sm">
             <thead>
               <tr style={{ color: T.inkFaint }}>
                 <th className="px-5 py-3 text-left font-black">机构</th>
                 <th className="px-5 py-3 text-left font-black">slug</th>
                 <th className="px-5 py-3 text-left font-black">口令</th>
-                <th className="px-5 py-3 text-right font-black">场次</th>
-                <th className="px-5 py-3 text-left font-black">最近一场</th>
+                <th className="whitespace-nowrap px-5 py-3 text-right font-black">场次</th>
+                <th className="whitespace-nowrap px-5 py-3 text-left font-black">最近一场</th>
                 <th className="px-5 py-3 text-right font-black">操作</th>
               </tr>
             </thead>
@@ -222,7 +225,7 @@ function RootConsole(props: {
                     {org.last_event_at ? org.last_event_at.slice(0, 10) : "—"}
                   </td>
                   <td className="px-5 py-4 text-right">
-                    <div className="flex justify-end gap-2">
+                    <div className="flex justify-end gap-2 whitespace-nowrap">
                       <Btn
                         variant="quiet"
                         disabled={busy || Boolean(previewData)}
@@ -257,6 +260,7 @@ function RootConsole(props: {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </Panel>
 

@@ -22,6 +22,7 @@ declare
   ev_alpha uuid;
   v_token text;
   v_gamma uuid;
+  v_beta_token text;
 begin
   -- 1. 错的平台口令
   begin
@@ -40,6 +41,12 @@ begin
   assert (orgs -> 0 ->> 'event_count')::int = 1, '甲教会一场';
   assert (orgs -> 1 ->> 'event_count')::int = 0, '乙教会零场';
   assert not (orgs -> 0 ->> 'has_live_event')::boolean, '甲场还在 waiting，不算进行中';
+
+  -- 2a. 这两间机构是靠 insert 直接种的，从没经过任何写 admin_key 的 RPC，
+  -- 明文从没记录过：platform_orgs 必须报 null，不能是空字符串（空字符串
+  -- 看起来像"密码就是空的"，比 null 更危险）。
+  assert orgs -> 0 -> 'admin_key_plain' = 'null'::jsonb, '甲教会口令明文从未记录，是 null 而非空串';
+  assert (orgs -> 0 ->> 'admin_key_plain') is null, 'admin_key_plain 取出来是 SQL null';
 
   -- 3. 机构口令绝不能当平台口令用
   begin
@@ -68,6 +75,12 @@ begin
   -- 新机构的初始口令立刻能用
   assert (admin_dashboard('gamma-admin') -> 'org' ->> 'slug') = 'gamma', '新机构口令可登录';
 
+  -- 4a. 新建机构存的明文就是传进去的那个口令，platform_orgs 能读出来——
+  -- 不是随便什么非空值都算过，得真的等于 'gamma-admin'。
+  assert (select x ->> 'admin_key_plain' from jsonb_array_elements(platform_orgs('root-pass') -> 'orgs') x
+          where x ->> 'slug' = 'gamma') = 'gamma-admin',
+         '新建机构存下的明文口令与传入值一致';
+
   -- 5. slug 重复
   begin
     perform platform_create_org('root-pass', 'gamma', '重名', 'Dup', 'another-key');
@@ -84,13 +97,17 @@ begin
     if sqlerrm <> 'BAD_SLUG' then raise; end if;
   end;
 
-  -- 7. 口令太短
+  -- 7. 口令太短（新下限是 4 位，这里用 3 位才该踩到这条分支）
   begin
-    perform platform_create_org('root-pass', 'delta', '丁教会', 'Delta Church', 'short');
+    perform platform_create_org('root-pass', 'delta', '丁教会', 'Delta Church', 'sht');
     raise exception 'TEST FAILED: expected BAD_NEW_KEY';
   exception when others then
     if sqlerrm <> 'BAD_NEW_KEY' then raise; end if;
   end;
+
+  -- 7a. 4 位口令现在合法：新下限确实生效，不是只把报错行数改了
+  r := platform_create_org('root-pass', 'delta', '丁教会', 'Delta Church', '1234');
+  assert (admin_dashboard('1234') -> 'org' ->> 'slug') = 'delta', '4 位新口令建好即可登录';
 
   -- 8. 改名：slug 不变，名字变
   perform platform_rename_org('root-pass', v_new_id, '丙教会（改）', 'Gamma Church Renamed');
@@ -144,9 +161,15 @@ begin
   end;
   assert (admin_dashboard('beta-new-key') -> 'org' ->> 'slug') = 'beta', '重置后新口令可用';
 
-  -- 11. 重置成太短的口令
+  -- 10a. 重置口令不能只改哈希：platform_orgs 里乙教会的明文必须跟着变成
+  -- 新口令，而不是停留在旧值或变成 null。
+  assert (select x ->> 'admin_key_plain' from jsonb_array_elements(platform_orgs('root-pass') -> 'orgs') x
+          where x ->> 'slug' = 'beta') = 'beta-new-key',
+         'platform_reset_key 之后，platform_orgs 返回的明文是新口令';
+
+  -- 11. 重置成太短的口令（3 位，新下限是 4 位）
   begin
-    perform platform_reset_key('root-pass', v_beta, 'tiny');
+    perform platform_reset_key('root-pass', v_beta, 'tny');
     raise exception 'TEST FAILED: expected BAD_NEW_KEY';
   exception when others then
     if sqlerrm <> 'BAD_NEW_KEY' then raise; end if;
@@ -190,14 +213,13 @@ begin
     if sqlerrm <> 'ORG_NOT_FOUND' then raise; end if;
   end;
 
-  -- 16. 代入：令牌能过管理端，且只解锁那一间
+  -- 16. 代入：令牌立刻能用，且只解锁那一间。业主决定令牌永不过期，所以
+  -- 这里不再断言什么有效期——返回的 jsonb 里也确实没有 expires_at 了。
   v_gamma := (select id from organizations where slug = 'gamma');
   r := platform_impersonate('root-pass', v_gamma);
   v_token := r ->> 'token';
   assert length(v_token) = 16, '令牌是 16 位十六进制';
-  assert (r ->> 'expires_at')::timestamptz
-         between now() + interval '119 minutes' and now() + interval '121 minutes',
-         '代入令牌的有效期是 2 小时';
+  assert not (r ? 'expires_at'), '返回结果里不再带 expires_at';
   assert r ->> 'org_name' = '丙教会（改）', '返回的机构名是当前名字（丙教会在第 8 步已改名）';
   assert (admin_dashboard(v_token) -> 'org' ->> 'slug') = 'gamma', '代入令牌能进丙教会的管理端';
 
@@ -219,29 +241,66 @@ begin
     if sqlerrm <> 'BAD_PLATFORM_KEY' then raise; end if;
   end;
 
-  -- 17. 过期的令牌不认
-  update admin_sessions set expires_at = now() - interval '1 minute' where token = v_token;
-  begin
-    perform admin_dashboard(v_token);
-    raise exception 'TEST FAILED: expected BAD_KEY';
-  exception when others then
-    if sqlerrm <> 'BAD_KEY' then raise; end if;
-  end;
+  -- 17. 再次代入同一间机构：拿到同一个令牌，admin_sessions 里这间机构
+  -- 只留一行——令牌不设过期，重复点「代入」不能每次都多铸一张。
+  r := platform_impersonate('root-pass', v_gamma);
+  assert r ->> 'token' = v_token, '再次代入同一机构，返回的是同一个令牌';
+  assert (select count(*) from admin_sessions where org_id = v_gamma) = 1,
+         '同一机构在 admin_sessions 里只留一行';
+  assert (admin_dashboard(v_token) -> 'org' ->> 'slug') = 'gamma',
+         '令牌不会过期，铸出来多久之后都照样能用';
 
   -- 18. 机构自己的口令完全不受影响（回归）
   assert (admin_dashboard('beta-new-key') -> 'org' ->> 'slug') = 'beta', '机构口令照常可用';
 
-  -- 19. 铸新令牌时顺手清掉过期行
-  perform platform_impersonate('root-pass', v_gamma);
-  assert (select count(*) from admin_sessions where token = v_token) = 0, '过期令牌被顺手清掉了';
+  -- 19. 不同机构拿到不同的令牌，各自只能解锁自己
+  v_beta_token := platform_impersonate('root-pass', v_beta) ->> 'token';
+  assert v_beta_token <> v_token, '两间机构代入拿到的令牌不一样';
+  assert (admin_dashboard(v_beta_token) -> 'org' ->> 'slug') = 'beta', '乙教会的令牌能进乙教会';
 
-  -- 20. 代入不存在的机构
+  -- 给丙教会（gamma）建一场，正反两组断言验证：gamma 的令牌能看到自己的场次，
+  -- beta 的令牌看不到——不是「场次压根不存在」导致的假阳性。
+  insert into events (org_id, title, join_token, staff_code, screen_token, phase)
+  values (v_gamma, '丙场', 'join-gamma', 'GAMMA1', 'screen-gamma', 'waiting');
+  assert (admin_console(v_token, (select id from events where join_token = 'join-gamma'))
+          -> 'org' ->> 'slug') = 'gamma', '丙教会自己的令牌能看到丙场（正对照）';
+  begin
+    perform admin_console(v_beta_token, (select id from events where join_token = 'join-gamma'));
+    raise exception 'TEST FAILED: expected EVENT_NOT_FOUND';
+  exception when others then
+    if sqlerrm <> 'EVENT_NOT_FOUND' then raise; end if;
+  end;
+
+  -- 20. 删除机构：它的令牌跟着级联没了（表的主键是 token 不是 org_id，
+  -- 级联删的是「引用了这个 org_id 的行」，不能默认这条链路是对的）
+  assert (select count(*) from admin_sessions where org_id = v_gamma) = 1, '删除前令牌还在';
+  perform platform_delete_org('root-pass', v_gamma, 'gamma');
+  assert (select count(*) from admin_sessions where org_id = v_gamma) = 0,
+         '机构删除后，它的代入令牌跟着级联没了';
+
+  -- 21. 代入不存在的机构
   begin
     perform platform_impersonate('root-pass', '00000000-0000-0000-0000-000000000000');
     raise exception 'TEST FAILED: expected ORG_NOT_FOUND';
   exception when others then
     if sqlerrm <> 'ORG_NOT_FOUND' then raise; end if;
   end;
+
+  -- 22. admin_update_access 是教会自己在 /admin 改口令的入口（不经过
+  -- /root），最容易被漏掉的一处——它也必须把明文跟着哈希一起更新。
+  -- 用第 7a 步建好的 delta（口令 '1234'）来测。
+  perform admin_update_access('1234', 'delta-new-99');
+  assert (admin_dashboard('delta-new-99') -> 'org' ->> 'slug') = 'delta',
+         'admin_update_access 改完口令后，新口令能登录';
+  begin
+    perform admin_dashboard('1234');
+    raise exception 'TEST FAILED: expected BAD_KEY';
+  exception when others then
+    if sqlerrm <> 'BAD_KEY' then raise; end if;
+  end;
+  assert (select x ->> 'admin_key_plain' from jsonb_array_elements(platform_orgs('root-pass') -> 'orgs') x
+          where x ->> 'slug' = 'delta') = 'delta-new-99',
+         'admin_update_access 之后，platform_orgs 返回的明文也是新口令，不是旧的或 null';
 
   raise notice 'PASS 19_platform_console';
 end $$;

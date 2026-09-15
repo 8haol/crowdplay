@@ -9,6 +9,8 @@ export const ROOT_PREVIEW: PlatformOrgs = {
       slug: "gcgc",
       name_zh: "格拉斯哥华人福音教会",
       name_en: "Glasgow Chinese Gospel Church",
+      // 这间是种子时代建的老机构，明文从没存过——示例数据也如实显示 null。
+      admin_key_plain: null,
       created_at: "2026-08-24T10:00:00Z",
       event_count: 3,
       last_event_at: "2026-08-27T19:40:00Z",
@@ -19,6 +21,7 @@ export const ROOT_PREVIEW: PlatformOrgs = {
       slug: "elcc",
       name_zh: "爱丁堡华人基督教会",
       name_en: "Edinburgh Chinese Christian Church",
+      admin_key_plain: "elcc-2026",
       created_at: "2026-09-02T09:00:00Z",
       event_count: 1,
       last_event_at: "2026-09-05T18:30:00Z",

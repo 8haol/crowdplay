@@ -60,6 +60,16 @@ function RootConsole(props: {
   const [ok, setOk] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(!previewData);
+  // 哪些行的口令当前是明文可见的——只存在这个组件里，刷新页面就清空，
+  // 且每一行独立：点开一间机构的口令不会连带把别家也显出来。
+  const [revealedIds, setRevealedIds] = useState<ReadonlySet<string>>(new Set());
+  function toggleRevealed(orgId: string) {
+    setRevealedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(orgId)) next.delete(orgId); else next.add(orgId);
+      return next;
+    });
+  }
   const [dialog, setDialog] = useState<
     | { kind: "new" }
     | { kind: "rename"; org: PlatformOrg }
@@ -130,7 +140,7 @@ function RootConsole(props: {
       <PageTitle
         eyebrow="PLATFORM"
         title="机构管理"
-        description="所有使用本平台的机构。代入后你会以该机构管理员的身份进入 /admin，令牌 2 小时后失效。"
+        description="所有使用本平台的机构。代入后你会以该机构管理员的身份进入 /admin，令牌长期有效，直到你再次代入或该机构被删除。"
         actions={
           <>
             <Btn variant="primary" disabled={Boolean(previewData)} onClick={() => setDialog({ kind: "new" })}>
@@ -157,13 +167,17 @@ function RootConsole(props: {
             <EmptyState title="还没有任何机构" detail="用右上角的「新建机构」开一间。" />
           </div>
         ) : (
-          <table className="w-full text-sm">
+          /* 加了「口令」一列之后，窄一点的笔记本上四个操作按钮会被压得逐字换行。
+             让表格自己横向滚动，而不是把每一列都挤扁。 */
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[56rem] text-sm">
             <thead>
               <tr style={{ color: T.inkFaint }}>
                 <th className="px-5 py-3 text-left font-black">机构</th>
                 <th className="px-5 py-3 text-left font-black">slug</th>
-                <th className="px-5 py-3 text-right font-black">场次</th>
-                <th className="px-5 py-3 text-left font-black">最近一场</th>
+                <th className="px-5 py-3 text-left font-black">口令</th>
+                <th className="whitespace-nowrap px-5 py-3 text-right font-black">场次</th>
+                <th className="whitespace-nowrap px-5 py-3 text-left font-black">最近一场</th>
                 <th className="px-5 py-3 text-right font-black">操作</th>
               </tr>
             </thead>
@@ -185,12 +199,33 @@ function RootConsole(props: {
                     <div className="text-xs font-semibold" style={{ color: T.inkFaint }}>{org.name_en}</div>
                   </td>
                   <td className="px-5 py-4"><code style={{ color: T.inkSoft }}>{org.slug}</code></td>
+                  <td className="px-5 py-4">
+                    {org.admin_key_plain == null ? (
+                      <span className="text-xs font-semibold" style={{ color: T.inkFaint }}>
+                        未知（需「重置口令」才能显示）
+                      </span>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <code style={{ color: T.inkSoft }}>
+                          {revealedIds.has(org.id) ? org.admin_key_plain : "••••••"}
+                        </code>
+                        <button
+                          type="button"
+                          className="pressable text-xs font-black underline underline-offset-2"
+                          style={{ color: T.inkFaint }}
+                          onClick={() => toggleRevealed(org.id)}
+                        >
+                          {revealedIds.has(org.id) ? "隐藏" : "显示"}
+                        </button>
+                      </div>
+                    )}
+                  </td>
                   <td className="px-5 py-4 text-right font-black">{org.event_count}</td>
                   <td className="px-5 py-4" style={{ color: T.inkSoft }}>
                     {org.last_event_at ? org.last_event_at.slice(0, 10) : "—"}
                   </td>
                   <td className="px-5 py-4 text-right">
-                    <div className="flex justify-end gap-2">
+                    <div className="flex justify-end gap-2 whitespace-nowrap">
                       <Btn
                         variant="quiet"
                         disabled={busy || Boolean(previewData)}
@@ -225,6 +260,7 @@ function RootConsole(props: {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </Panel>
 

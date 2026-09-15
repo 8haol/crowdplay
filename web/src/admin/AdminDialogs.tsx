@@ -8,21 +8,25 @@ import { TYPE_ZH } from "./adminUtils";
 
 export function NewGameModal(props: {
   adminKey: string;
-  current: GameSession;
+  /** Absent for an organisation that has never run an event yet. */
+  current?: GameSession;
   playerCount: number;
   onClose: () => void;
   onDone: (message: string, eventId?: string) => void;
 }) {
   const [title, setTitle] = useState("");
   const [err, setErr] = useState<string | null>(null);
-  const livePlaying = props.current.phase === "playing";
+  const current = props.current;
+  const livePlaying = current?.phase === "playing";
 
   return (
     <Modal onClose={props.onClose}>
       <DialogHead eyebrow="创建场次" title="开始一场新的活动" onClose={props.onClose} />
       <p className="mt-4 text-sm font-semibold leading-6" style={{ color: T.inkSoft }}>
         新场次拿到自己的入场二维码、工作人员码和大屏链接。
-        「{props.current.title}」原样留在活动列表里，玩家、成绩和记录一个都不会动。
+        {current && (
+          <>「{current.title}」原样留在活动列表里，玩家、成绩和记录一个都不会动。</>
+        )}
       </p>
       <label className="mt-6 block">
         <span className="text-sm font-black">场次名称</span>
@@ -36,12 +40,12 @@ export function NewGameModal(props: {
           onChange={(event) => setTitle(event.target.value)}
         />
       </label>
-      {livePlaying && (
+      {current && livePlaying && (
         <div
           className="mt-4 rounded-xl p-4 text-sm font-bold leading-6"
           style={{ background: T.dangerSoft, border: "1px solid #efc5bb", color: T.danger }}
         >
-          「{props.current.title}」还在进行中。同一机构同时只能有一场在跑 —— 请先在现场总控结束它，再开新场。
+          「{current.title}」还在进行中。同一机构同时只能有一场在跑 —— 请先在现场总控结束它，再开新场。
         </div>
       )}
       <div className="mt-4"><ErrorBanner text={err} /></div>

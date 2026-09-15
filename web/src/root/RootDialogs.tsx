@@ -18,7 +18,7 @@ export function NewOrgDialog(props: {
   const [err, setErr] = useState<string | null>(null);
 
   const slugOk = /^[a-z0-9][a-z0-9-]{1,30}$/.test(slug);
-  const keyOk = key.length >= 8 && key.length <= 64;
+  const keyOk = key.length >= 4 && key.length <= 64;
   const ready = slugOk && keyOk && nameZh.trim() !== "" && nameEn.trim() !== "";
 
   return (
@@ -53,7 +53,7 @@ export function NewOrgDialog(props: {
         <input className={inputClass} style={inputStyle} maxLength={64}
           value={key} onChange={(e) => setKey(e.target.value)} />
         <span className="text-xs font-semibold" style={{ color: key && !keyOk ? T.danger : T.inkFaint }}>
-          8–64 位。建好后交给这间教会，他们可以自己改。
+          4–64 位。建好后交给这间教会，他们可以自己改。
         </span>
       </label>
       <div className="mt-4"><ErrorBanner text={err} /></div>
@@ -134,7 +134,7 @@ export function ResetKeyDialog(props: {
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const keyOk = key.length >= 8 && key.length <= 64;
+  const keyOk = key.length >= 4 && key.length <= 64;
 
   return (
     <Modal onClose={props.onClose}>
@@ -148,7 +148,7 @@ export function ResetKeyDialog(props: {
         <input className={inputClass} style={inputStyle} autoFocus maxLength={64}
           value={key} onChange={(e) => setKey(e.target.value)} />
         <span className="text-xs font-semibold" style={{ color: key && !keyOk ? T.danger : T.inkFaint }}>
-          8–64 位
+          4–64 位
         </span>
       </label>
       <div className="mt-4"><ErrorBanner text={err} /></div>

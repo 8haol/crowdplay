@@ -1,10 +1,13 @@
-export type AdminSection =
-  | "events"
-  | "live"
-  | "players"
-  | "life-events"
-  | "stations"
-  | "settings";
+/*
+ * 后台是两层的，导航也就是两套。
+ *
+ * 分界线不是拍脑袋定的，是 RPC 的签名：只要口令的（admin_dashboard、
+ * admin_station_library、admin_life_event_catalog）属于机构，要 event_id 的
+ * （admin_console、admin_event_stations、admin_list_players…）属于某一场。
+ * 往任何一套里加东西之前，先看它对应的 RPC 要不要 event_id。
+ */
+export type OrgSection = "events" | "library" | "life-events" | "org-settings";
+export type EventSection = "overview" | "live" | "players" | "stations" | "settings";
 
 import type { IconName } from "./adminUi";
 import type { ScoringMode, StationType } from "../lib/types";
@@ -24,26 +27,28 @@ export function stationRule(type: StationType, mode: ScoringMode): string {
   return "3 / 6 / 9 分级计分";
 }
 
-export const ADMIN_NAV: Array<{
-  id: AdminSection;
+export interface NavItem<T extends string> {
+  id: T;
   label: string;
-  short: string;
   icon: IconName;
   note: string;
-  group: "运营" | "数据" | "配置";
-}> = [
-  { id: "events", label: "全部活动", short: "活动", icon: "events", note: "创建、查看、进入任意一场", group: "运营" },
-  { id: "live", label: "现场总控", short: "总控", icon: "live", note: "开局、结束、入场二维码", group: "运营" },
-  { id: "players", label: "玩家护照", short: "玩家", icon: "players", note: "搜索、修正、导出", group: "数据" },
-  { id: "stations", label: "站点运营", short: "站点", icon: "stations", note: "完成率与计分设置", group: "数据" },
-  { id: "life-events", label: "人生事件库", short: "事件库", icon: "life-events", note: "30 个场景与隐藏结果", group: "数据" },
-  { id: "settings", label: "系统设置", short: "设置", icon: "settings", note: "名称、登记开关、密码", group: "配置" },
+}
+
+/** 机构层：跨场次的东西。进后台默认落在这一层。 */
+export const ORG_NAV: Array<NavItem<OrgSection>> = [
+  { id: "events", label: "全部活动", icon: "events", note: "创建、查看、进入任意一场" },
+  { id: "library", label: "站点库", icon: "stations", note: "跨场次复用的站点模板" },
+  { id: "life-events", label: "人生事件库", icon: "life-events", note: "30 个场景与隐藏结果" },
+  { id: "org-settings", label: "机构设置", icon: "settings", note: "管理密码" },
 ];
 
-export const NAV_GROUPS: Array<AdminSection[]> = [
-  ["events", "live"],
-  ["players", "stations", "life-events"],
-  ["settings"],
+/** 活动层：只属于某一场。进入活动默认落在「本场概览」。 */
+export const EVENT_NAV: Array<NavItem<EventSection>> = [
+  { id: "overview", label: "本场概览", icon: "events", note: "成绩、修正记录、时间线" },
+  { id: "live", label: "现场总控", icon: "live", note: "开局、结束、入场二维码" },
+  { id: "players", label: "玩家护照", icon: "players", note: "搜索、修正、导出" },
+  { id: "stations", label: "本场站点", icon: "stations", note: "本场启用哪些站" },
+  { id: "settings", label: "本场设置", icon: "settings", note: "名称、登记开关、工作人员码" },
 ];
 
 export function formatDate(value: string | null | undefined, includeTime = false): string {

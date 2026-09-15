@@ -1,5 +1,6 @@
 import type {
   AdminConsoleData,
+  AdminDashboardData,
   AdminPlayer,
   EventStationsData,
   Station,
@@ -155,5 +156,25 @@ export const ADMIN_PREVIEW: AdminSnapshot = {
       { id: "a2", kind: "life_event", at: now, player_name: "陈思语", player_code: "273", label: "三人投票僵局", detail: "小小试验打开了新方向" },
       { id: "a3", kind: "token", at: now, player_name: "梁乐知", player_code: "591", label: "Help Token", detail: "grace_card" },
     ],
+  },
+};
+
+/*
+ * 后台拆成两层之后，演示数据也跟着拆：机构层只需要 admin_dashboard 的形状，
+ * 活动层才需要 admin_console + 玩家名单。ADMIN_PREVIEW 保留给活动层复用。
+ */
+export interface OrgPreview {
+  dashboard: AdminDashboardData;
+}
+
+export type EventPreview = AdminSnapshot;
+
+export const EVENT_PREVIEW: EventPreview = ADMIN_PREVIEW;
+
+export const ORG_PREVIEW: OrgPreview = {
+  dashboard: {
+    org: ADMIN_PREVIEW.consoleData.org,
+    live_event_id: ADMIN_PREVIEW.consoleData.current.event_id,
+    events: ADMIN_PREVIEW.consoleData.events,
   },
 };

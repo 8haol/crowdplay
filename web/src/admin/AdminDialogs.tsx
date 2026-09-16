@@ -427,3 +427,70 @@ export function DisableStationModal(props: {
     </Modal>
   );
 }
+
+/*
+ * 删除一场活动。分级确认，规则和后端 admin_delete_event 里的那一条一模一样：
+ * 没开始过且没人报名的，删了不损失任何真实记录，免手敲；其余必须手敲活动名称。
+ *
+ * 前端这一份只是体验，真正挡住误删的是后端那道——这个弹窗拦不住直接调 RPC。
+ */
+export function DeleteEventDialog(props: {
+  adminKey: string;
+  event: { event_id: string; title: string; phase: string; player_count: number };
+  onClose: () => void;
+  onDone: (message: string) => void;
+}) {
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const trivial = props.event.phase === "waiting" && props.event.player_count === 0;
+  const ready = trivial || confirm === props.event.title;
+
+  return (
+    <Modal onClose={props.onClose}>
+      <DialogHead eyebrow="删除活动" title={`删除「${props.event.title}」`} onClose={props.onClose} />
+      <div
+        className="mt-4 rounded-xl p-4 text-sm font-bold leading-6"
+        style={{ background: T.dangerSoft, border: "1px solid #efc5bb", color: T.danger }}
+      >
+        {trivial
+          ? "这场还没开始、也没有人报名，删掉不会丢任何记录。"
+          : `这会连同这一场的 ${props.event.player_count} 位玩家，以及他们的分数、盖章、人生事件和人工修正记录一起删除，不可恢复，也没有回收站。`}
+      </div>
+      {!trivial && (
+        <label className="mt-6 block">
+          <span className="text-sm font-black">手打活动名称确认</span>
+          <input
+            className={inputClass}
+            style={inputStyle}
+            autoFocus
+            placeholder={props.event.title}
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+          />
+        </label>
+      )}
+      <div className="mt-4"><ErrorBanner text={err} /></div>
+      <div className="mt-6 flex justify-end gap-2">
+        <Btn variant="quiet" onClick={props.onClose}>取消</Btn>
+        <Btn
+          variant="dangerSolid"
+          disabled={!ready || busy}
+          onClick={async () => {
+            setBusy(true); setErr(null);
+            try {
+              await rpc("admin_delete_event", {
+                p_admin_key: props.adminKey,
+                p_event_id: props.event.event_id,
+                p_confirm: trivial ? null : confirm,
+              });
+              props.onDone(`已删除「${props.event.title}」`);
+            } catch (error) { setErr(errorText(error)); } finally { setBusy(false); }
+          }}
+        >
+          永久删除
+        </Btn>
+      </div>
+    </Modal>
+  );
+}

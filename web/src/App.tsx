@@ -122,7 +122,12 @@ export default function App() {
         <Route path="/play" element={<PlayPage />} />
         <Route path="/play/:joinToken" element={<PlayPage />} />
         <Route path="/staff" element={<StaffPage />} />
+        {/* 后台是两层的，路由把这两层写出来：/admin 是机构层，
+            /admin/e/:eventId/* 是某一场。见 AdminPage 顶部的注释。 */}
         <Route path="/admin" element={<AdminPage />} />
+        <Route path="/admin/:section" element={<AdminPage />} />
+        <Route path="/admin/e/:eventId" element={<AdminPage />} />
+        <Route path="/admin/e/:eventId/:section" element={<AdminPage />} />
         <Route path="/root" element={<RootPage />} />
         <Route path="/screen" element={<ScreenPage />} />
         <Route path="/screen/:screenToken" element={<ScreenPage />} />

@@ -231,14 +231,20 @@ export function Toggle({
   onChange,
   label,
   note,
+  disabled,
 }: {
   checked: boolean;
   onChange: () => void;
   label: string;
   note?: string;
+  /** 关掉但仍然显示——藏起来会让人以为功能没了，而不是此刻不适用。 */
+  disabled?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-xl p-4" style={{ background: T.panelAlt, border: `1px solid ${T.lineSoft}` }}>
+    <div
+      className={`flex items-center justify-between gap-4 rounded-xl p-4 ${disabled ? "opacity-60" : ""}`}
+      style={{ background: T.panelAlt, border: `1px solid ${T.lineSoft}` }}
+    >
       <div className="min-w-0">
         <div className="text-sm font-black">{label}</div>
         {note && <div className="mt-0.5 text-xs font-semibold" style={{ color: T.inkSoft }}>{note}</div>}
@@ -248,8 +254,9 @@ export function Toggle({
         role="switch"
         aria-checked={checked}
         aria-label={label}
+        disabled={disabled}
         onClick={onChange}
-        className="relative h-8 w-14 shrink-0 rounded-full transition-colors"
+        className="relative h-8 w-14 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed"
         style={{ background: checked ? "#33935d" : "#bdb3a4" }}
       >
         <span

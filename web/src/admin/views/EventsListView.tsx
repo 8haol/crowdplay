@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { AdminConsoleData } from "../../lib/types";
+import type { AdminConsoleData, AdminDashboardData } from "../../lib/types";
 import { AdminIcon, Btn, EmptyState, Metric, Panel, PanelHead, PageTitle, PhaseLabel } from "../adminUi";
 import { T } from "../adminTokens";
 import { downloadCsv, formatDate } from "../adminUtils";
@@ -28,21 +28,32 @@ type Row = {
 
 type Filter = "all" | "live" | "archived";
 
+/** 删除弹窗需要的那几样，独立成型：调用方不必背上整个 Row。 */
+export interface DeletableEvent {
+  event_id: string;
+  title: string;
+  phase: string;
+  player_count: number;
+}
+
 export function EventsListView({
-  consoleData,
+  events,
   onOpenEvent,
   onNewGame,
+  onDelete,
 }: {
-  consoleData: AdminConsoleData;
+  events: AdminDashboardData["events"];
   onOpenEvent: (eventId: string) => void;
   onNewGame: () => void;
+  /** 不传＝不显示删除（演示模式）。 */
+  onDelete?: (row: DeletableEvent) => void;
 }) {
   const [filter, setFilter] = useState<Filter>("all");
 
   /* Every event the organisation has run, straight from the server, newest
      first. "Current" means still open (waiting or playing); an ended event is
      history but keeps all its data and opens like any other. */
-  const rows: Row[] = consoleData.events.map((event) => ({
+  const rows: Row[] = events.map((event) => ({
     event_id: event.event_id,
     title: event.title,
     phase: event.phase,
@@ -61,6 +72,8 @@ export function EventsListView({
     filter === "all" ? true : filter === "live" ? row.is_current : !row.is_current,
   );
   const totalPlayers = rows.reduce((sum, row) => sum + row.player_count, 0);
+  const totalStamps = rows.reduce((sum, row) => sum + row.stamps, 0);
+  const liveCount = rows.filter((row) => row.phase === "playing").length;
 
   return (
     <div>
@@ -97,16 +110,19 @@ export function EventsListView({
         }
       />
 
+      {/* 四个数字都是机构级的——这一层不知道、也不该知道"当前那一场"有多少人。
+          以前这里有「当前场次玩家」「手机待选事件」两张卡，它们读的是某个隐式
+          选中场次的 admin_console，正是这次重构要消掉的那种混淆。 */}
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Metric label="活动总数" value={rows.length} note={`${rows.filter((row) => !row.is_current).length} 场已结束`} tone="accent" />
-        <Metric label="累计到场" value={totalPlayers} note="含当前场次" />
-        <Metric label="当前场次玩家" value={consoleData.stats.players} note={`${consoleData.stats.teams} 支队伍`} />
+        <Metric label="累计到场" value={totalPlayers} note="全部场次相加" />
         <Metric
-          label="手机待选事件"
-          value={consoleData.stats.locked_players}
-          note="不影响队伍继续挑战"
-          tone={consoleData.stats.locked_players > 0 ? "danger" : "neutral"}
+          label="进行中"
+          value={liveCount}
+          note={liveCount > 0 ? "点进去用现场总控" : "同时只能跑一场"}
+          tone={liveCount > 0 ? "good" : "neutral"}
         />
+        <Metric label="累计盖章" value={totalStamps} note="一支队伍一站算一次" />
       </div>
 
       <Panel className="overflow-hidden">
@@ -148,7 +164,7 @@ export function EventsListView({
                   <th className="px-4 py-3 text-right">盖章</th>
                   <th className="px-4 py-3 text-right">人生事件</th>
                   <th className="px-4 py-3 text-right">最高分</th>
-                  <th className="w-24 px-4 py-3" />
+                  <th className="w-32 px-4 py-3" />
                 </tr>
               </thead>
               <tbody>
@@ -183,11 +199,27 @@ export function EventsListView({
                     <td className="tabular px-4 py-4 text-right font-bold">{row.stamps}</td>
                     <td className="tabular px-4 py-4 text-right font-bold">{row.life_events}</td>
                     <td className="tabular px-4 py-4 text-right text-lg font-black">{row.top_score}</td>
-                    <td className="px-4 py-4 text-right">
-                      <span className="inline-flex items-center gap-1 text-xs font-black" style={{ color: T.inkSoft }}>
-                        进入
-                        <AdminIcon name="chevron" className="h-3.5 w-3.5" />
-                      </span>
+                    <td className="px-4 py-4">
+                      <div className="flex items-center justify-end gap-3">
+                        {onDelete && (
+                          <button
+                            type="button"
+                            disabled={row.phase === "playing"}
+                            title={row.phase === "playing" ? "进行中的活动不能删除，请先在现场总控结束它" : undefined}
+                            className="pressable text-xs font-black disabled:cursor-not-allowed disabled:opacity-40"
+                            style={{ color: T.danger }}
+                            /* 整行是可点的（点进那一场），所以这里必须拦住冒泡，
+                               否则点「删除」会同时把人导航走。 */
+                            onClick={(event) => { event.stopPropagation(); onDelete(row); }}
+                          >
+                            删除
+                          </button>
+                        )}
+                        <span className="inline-flex items-center gap-1 text-xs font-black" style={{ color: T.inkSoft }}>
+                          进入
+                          <AdminIcon name="chevron" className="h-3.5 w-3.5" />
+                        </span>
+                      </div>
                     </td>
                   </tr>
                 ))}

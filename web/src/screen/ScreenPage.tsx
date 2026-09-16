@@ -664,7 +664,7 @@ function describe(item: FeedItem): Line {
     glyph: "coin",
     tone: "foil",
     who: item.name,
-    what: `用掉 Help Token，${usage}`,
+    what: `用掉 Grace Token，${usage}`,
     detail: null,
     chip: null,
   };

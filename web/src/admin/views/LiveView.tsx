@@ -7,7 +7,7 @@ import { IDENTITY_SHORT, colorOf } from "../../lib/types";
 import { ErrorBanner } from "../../lib/ui";
 import { AdminIcon, Btn, EmptyState, Field, Metric, Panel, PanelHead, PageTitle, PhaseLabel } from "../adminUi";
 import { T, inputClass, inputStyle } from "../adminTokens";
-import { elapsedLabel, formatDate } from "../adminUtils";
+import { elapsedLabel, feedLabel, formatDate } from "../adminUtils";
 
 /*
  * The control room for whatever session is live right now. Everything the host
@@ -395,7 +395,7 @@ function ActivityPanel({ consoleData }: { consoleData: AdminConsoleData }) {
                   {look.mark}
                 </span>
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-black">{item.player_name ?? "系统"} · {item.label}</div>
+                  <div className="truncate text-sm font-black">{item.player_name ?? "系统"} · {feedLabel(item.label)}</div>
                   <div className="mt-0.5 text-xs font-semibold" style={{ color: T.inkSoft }}>{item.detail}</div>
                 </div>
                 <time className="shrink-0 text-[11px]" style={{ color: T.inkFaint }}>{formatDate(item.at, true)}</time>

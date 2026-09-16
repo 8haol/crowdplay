@@ -142,7 +142,7 @@ const ERROR_ZH: Record<string, string> = {
   BAD_SCORE: "{d} 的分数不合法",
   BAD_STATION: "站点不对",
   DUPLICATE_CODES: "同一批里有重复的人生编号",
-  NO_TOKEN: "{d} 的 Help Token 已经用过了",
+  NO_TOKEN: "{d} 的 Grace Token 已经用过了",
   NOT_FAILED_STATION: "Second Chance 只能用在挑战失败过的站",
   RETRY_ALREADY_GRANTED: "这一站已经有一次待使用的重试机会了",
   TEAM_TOKEN_INCOMPLETE: "队伍 {d} 中已有成员使用过 Token，无法再启用整队帮助",

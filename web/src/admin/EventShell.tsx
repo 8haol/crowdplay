@@ -99,7 +99,8 @@ export function EventShell({
     <div className="tool-surface min-h-dvh" style={{ color: T.ink }}>
       <TopBar
         online={online}
-        session={`${consoleData.org.name_zh} · ${consoleData.current.title}`}
+        session={consoleData.current.title}
+        context={consoleData.org.name_zh}
         phase={consoleData.current.phase}
         screenToken={consoleData.current.screen_token}
         onLogout={onLogout}
@@ -114,9 +115,10 @@ export function EventShell({
           badges={{ live: consoleData.stats.locked_players }}
           onNavigate={go}
           onDismiss={() => setNavOpen(false)}
+          tone="ink"
           header={
-            <Btn variant="quiet" className="w-full" onClick={() => navigate("/admin")}>
-              ← 全部活动
+            <Btn variant="onRail" icon="back" className="w-full" onClick={() => navigate("/admin")}>
+              全部活动
             </Btn>
           }
         />

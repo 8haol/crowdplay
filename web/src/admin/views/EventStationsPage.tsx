@@ -71,7 +71,7 @@ export function EventStationsPage({
       ) : (
         <>
           <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Metric label="本场主线站点" value={mains.length} note="人生事件按完成进度触发" tone="accent" />
+            <Metric label="本场主线站点" value={mains.length} note="人生事件按完成进度触发" />
             <Metric label="平均完成覆盖" value={`${avgCompletion}%`} note="全场队伍的平均进度" />
             <Metric label="整队盖章" value={stamps} note="一支队伍一站算一次" />
             <Metric

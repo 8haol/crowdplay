@@ -1,5 +1,6 @@
 import type {
   AdminConsoleData,
+  AdminEventDetail,
   AdminDashboardData,
   AdminPlayer,
   EventStationsData,
@@ -170,6 +171,20 @@ export interface OrgPreview {
 export type EventPreview = AdminSnapshot;
 
 export const EVENT_PREVIEW: EventPreview = ADMIN_PREVIEW;
+
+/*
+ * 「本场概览」自己拉 admin_event_detail，所以演示模式下它以前永远停在
+ * 「正在读取场次…」——说明页里那一页 demo 是死的。它要的字段 ADMIN_PREVIEW
+ * 全都有，只是形状不同，这里换个形状给它。
+ */
+export const EVENT_DETAIL_PREVIEW: AdminEventDetail = {
+  is_current: true,
+  session: ADMIN_PREVIEW.consoleData.current,
+  players: ADMIN_PREVIEW.players,
+  station_metrics: ADMIN_PREVIEW.consoleData.station_metrics,
+  activity: ADMIN_PREVIEW.consoleData.activity,
+  admin_log: [],
+};
 
 export const ORG_PREVIEW: OrgPreview = {
   dashboard: {

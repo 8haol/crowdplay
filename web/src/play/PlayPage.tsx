@@ -121,7 +121,7 @@ export default function PlayPage() {
         : PREVIEW_DATA;
     return <Demo><Reveal data={revealData} onDone={() => {}} /></Demo>;
   }
-  if (["passport", "solo", "sick", "lock", "ended"].includes(preview ?? "")) {
+  if (["passport", "solo", "sick", "lock", "ended", "ended-hold"].includes(preview ?? "")) {
     return (
       <Demo>
         <Passport data={previewState(preview!)} stations={PREVIEW_STATIONS} online joinToken="preview" />

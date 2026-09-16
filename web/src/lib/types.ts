@@ -27,6 +27,8 @@ export interface GameSession {
 export interface AdminSession extends GameSession {
   staff_code: string;
   screen_token: string;
+  /** When the host released the final ranks to the players' phones. */
+  ranks_published_at?: string | null;
 }
 
 /** One row in the org's event list. */
@@ -244,8 +246,12 @@ export interface PollResult {
   /** Event title and organisation, so the passport cover and badge can brand themselves. */
   title?: string;
   org?: Organization;
-  rank: number;
-  team_rank?: number;
+  /** Null while the stage is still giving out the awards: the host publishes
+      ranks as a second, separate step, and until then the server does not send
+      them at all. */
+  rank: number | null;
+  team_rank?: number | null;
+  ranks_published: boolean;
   player: PlayerState;
   team: TeamSummary | null;
   pending_event: PendingLifeEvent | null;

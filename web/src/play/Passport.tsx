@@ -961,6 +961,10 @@ function stageUnlockLabel(stage: number, total: number): number {
 
 function Ended({ data, joinToken }: { data: PollResult; joinToken: string }) {
   const { player, rank, team } = data;
+  /* The room is supposed to be watching the stage right now. Until the host
+     publishes, this phone knows its score but not its place — and the server
+     has not sent the place either, so there is nothing here to leak. */
+  const published = data.ranks_published && rank !== null;
   return (
     <div className="brand-stage relative min-h-dvh overflow-hidden">
       <div className="night-sky" />
@@ -980,9 +984,18 @@ function Ended({ data, joinToken }: { data: PollResult; joinToken: string }) {
           <div className="tabular mt-3 text-[88px] font-black leading-none tracking-[-0.07em] text-ink">
             {player.score}
           </div>
-          <div className="mt-4 text-moon-dim">
-            个人第 <span className="tabular text-3xl font-black text-ink">{rank}</span> 名
-          </div>
+          {published ? (
+            <div className="mt-4 text-moon-dim">
+              个人第 <span className="tabular text-3xl font-black text-ink">{rank}</span> 名
+            </div>
+          ) : (
+            <div className="mt-4 rounded-2xl bg-[#ffefc2] px-4 py-3">
+              <div className="text-sm font-black text-[#7a5200]">名次正在大屏上公布</div>
+              <div className="mt-1 text-xs font-bold leading-5 text-[#7a5200]">
+                抬头看大屏 —— 颁奖结束后，你的名次会自动出现在这里。
+              </div>
+            </div>
+          )}
           <div className="tabular mt-4 border-t border-line pt-4 text-xs font-bold text-ink-dim">
             {player.stations_done}/{player.stations_total} 站 · {player.life_events_done}/{player.life_events_total} 段人生
           </div>
@@ -1007,13 +1020,23 @@ function Ended({ data, joinToken }: { data: PollResult; joinToken: string }) {
           <br />
           You don't have to do life alone
         </p>
-        <Link
-          to={joinToken === "preview" ? "/badge?preview=1" : `/badge/${joinToken}`}
-          className="rise pressable mt-7 inline-flex min-h-[52px] items-center rounded-full bg-ink px-7 py-3.5 text-[15px] font-black text-white shadow-[0_3px_0_#0f0d0a]"
-          style={{ "--i": 5 } as React.CSSProperties}
-        >
-          生成我的纪念徽章 →
-        </Link>
+        {published ? (
+          <Link
+            to={joinToken === "preview" ? "/badge?preview=1" : `/badge/${joinToken}`}
+            className="rise pressable mt-7 inline-flex min-h-[52px] items-center rounded-full bg-ink px-7 py-3.5 text-[15px] font-black text-white shadow-[0_3px_0_#0f0d0a]"
+            style={{ "--i": 5 } as React.CSSProperties}
+          >
+            生成我的纪念徽章 →
+          </Link>
+        ) : (
+          /* The badge prints the place onto the image, so it waits with it. */
+          <p
+            className="rise mt-7 text-sm font-black text-moon-dim"
+            style={{ "--i": 5 } as React.CSSProperties}
+          >
+            纪念徽章会在名次公布之后开放
+          </p>
+        )}
       </div>
     </div>
   );

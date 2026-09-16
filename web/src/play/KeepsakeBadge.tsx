@@ -20,7 +20,11 @@ const IN_WECHAT = /MicroMessenger/i.test(navigator.userAgent);
 
 type Keepsake = { url: string; file: File };
 
-export default function KeepsakeBadge({ data }: { data: PollResult }) {
+/* `rank` is passed in rather than read off `data`: the badge prints "全场第 N
+   名" into the PNG, so it simply cannot be drawn before the host has published
+   the ranks. Taking it as a required prop makes the page that opens this one
+   prove it has one. */
+export default function KeepsakeBadge({ data, rank }: { data: PollResult; rank: number }) {
   const [keepsake, setKeepsake] = useState<Keepsake | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
@@ -47,7 +51,7 @@ export default function KeepsakeBadge({ data }: { data: PollResult }) {
       colorName: playerColor.zh,
       colorHex: playerColor.hex,
       score: player.score,
-      rank: data.rank,
+      rank,
       date: eventDate,
       orgZh: data.org?.name_zh ?? "Life Passport",
       orgEn: data.org?.name_en ?? "Life Passport",
@@ -58,7 +62,7 @@ export default function KeepsakeBadge({ data }: { data: PollResult }) {
       })
       .catch(() => { if (active) setError("纪念徽章生成失败，请刷新后再试"); });
     return () => { active = false; };
-  }, [data.org?.name_en, data.org?.name_zh, data.rank, eventDate, filename, identity.name, player.name, player.score, playerColor.hex, playerColor.zh]);
+  }, [data.org?.name_en, data.org?.name_zh, rank, eventDate, filename, identity.name, player.name, player.score, playerColor.hex, playerColor.zh]);
 
   const sharePayload = useMemo<ShareData | null>(
     () =>
@@ -131,7 +135,7 @@ export default function KeepsakeBadge({ data }: { data: PollResult }) {
           {keepsake ? (
             <img
               src={keepsake.url}
-              alt={`${player.name} 的人生纪念徽章：${player.score} 分，全场第 ${data.rank} 名`}
+              alt={`${player.name} 的人生纪念徽章：${player.score} 分，全场第 ${rank} 名`}
               className="block h-auto w-full"
               width={WIDTH}
               height={HEIGHT}

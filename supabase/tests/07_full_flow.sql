@@ -49,10 +49,13 @@ begin
   r := choose_life_event_by_link('join-t', c1, (pending ->> 'id')::uuid, pending -> 'choices' -> 0 ->> 'key', 'flow-le1');
   assert r ->> 'outcome_label' is not null, 'life event resolved on the phone';
 
-  -- game ends; ranks are final and the projector shows awards
+  -- game ends; the projector shows awards while the phones still hold the rank
   perform end_game('test-admin', v_ev);
   assert poll_player_by_link('join-t', c2) ->> 'phase' = 'ended', 'players see the end';
-  assert (poll_player_by_link('join-t', c2) ->> 'rank')::int between 1 and 3, 'rank present';
+  assert poll_player_by_link('join-t', c2) -> 'rank' = 'null'::jsonb, 'rank held for the stage';
+  -- the host finishes the ceremony and publishes; now the phones may say it
+  perform publish_ranks('test-admin', v_ev);
+  assert (poll_player_by_link('join-t', c2) ->> 'rank')::int between 1 and 3, 'rank present once published';
   assert jsonb_array_length(board_snapshot('screen-t') -> 'awards' -> 'podium') = 3, 'podium on the projector';
 
   raise notice 'PASS 07_full_flow';

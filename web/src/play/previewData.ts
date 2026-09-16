@@ -18,6 +18,7 @@ export const PREVIEW_DATA: PollResult = {
   stations: PREVIEW_STATIONS,
   rank: 3,
   team_rank: 2,
+  ranks_published: true,
   player: {
     player_id: "preview-player",
     name: "林沐恩",
@@ -109,11 +110,17 @@ export function previewState(state: string): PollResult {
       },
     };
   }
-  if (state === "ended") {
+  /* The same finish, before and after the host releases the ranks. Two demos
+     rather than one, because the held screen is the one a host has never seen
+     and will be looking at while a room waits. */
+  if (state === "ended" || state === "ended-hold") {
+    const held = state === "ended-hold";
     return {
       ...PREVIEW_DATA,
       phase: "ended",
-      rank: 3,
+      rank: held ? null : 3,
+      team_rank: held ? null : 2,
+      ranks_published: !held,
       player: {
         ...PREVIEW_DATA.player,
         score: 51,

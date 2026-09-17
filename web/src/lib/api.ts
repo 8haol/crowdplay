@@ -109,6 +109,8 @@ const ERROR_ZH: Record<string, string> = {
   ACTIVE_EVENT_EXISTS: "本机构已经有一场活动在进行中。同时只能跑一场 —— 请先在现场总控结束它，再开新场。",
   EVENT_NOT_FOUND: "找不到这场活动，它可能已被移除",
   BAD_NEW_KEY: "密码长度不符合要求（4–64 位）",
+  BAD_STAFF_CODE: "工作人员码只能用 4–12 位字母或数字",
+  STAFF_CODE_TAKEN: "这个工作人员码已经被别的场次占用了，换一个",
   GAME_IN_PROGRESS: "游戏进行中不能修改站点配置",
   EVENT_IN_PROGRESS: "活动已经开场，本场站点名单不能再整份改了；临时缺人手请用「撤站」",
   // 和上面那条的区别：EVENT_IN_PROGRESS 是站点名单改不动，补救办法是「撤站」；

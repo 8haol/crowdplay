@@ -5,7 +5,7 @@ import type { AdminEventDetail } from "../../lib/types";
 import { colorOf, soloColor, teamLabel } from "../../lib/types";
 import { Btn, EmptyState, Metric, Panel, PanelHead, PageTitle } from "../adminUi";
 import { T } from "../adminTokens";
-import { downloadCsv, feedLabel, formatDate } from "../adminUtils";
+import { feedLabel, formatDate } from "../adminUtils";
 import { EVENT_DETAIL_PREVIEW } from "../previewData";
 
 /*
@@ -17,6 +17,11 @@ import { EVENT_DETAIL_PREVIEW } from "../previewData";
  * 玩家和站点各归各页。不要把它们加回来。
  *
  * 也不再自称「该场活动的完整档案」：它现在只是活动层的一页，档案是整个活动层。
+ *
+ * 导出玩家也不在这里。这一页曾经有一个「导出玩家」按钮，导出的列比「玩家护照」
+ * 那个少一列联系方式（微信 / WhatsApp），于是同一批玩家导出两次会得到两份对不上
+ * 的表。导出只留「玩家护照」一处，那一份是完整的。顶栏一直挂着这一场的状态，
+ * 页面标题也不再重复一遍——所以这里没有 actions。
  */
 export function EventOverview({
   adminKey,
@@ -70,32 +75,6 @@ export function EventOverview({
         description={`创建于 ${formatDate(data.session.created_at)}${
           data.session.ended_at ? ` · 结束于 ${formatDate(data.session.ended_at, true)}` : ""
         }`}
-        actions={
-          <>
-            {/* 顶栏一直挂着这一场的状态，页面标题不再重复一遍。 */}
-            <Btn
-              icon="download"
-              onClick={() =>
-                downloadCsv(
-                  `${data.session.title}-玩家.csv`,
-                  data.players.map((player) => ({
-                    姓名: player.name,
-                    人生编号: player.code,
-                    同行: player.teammates.join(" / "),
-                    身份: player.identity,
-                    总分: player.score,
-                    完成站点: player.stations_done,
-                    已历人生: player.life_events_done,
-                    Token可用: player.token_available,
-                    已删除: player.is_removed,
-                  })),
-                )
-              }
-            >
-              导出玩家
-            </Btn>
-          </>
-        }
       />
 
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">

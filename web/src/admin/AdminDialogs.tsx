@@ -124,7 +124,7 @@ export function PlayerDrawer(props: {
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             <StateToggle label="取消手机待选事件" active={unlock} onChange={setUnlock} disabled={!player.locked_for_life_event} />
             <StateToggle label="清除旧版下一站限制" active={clearEffect} onChange={setClearEffect} disabled={!player.status_effect} />
-            <StateToggle label="归还 Help Token" active={restoreToken} onChange={setRestoreToken} disabled={player.token_available} />
+            <StateToggle label="归还 Grace Token" active={restoreToken} onChange={setRestoreToken} disabled={player.token_available} />
             <StateToggle label="恢复已删除玩家" active={restore} onChange={setRestore} disabled={!player.is_removed} />
           </div>
         </section>

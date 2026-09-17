@@ -5,7 +5,7 @@ import type { AdminEventDetail } from "../../lib/types";
 import { colorOf, soloColor, teamLabel } from "../../lib/types";
 import { Btn, EmptyState, Metric, Panel, PanelHead, PageTitle, PhaseLabel } from "../adminUi";
 import { T } from "../adminTokens";
-import { downloadCsv, formatDate } from "../adminUtils";
+import { downloadCsv, feedLabel, formatDate } from "../adminUtils";
 
 /*
  * 活动层的第一页：这一场的战绩、人工修正记录和完整时间线。
@@ -169,7 +169,7 @@ export function EventOverview({
               {data.activity.map((item) => (
                 <div key={item.id} className="relative pb-5 pl-5 last:pb-0" style={{ borderLeft: `2px solid #dfd5c4` }}>
                   <span className="absolute -left-[5px] top-1 h-2 w-2 rounded-full" style={{ background: "#b68b20" }} />
-                  <div className="text-sm font-black">{item.player_name ?? "系统"} · {item.label}</div>
+                  <div className="text-sm font-black">{item.player_name ?? "系统"} · {feedLabel(item.label)}</div>
                   <div className="mt-0.5 text-sm font-semibold" style={{ color: T.inkSoft }}>{item.detail}</div>
                   <div className="mt-1 text-xs" style={{ color: T.inkFaint }}>{formatDate(item.at, true)}</div>
                 </div>

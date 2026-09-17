@@ -8,6 +8,16 @@ import { darken, readableOn } from "../lib/color";
 import { useCountUp } from "../lib/useCountUp";
 import { FINAL_STAGE_VERSE, GRACE_VERSE, SETBACK_VERSES, pickVerse } from "../lib/scripture";
 
+/*
+ * The three things a Grace Token buys. These are the rules the guide already
+ * states; the passport just stops making players go and look them up.
+ */
+const GRACE_USES = [
+  { icon: "🎟️", title: "换一张实体恩典卡", detail: "挑战开始前交给站点同工，他会给提示或降低难度。" },
+  { icon: "↻", title: "重挑任意已玩站点", detail: "包括已通过但分数不理想的站；会同时消耗全队每人一枚。" },
+  { icon: "🕊️", title: "换一张个人纪念卡", detail: "不想用在闯关上的话，随时都能换，不必等活动结束。" },
+] as const;
+
 const STAGE_ZH = ["", "第一段人生", "第二段人生", "最后一段人生"];
 const PASSPORT_STYLES = ["cover", "visa", "epass"] as const;
 const PASSPORT_PREVIEW_COLORS = [
@@ -31,6 +41,7 @@ export default function Passport(props: {
   const { player, attempts, life_events } = data;
   const [searchParams, setSearchParams] = useSearchParams();
   const [toast, setToast] = useState<{ text: string; note?: string } | null>(null);
+  const [graceOpen, setGraceOpen] = useState(false);
   const prev = useRef<PollResult | null>(null);
   const shownScore = useCountUp(player.score);
 
@@ -62,7 +73,7 @@ export default function Passport(props: {
       const diff = data.player.score - p.player.score;
       show(diff > 0 ? `+${diff} 分，总分 ${data.player.score}` : `${diff} 分，总分 ${data.player.score}`);
     } else if (p.player.token_available && !data.player.token_available) {
-      show("Help Token 已使用");
+      show("Grace Token 已使用");
     } else {
       /* A failed station scores nothing, so the score branch above never fires
          and the phone used to say nothing at all at the one moment the player
@@ -81,6 +92,13 @@ export default function Passport(props: {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
+
+  useEffect(() => {
+    if (!graceOpen) return;
+    const close = (e: KeyboardEvent) => { if (e.key === "Escape") setGraceOpen(false); };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [graceOpen]);
 
   const toastTimer = useRef<number | null>(null);
   function show(text: string, note?: string, ms = 4000) {
@@ -252,15 +270,25 @@ export default function Passport(props: {
 
         {/* grace token */}
         <section className="mx-auto mt-6 max-w-2xl px-4">
+          {/* Spendable, so it is a button: the rules for spending it are one tap
+              away instead of back in the guide. Spent, it is a keepsake and
+              nothing to press. */}
           <div
-            className={`rise flex items-center justify-between rounded-[24px] px-5 py-4 ${
-              player.token_available ? "bg-[#ffefc2]" : "bg-night-raise"
+            {...(player.token_available
+              ? { role: "button" as const, tabIndex: 0, onClick: () => setGraceOpen(true),
+                  onKeyDown: (e: React.KeyboardEvent) => {
+                    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setGraceOpen(true); }
+                  },
+                  "aria-haspopup": "dialog" as const, "aria-expanded": graceOpen }
+              : {})}
+            className={`rise flex items-center justify-between rounded-[24px] px-5 py-4 text-left ${
+              player.token_available ? "pressable cursor-pointer bg-[#ffefc2]" : "bg-night-raise"
             }`}
             style={{ "--i": 10 } as React.CSSProperties}
           >
             <div>
               <div className="flex items-center gap-2 font-bold">
-                Help Token
+                Grace Token
                 <span className={`rounded px-1.5 py-0.5 text-[10px] tracking-[0.2em] ${
                   player.token_available ? "bg-foil text-ink" : "bg-card text-ink-dim"
                 }`}>
@@ -268,9 +296,12 @@ export default function Passport(props: {
                 </span>
               </div>
               {player.token_available ? (
-                <div className="mt-1 text-xs text-moon-dim">
-                  整队可领实体恩典卡 / 重挑已玩站点；也可随时换纪念卡
-                </div>
+                <>
+                  <div className="mt-1 text-xs text-moon-dim">
+                    整队可领实体恩典卡 / 重挑已玩站点；也可随时换纪念卡
+                  </div>
+                  <div className="mt-1.5 text-[11px] font-black text-[#7a5200]">点一下，看怎么用 ›</div>
+                </>
               ) : (
                 /* The token is spent, so the slot is free — and this is the one
                    place a verse is earned rather than decorative: the card that
@@ -286,7 +317,7 @@ export default function Passport(props: {
                 </div>
               )}
             </div>
-            <div className={`grid h-14 w-14 shrink-0 place-items-center rounded-full text-[11px] font-black shadow-[inset_0_0_0_4px_rgba(255,255,255,.55),0_3px_0_#e0a800] ${player.token_available ? "bg-foil text-[#5c3d00]" : "bg-[#e1d5be] text-[#9f9278] line-through shadow-none"}`}>HELP</div>
+            <div className={`grid h-14 w-14 shrink-0 place-items-center rounded-full text-[11px] font-black shadow-[inset_0_0_0_4px_rgba(255,255,255,.55),0_3px_0_#e0a800] ${player.token_available ? "bg-foil text-[#5c3d00]" : "bg-[#e1d5be] text-[#9f9278] line-through shadow-none"}`}>GRACE</div>
           </div>
         </section>
 
@@ -326,6 +357,54 @@ export default function Passport(props: {
               })}
             </div>
           </section>
+        )}
+
+        {graceOpen && (
+          <div
+            className="veil fixed inset-0 z-40 grid place-items-center bg-ink/55 px-4 py-6"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="grace-token-title"
+            onClick={() => setGraceOpen(false)}
+          >
+            <div
+              className="bloom max-h-full w-full max-w-md overflow-y-auto rounded-[26px] bg-card p-6 shadow-[0_18px_44px_rgba(38,33,27,.34)]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3">
+                <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-foil text-[10px] font-black text-[#5c3d00] shadow-[inset_0_0_0_4px_rgba(255,255,255,.55)]">
+                  GRACE
+                </div>
+                <div>
+                  <h2 id="grace-token-title" className="text-lg font-black">Grace Token 怎么用</h2>
+                  <p className="mt-0.5 text-xs font-bold text-moon-dim">
+                    带着护照去<b className="text-ink">恩典站</b> · 报你的编号 <span className="tabular">{player.code}</span>
+                  </p>
+                </div>
+              </div>
+              <ul className="mt-5 space-y-2.5">
+                {GRACE_USES.map((use) => (
+                  <li key={use.title} className="flex gap-3 rounded-2xl bg-[#ffefc2] px-4 py-3">
+                    <span className="text-lg leading-6">{use.icon}</span>
+                    <div>
+                      <div className="text-sm font-black">{use.title}</div>
+                      <p className="mt-0.5 text-xs font-semibold leading-5 text-[#7a5200]">{use.detail}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-4 text-center text-[11px] font-bold text-moon-dim">
+                一枚只能用一次 —— 三种用法里挑一个。
+              </p>
+              <button
+                type="button"
+                onClick={() => setGraceOpen(false)}
+                className="pressable mt-4 min-h-[52px] w-full rounded-full bg-ink px-5 py-3.5 text-[15px] font-black text-white"
+              >
+                知道了
+              </button>
+            </div>
+          </div>
         )}
 
         {toast && (
@@ -666,7 +745,7 @@ function FinishedCard({ player }: { player: PollResult["player"] }) {
         {player.token_available ? (
           <>
             <p className="mt-2 text-sm font-semibold leading-6 text-ink-dim">
-              你的 Help Token 还没有用掉。带着护照去<b className="text-ink">恩典站</b>，
+              你的 Grace Token 还没有用掉。带着护照去<b className="text-ink">恩典站</b>，
               可以换一张属于你的纪念卡 —— 现在就能换，不用等活动结束。
             </p>
             <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -998,7 +1077,7 @@ function Ended({ data, joinToken }: { data: PollResult; joinToken: string }) {
 
         {player.token_available && (
           <p className="rise mt-5 max-w-xs rounded-2xl bg-[#ffefc2] px-4 py-3 text-sm font-black text-[#7a5200]" style={{ "--i": 3 } as React.CSSProperties}>
-            🪙 你的 Help Token 还没用 —— 去恩典站换一张纪念卡
+            🪙 你的 Grace Token 还没用 —— 去恩典站换一张纪念卡
           </p>
         )}
 

@@ -21,10 +21,20 @@ export const TYPE_ZH: Record<StationType, string> = {
 /** One line that says how a station is run, in the operator's own words. */
 export function stationRule(type: StationType, mode: ScoringMode): string {
   if (type === "life_event") return "玩家手机自动完成 · 无需值守";
-  if (type === "grace") return "Help Token 求助与纪念卡兑换";
+  if (type === "grace") return "Grace Token 求助与纪念卡兑换";
   if (mode === "free") return "0–10 自由计分";
   if (mode === "fixed") return "固定 6 分";
   return "3 / 6 / 9 分级计分";
+}
+
+/*
+ * The activity feed's labels are built inside the SQL functions, where the
+ * token is still called by its old name. Renaming it there would mean a
+ * migration for one string, so the console translates on the way out — the
+ * single place a server-written label is read by a human.
+ */
+export function feedLabel(label: string): string {
+  return label === "Help Token" ? "Grace Token" : label;
 }
 
 export interface NavItem<T extends string> {

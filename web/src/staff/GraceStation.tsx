@@ -387,7 +387,7 @@ function KeepsakeCard({ staffKey, stationsTotal }: { staffKey: string; stationsT
       return (
         <>
           <div className="space-y-3 pb-28">
-            <ErrorBanner text={`${member.name} 的 Help Token 已经使用过了`} />
+            <ErrorBanner text={`${member.name} 的 Grace Token 已经使用过了`} />
             <StaffCard>
               <p className="text-xs font-semibold leading-6 text-ink-dim">
                 Token 只有一枚：用在队伍求助上，就换不了纪念卡；反过来也一样。

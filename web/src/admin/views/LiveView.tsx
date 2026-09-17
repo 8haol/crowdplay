@@ -159,7 +159,7 @@ function OperationPanel({
             {confirmEnd ? (
               <div className="mt-4 rounded-xl p-4" style={{ background: T.dangerSoft, border: "1px solid #e5b5aa" }}>
                 <div className="text-sm font-black" style={{ color: T.danger }}>
-                  确定结束本场？登记会关闭，玩家进入结算页，大屏立刻开始颁奖典礼。
+                  确定结束本场？登记会关闭，大屏立刻开始颁奖典礼。玩家进入结算页，但看不到名次 —— 等你颁完奖再点「公布排名」。
                 </div>
                 <div className="mt-3 flex gap-2">
                   <Btn
@@ -188,10 +188,49 @@ function OperationPanel({
             <div className="rounded-xl p-4" style={{ background: T.panelAlt }}>
               <div className="font-black">本场已经结束</div>
               <p className="mt-1 text-sm font-semibold leading-6" style={{ color: T.inkSoft }}>
-                大屏正在播放颁奖（可用 ← → 翻页、Esc 跳到总榜）。玩家仍可查看结算页和生成纪念徽章；
+                大屏正在播放颁奖（可用 ← → 翻页、Esc 跳到总榜）。玩家能看到自己的总分；
                 恩典站也仍然可以为还有 Token 的玩家兑换纪念卡。
               </p>
             </div>
+
+            {/* 第二步。结束和公布分开，就是为了让全场先抬头看完大屏，而不是
+                一点结束就集体低头看自己的名次。 */}
+            {session.ranks_published_at ? (
+              <div className="mt-4 flex items-center gap-3 rounded-xl p-4" style={{ background: T.goodSoft }}>
+                <span className="h-3 w-3 rounded-full" style={{ background: "#319a5d" }} />
+                <div>
+                  <div className="font-black" style={{ color: "#236c43" }}>排名已公布到玩家手机</div>
+                  <div className="text-sm font-semibold" style={{ color: "#4c7860" }}>
+                    {formatDate(session.ranks_published_at, true)} · 纪念徽章也已开放
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 rounded-xl p-4" style={{ background: T.warnSoft }}>
+                <div className="text-sm font-black" style={{ color: T.warn }}>
+                  玩家手机上还看不到名次
+                </div>
+                <p className="mt-1 text-sm font-semibold leading-6" style={{ color: T.warn }}>
+                  颁完奖再点下面这个按钮，所有人的手机会同时解锁名次和纪念徽章。
+                  忘了点也没关系：结束满 15 分钟会自动公布。
+                </p>
+                <Btn
+                  variant="primary"
+                  className="mt-3"
+                  onClick={async () => {
+                    setErr(null);
+                    try {
+                      await rpc("publish_ranks", { p_admin_key: adminKey, p_event_id: session.event_id });
+                      onDone("排名已公布，玩家手机现在能看到名次和纪念徽章");
+                    } catch (error) { setErr(errorText(error)); }
+                  }}
+                >
+                  公布排名到玩家手机
+                </Btn>
+              </div>
+            )}
+
+            <div className="mt-4"><ErrorBanner text={err} /></div>
             <Btn variant="primary" icon="plus" className="mt-4" onClick={onNewGame}>创建新场次</Btn>
           </div>
         )}

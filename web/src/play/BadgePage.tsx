@@ -1,5 +1,5 @@
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { rpc, errorText } from "../lib/api";
 import { usePoll } from "../lib/usePoll";
 import type { PollResult } from "../lib/types";
@@ -49,7 +49,7 @@ export default function BadgePage() {
   );
   const { data, online, error } = usePoll<PollResult>(pollFn, 3000);
 
-  if (preview) return <><KeepsakeBadge data={previewState("ended")} /><DemoRibbon /></>;
+  if (preview) return badgeOrHold(previewState(searchParams.get("state") === "hold" ? "ended-hold" : "ended"), <DemoRibbon />);
 
   if (!stored) {
     return (
@@ -81,7 +81,24 @@ export default function BadgePage() {
     return <BadgeUnavailable title="旅程还没有结束" detail="主持人结束游戏后，纪念徽章会自动开放。" />;
   }
 
-  return <KeepsakeBadge data={data} />;
+  return badgeOrHold(data);
+}
+
+/*
+ * The badge prints the player's place into the PNG, so it cannot exist while
+ * the stage is still handing out the awards. One gate for both the live page
+ * and the demo, and it also narrows `rank` away from null for the badge.
+ */
+function badgeOrHold(data: PollResult, extra?: ReactNode) {
+  if (!data.ranks_published || data.rank === null) {
+    return (
+      <BadgeUnavailable
+        title="排名还没公布"
+        detail="主持人正在台上颁奖。大屏公布名次之后，纪念徽章会自动开放 —— 先抬头看大屏。"
+      />
+    );
+  }
+  return <>{<KeepsakeBadge data={data} rank={data.rank} />}{extra}</>;
 }
 
 function BadgeUnavailable({ title, detail }: { title: string; detail: string }) {

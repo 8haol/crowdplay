@@ -10,21 +10,23 @@ import GuidePage from "./guide/GuidePage";
 import LibraryPage from "./guide/LibraryPage";
 import { BrandMark } from "./lib/ui";
 
+/*
+ * 平台首页。这里不挂任何一家教会的标志。
+ *
+ * 它曾经顶着格拉斯哥华人福音教会的 logo，右边那张样本护照也署着 GC GOSPEL CHURCH、
+ * 编号 GLA · 001——那是这个工具只服务一家教会时的样子。现在 `/` 是所有机构共用的门口，
+ * 挂某一家的招牌就等于告诉另一家「这不是给你的」。机构自己的门面属于 `/o/:slug`。
+ *
+ * 右边那张卡因此改成一张明说自己是样本的护照（SPECIMEN · 样本 / LP · 001），
+ * 用的是中性的 BrandMark 四色块。别把教会 logo 加回来。
+ * public/gloucester-chinese-church.avif 留着，将来 per-org 门面要用。
+ */
 function Home() {
   return (
     <div className="brand-stage relative min-h-dvh overflow-hidden">
       <div className="night-sky" />
       <main className="relative z-10 mx-auto grid min-h-dvh w-full max-w-[90rem] items-center gap-12 px-5 py-8 sm:px-8 md:grid-cols-[minmax(0,1.05fr)_minmax(22rem,.75fr)] md:px-10 md:py-10 lg:gap-20 xl:px-16">
         <section className="flex min-w-0 flex-col py-3 md:py-8">
-          <div className="rise mb-7 w-fit max-w-[15rem] rounded-[16px] bg-white p-2.5 shadow-[0_3px_0_#e0a800] md:max-w-[17rem]" style={{ "--i": 0 } as React.CSSProperties}>
-            <img
-              src="/gloucester-chinese-church.avif"
-              alt="Glasgow Chinese Gospel Church 格拉斯哥华人福音教会"
-              className="block h-auto w-full"
-              width="768"
-              height="215"
-            />
-          </div>
           <p className="rise text-foil-dim text-[11px] font-black tracking-[0.45em]" style={{ "--i": 0 } as React.CSSProperties}>
             LIFE PASSPORT · 迎新会
           </p>
@@ -80,7 +82,7 @@ function Home() {
               <span className="absolute -bottom-20 -left-20 h-52 w-52 rounded-full bg-[#2f9e65]/12" aria-hidden="true" />
 
               <div className="relative flex items-center justify-between text-[10px] font-black tracking-[0.22em] text-foil-dim">
-                <span>GC GOSPEL CHURCH</span>
+                <span>SPECIMEN · 样本</span>
                 <span>2026</span>
               </div>
 
@@ -97,7 +99,7 @@ function Home() {
               <div className="relative mt-9 flex items-end justify-between gap-5">
                 <div>
                   <p className="text-[9px] font-black tracking-[0.18em] text-foil-dim">PASSPORT NO.</p>
-                  <p className="tabular mt-1 text-sm font-black tracking-[0.16em]">GLA · 001</p>
+                  <p className="tabular mt-1 text-sm font-black tracking-[0.16em]">LP · 001</p>
                 </div>
                 <div className="flex h-9 items-stretch gap-[3px]" aria-hidden="true">
                   {[2, 1, 3, 1, 2, 4, 1, 2, 1].map((width, index) => (

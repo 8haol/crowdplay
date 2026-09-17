@@ -114,7 +114,7 @@ export function EventsListView({
           以前这里有「当前场次玩家」「手机待选事件」两张卡，它们读的是某个隐式
           选中场次的 admin_console，正是这次重构要消掉的那种混淆。 */}
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Metric label="活动总数" value={rows.length} note={`${rows.filter((row) => !row.is_current).length} 场已结束`} tone="accent" />
+        <Metric label="活动总数" value={rows.length} note={`${rows.filter((row) => !row.is_current).length} 场已结束`} />
         <Metric label="累计到场" value={totalPlayers} note="全部场次相加" />
         <Metric
           label="进行中"

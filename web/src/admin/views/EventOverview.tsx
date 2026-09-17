@@ -3,9 +3,10 @@ import { rpc, errorText } from "../../lib/api";
 import { usePoll } from "../../lib/usePoll";
 import type { AdminEventDetail } from "../../lib/types";
 import { colorOf, soloColor, teamLabel } from "../../lib/types";
-import { Btn, EmptyState, Metric, Panel, PanelHead, PageTitle, PhaseLabel } from "../adminUi";
+import { Btn, EmptyState, Metric, Panel, PanelHead, PageTitle } from "../adminUi";
 import { T } from "../adminTokens";
 import { downloadCsv, feedLabel, formatDate } from "../adminUtils";
+import { EVENT_DETAIL_PREVIEW } from "../previewData";
 
 /*
  * 活动层的第一页：这一场的战绩、人工修正记录和完整时间线。
@@ -30,7 +31,9 @@ export function EventOverview({
     () => () => rpc<AdminEventDetail>("admin_event_detail", { p_admin_key: adminKey, p_event_id: eventId }),
     [adminKey, eventId],
   );
-  const { data, error, refresh } = usePoll<AdminEventDetail>(preview ? null : pollFn, 20_000);
+  const poll = usePoll<AdminEventDetail>(preview ? null : pollFn, 20_000);
+  const data = preview ? EVENT_DETAIL_PREVIEW : poll.data;
+  const { error, refresh } = poll;
 
   if (!data) {
     return (
@@ -69,7 +72,7 @@ export function EventOverview({
         }`}
         actions={
           <>
-            <PhaseLabel phase={data.session.phase} />
+            {/* 顶栏一直挂着这一场的状态，页面标题不再重复一遍。 */}
             <Btn
               icon="download"
               onClick={() =>
@@ -96,7 +99,7 @@ export function EventOverview({
       />
 
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Metric label="玩家" value={active.length} note={`${data.players.length - active.length} 人已移除`} tone="accent" />
+        <Metric label="玩家" value={active.length} note={`${data.players.length - active.length} 人已移除`} />
         <Metric label="走完全程" value={finished} note={`共 ${stationsTotal} 站`} />
         <Metric label="人生事件" value={lifeEvents} note="每人最多 3 段" />
         <Metric label="最高分" value={active.reduce((max, player) => Math.max(max, player.score), 0)} note="个人护照总分" />

@@ -140,7 +140,11 @@ export function PanelHead({
   );
 }
 
-/** Metric tile with a coloured rail. */
+/*
+ * 统计卡。左边那条色条是有含义的：只有当这个数字本身处在一个值得注意的状态
+ * 时才上色（进行中、有人卡住、名单锁了）。不要为了「第一张卡好看」给它上色，
+ * 那样一屋子色条就等于没有色条。
+ */
 export function Metric({
   label,
   value,
@@ -175,11 +179,14 @@ const BUTTON_LOOK = {
   quiet: { background: "transparent", color: T.inkSoft, border: "1px solid transparent" },
   danger: { background: T.panel, color: T.danger, border: `1px solid #dba99e` },
   dangerSolid: { background: "#b83b2a", color: "#fff", border: "1px solid #b83b2a" },
+  /** 墨色侧栏上的按钮：纸色的 quiet 在那上面等于隐形。 */
+  onRail: { background: "rgba(255,255,255,.08)", color: "#fff", border: "1px solid rgba(255,255,255,.18)" },
 } as const;
 
 export function Btn({
   children,
   onClick,
+  href,
   variant = "ghost",
   icon,
   disabled,
@@ -188,22 +195,31 @@ export function Btn({
 }: {
   children?: React.ReactNode;
   onClick?: () => void;
+  /** 外链按钮走同一个定义，否则它们迟早和 Btn 的尺寸走散。 */
+  href?: string;
   variant?: keyof typeof BUTTON_LOOK;
   icon?: IconName;
   disabled?: boolean;
   className?: string;
   type?: "button" | "submit";
 }) {
-  return (
-    <button
-      type={type}
-      disabled={disabled}
-      onClick={onClick}
-      className={`pressable inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black disabled:cursor-not-allowed disabled:opacity-35 ${className}`}
-      style={BUTTON_LOOK[variant]}
-    >
+  const look = `pressable inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black disabled:cursor-not-allowed disabled:opacity-35 ${className}`;
+  const body = (
+    <>
       {icon && <AdminIcon name={icon} className="h-4 w-4 shrink-0" />}
       {children}
+    </>
+  );
+  if (href) {
+    return (
+      <a href={href} target="_blank" rel="noreferrer" className={look} style={BUTTON_LOOK[variant]}>
+        {body}
+      </a>
+    );
+  }
+  return (
+    <button type={type} disabled={disabled} onClick={onClick} className={look} style={BUTTON_LOOK[variant]}>
+      {body}
     </button>
   );
 }

@@ -5,7 +5,7 @@ import { joinUrl, screenUrl } from "../../lib/gameLinks";
 import type { AdminConsoleData, AdminPlayer } from "../../lib/types";
 import { IDENTITY_SHORT, colorOf } from "../../lib/types";
 import { ErrorBanner } from "../../lib/ui";
-import { AdminIcon, Btn, EmptyState, Field, Metric, Panel, PanelHead, PageTitle, PhaseLabel } from "../adminUi";
+import { AdminIcon, Btn, EmptyState, Field, Metric, Panel, PanelHead, PageTitle } from "../adminUi";
 import { T, inputClass, inputStyle } from "../adminTokens";
 import { elapsedLabel, feedLabel, formatDate } from "../adminUtils";
 
@@ -41,23 +41,13 @@ export function LiveView({
         description={`创建于 ${formatDate(session.created_at)}${elapsed ? ` · ${elapsed}` : ""}。开局、结束、入场二维码和现场异常都在这一页。`}
         actions={
           <>
-            <a
-              href={screenUrl(session.screen_token)}
-              target="_blank"
-              rel="noreferrer"
-              className="pressable inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black"
-              style={{ background: T.panel, color: T.ink, border: "1px solid #d9cebc" }}
-            >
-              <AdminIcon name="screen" className="h-4 w-4" />
-              打开实况大屏
-            </a>
-            <PhaseLabel phase={session.phase} />
+            <Btn href={screenUrl(session.screen_token)} icon="screen">打开实况大屏</Btn>
           </>
         }
       />
 
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Metric label="到场玩家" value={consoleData.stats.players} note={`${consoleData.stats.teams} 支队伍`} tone="accent" />
+        <Metric label="到场玩家" value={consoleData.stats.players} note={`${consoleData.stats.teams} 支队伍`} />
         <Metric label="整队盖章" value={consoleData.stats.stamps} note={`${consoleData.stats.life_events} 次人生事件`} />
         <Metric label="Token 已用" value={consoleData.stats.tokens_used} note="含提示 / 重来 / 纪念卡" />
         <Metric
@@ -286,16 +276,7 @@ function JoinPanel({ session, onDone }: { session: AdminConsoleData["current"]; 
           <div className="mt-1 truncate font-mono text-[10px]" style={{ color: T.inkFaint }}>{screen}</div>
           <div className="mt-2 flex flex-wrap gap-2">
             <Btn icon="copy" onClick={() => copy(screen, "大屏链接已复制")}>复制</Btn>
-            <a
-              href={screen}
-              target="_blank"
-              rel="noreferrer"
-              className="pressable inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-black"
-              style={{ background: "#fff", border: "1px solid #d9cebc", color: T.ink }}
-            >
-              <AdminIcon name="screen" className="h-4 w-4" />
-              新窗口打开
-            </a>
+            <Btn href={screen} icon="screen">新窗口打开</Btn>
           </div>
           <p className="mt-2 text-[11px] font-semibold leading-5" style={{ color: T.inkSoft }}>
             在接投影的电脑上打开这条链接即可。它只显示这一场，不含任何人生编号。

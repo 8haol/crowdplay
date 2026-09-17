@@ -17,6 +17,7 @@ import type { NavItem } from "./adminUtils";
 export function TopBar({
   online,
   session,
+  context,
   phase,
   screenToken,
   onLogout,
@@ -24,6 +25,8 @@ export function TopBar({
 }: {
   online: boolean;
   session?: string;
+  /** 活动层传机构名：顶栏读作「机构 › 这一场」，一眼看得出自己在某一场里面。 */
+  context?: string;
   phase?: AdminConsoleData["current"]["phase"];
   /** 这一场的投影令牌；顶栏那个链接开的是这一场的大屏。机构层不传——大屏属于某一场。 */
   screenToken?: string;
@@ -53,6 +56,14 @@ export function TopBar({
               LIFE PASSPORT
             </div>
             <div className="flex min-w-0 items-center gap-2">
+              {context && (
+                <>
+                  <span className="hidden truncate text-sm font-semibold sm:inline" style={{ color: T.inkFaint }}>
+                    {context}
+                  </span>
+                  <span className="hidden shrink-0 text-sm font-semibold sm:inline" style={{ color: T.inkFaint }}>›</span>
+                </>
+              )}
               <span className="truncate text-sm font-black">{session ?? "管理中心"}</span>
               {phase && <PhaseLabel phase={phase} />}
             </div>
@@ -98,12 +109,19 @@ export function SideNav<T extends string>({
   badges,
   header,
   footer,
+  tone = "paper",
   onNavigate,
   onDismiss,
 }: {
   items: Array<NavItem<T>>;
   current: T;
   open: boolean;
+  /*
+   * 两层最容易混淆的地方就是这条侧栏，所以两层给它两种材质：机构层是桌面
+   * 本身（纸色，与页面连成一片），活动层是从抽屉里抽出来的那一份档案（墨色，
+   * 选中项翻成白纸）。颜色都来自既有的 token，不引入新的品牌色。
+   */
+  tone?: "paper" | "ink";
   badges?: Partial<Record<T, number>>;
   /** 活动层用它显示「这是哪一场」，机构层不传。 */
   header?: ReactNode;
@@ -111,6 +129,7 @@ export function SideNav<T extends string>({
   onNavigate: (next: T) => void;
   onDismiss: () => void;
 }) {
+  const ink = tone === "ink";
   return (
     <>
       {open && (
@@ -124,7 +143,11 @@ export function SideNav<T extends string>({
         className={`fixed inset-y-0 left-0 z-30 w-[17rem] shrink-0 overflow-y-auto px-3 pb-6 pt-[76px] transition-transform lg:sticky lg:top-[62px] lg:z-0 lg:h-[calc(100dvh-62px)] lg:translate-x-0 lg:pt-5 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
-        style={{ background: T.bg, borderRight: `1px solid #ded4c3` }}
+        style={
+          ink
+            ? { background: T.rail, borderRight: "1px solid #14110d" }
+            : { background: T.bg, borderRight: `1px solid #ded4c3` }
+        }
       >
         {header && <div className="mb-4">{header}</div>}
 
@@ -138,14 +161,24 @@ export function SideNav<T extends string>({
                 type="button"
                 onClick={() => onNavigate(item.id)}
                 className="pressable flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left"
-                style={active ? { background: T.ink, color: "#fff" } : { background: "transparent", color: T.ink }}
+                style={
+                  active
+                    ? ink
+                      ? { background: "#fff", color: T.ink }
+                      : { background: T.ink, color: "#fff" }
+                    : { background: "transparent", color: ink ? "rgba(255,255,255,.86)" : T.ink }
+                }
               >
                 <AdminIcon name={item.icon} className="h-[18px] w-[18px] shrink-0" />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-black">{item.label}</span>
                   <span
                     className="block truncate text-[11px] font-semibold"
-                    style={{ color: active ? "rgba(255,255,255,.62)" : T.inkFaint }}
+                    style={{
+                      color: active
+                        ? ink ? T.inkFaint : "rgba(255,255,255,.62)"
+                        : ink ? "rgba(255,255,255,.58)" : T.inkFaint,
+                    }}
                   >
                     {item.note}
                   </span>
@@ -155,8 +188,12 @@ export function SideNav<T extends string>({
                     className="tabular shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-black"
                     style={
                       active
-                        ? { background: "rgba(255,255,255,.2)", color: "#fff" }
-                        : { background: T.accentSoft, color: T.warn }
+                        ? ink
+                          ? { background: T.accentSoft, color: T.warn }
+                          : { background: "rgba(255,255,255,.2)", color: "#fff" }
+                        : ink
+                          ? { background: "rgba(255,255,255,.16)", color: "#fff" }
+                          : { background: T.accentSoft, color: T.warn }
                     }
                   >
                     {badge}
@@ -167,7 +204,11 @@ export function SideNav<T extends string>({
           })}
         </div>
 
-        {footer && <div className="mt-6 pt-5" style={{ borderTop: `1px solid ${T.line}` }}>{footer}</div>}
+        {footer && (
+          <div className="mt-6 pt-5" style={{ borderTop: `1px solid ${ink ? "rgba(255,255,255,.14)" : T.line}` }}>
+            {footer}
+          </div>
+        )}
       </nav>
     </>
   );

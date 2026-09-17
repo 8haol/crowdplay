@@ -41,11 +41,15 @@ export function PlayersView({
   }, [identity, players, search, status]);
 
   const stationsTotal = players[0]?.stations_total ?? 7;
+  // 这一页对已结束的场次同样开着（左侧栏不按 phase 过滤，admin_list_players 也只按
+  // event_id 取人），而且自从本场概览不再重复一个导出按钮，归档场次要拿名单就只能来
+  // 这里。所以标题不能写死「当前场次」——那句话在归档场次上是假的。和本场概览同一套词。
+  const ended = consoleData.current.phase === "ended";
 
   return (
     <div>
       <PageTitle
-        eyebrow="CURRENT EVENT · 当前场次"
+        eyebrow={ended ? "ENDED EVENT · 已结束场次" : "CURRENT EVENT · 当前场次"}
         title="玩家护照"
         description="搜索、筛选、修正和导出每一本个人护照。队伍只表示共同参赛关系，分数始终属于个人；每次人工修改都会进入审计记录。"
         actions={

@@ -3,6 +3,7 @@ import { rpc, errorText } from "../../lib/api";
 import { usePoll } from "../../lib/usePoll";
 import type { AdminEventDetail } from "../../lib/types";
 import { colorOf, soloColor, teamLabel } from "../../lib/types";
+import { resolveTheme } from "../../theme/themes";
 import { Btn, EmptyState, Metric, Panel, PanelHead, PageTitle } from "../adminUi";
 import { T } from "../adminTokens";
 import { feedLabel, formatDate } from "../adminUtils";
@@ -61,6 +62,9 @@ export function EventOverview({
     );
   }
 
+  /* 队伍色的名字按这一场的主题来（中秋场叫「灯笼」不叫「正红」），
+     否则后台和玩家手机、义工屏说的不是同一个颜色。 */
+  const copy = resolveTheme(data.session.theme).copy;
   const active = data.players.filter((player) => !player.is_removed);
   const stationsTotal = active[0]?.stations_total ?? 7;
   const finished = active.filter((player) => player.stations_done >= (player.stations_total ?? stationsTotal)).length;
@@ -92,7 +96,7 @@ export function EventOverview({
               <EmptyState title="这场没有玩家记录" />
             ) : (
               top.map((player, index) => {
-                const color = colorOf(player.color_group) ?? (player.identity === "solo" ? soloColor(player.code) : null);
+                const color = colorOf(player.color_group, copy) ?? (player.identity === "solo" ? soloColor(player.code, copy) : null);
                 return (
                   <div
                     key={player.code}
@@ -107,7 +111,7 @@ export function EventOverview({
                       <div className="min-w-0">
                         <div className="truncate font-black">{player.name}</div>
                         <div className="text-xs font-semibold" style={{ color: T.inkSoft }}>
-                          {teamLabel(player.color_group, player.identity, player.code)} · {player.stations_done}/{player.stations_total ?? stationsTotal} 站 · {player.life_events_done}/3 人生
+                          {teamLabel(player.color_group, player.identity, player.code, copy)} · {player.stations_done}/{player.stations_total ?? stationsTotal} 站 · {player.life_events_done}/3 人生
                         </div>
                       </div>
                     </div>

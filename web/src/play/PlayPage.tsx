@@ -376,7 +376,7 @@ function WaitingRoom({ code, name, online, colorGroup = null, preview = false, o
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedColor = searchParams.get("passportColor");
   const previewCover = WAITING_COVER_COLORS.find(({ slug }) => slug === requestedColor) ?? WAITING_COVER_COLORS[0];
-  const assignedColor = colorOf(colorGroup);
+  const assignedColor = colorOf(colorGroup, copy);
   const coverColor = preview
     ? previewCover
     : { slug: colorGroup ?? "coral-red", label: assignedColor?.zh ?? "珊瑚红", hex: assignedColor?.hex ?? WAITING_COVER_COLORS[0].hex };
@@ -622,6 +622,7 @@ function Briefing(props: { code: string; name: string; online: boolean; onClose:
 
 function Reveal({ data, onDone }: { data: PollResult; onDone: () => void }) {
   const copy = useCopy();
+  const midautumn = useTheme().id === "midautumn";
   const { player } = data;
   const identity = player.identity ?? "solo";
   const color = colorOf(player.color_group, copy) ?? (player.identity === "solo" ? soloColor(player.code, copy) : null);
@@ -638,7 +639,7 @@ function Reveal({ data, onDone }: { data: PollResult; onDone: () => void }) {
         <div className="night-sky" />
         <div className="relative z-10 min-h-dvh flex flex-col items-center justify-center p-6">
           <div className="dots font-black text-3xl tracking-[0.1em] text-ink">
-            正在分配身份<span>.</span><span>.</span><span>.</span>
+            {copy.revealLoading}<span>.</span><span>.</span><span>.</span>
           </div>
         </div>
       </div>
@@ -652,12 +653,10 @@ function Reveal({ data, onDone }: { data: PollResult; onDone: () => void }) {
   const identityChinese = copy.identity[identity].name.split(" ").slice(1).join(" ");
   const isTeam = identity === "duo" || identity === "trio";
   const colorName = color?.zh ?? "未知色";
-  const revealLabel = isTeam ? "组队颜色" : "个人颜色";
-  const actionTitle = identity === "trio"
-    ? "举起手机，找 2 位同色队友"
-    : identity === "duo"
-      ? "举起手机，找 1 位同色队友"
-      : "无需组队，直接开始";
+  const revealLabel = isTeam ? copy.revealTeamLabel : copy.revealSoloLabel;
+  const actionTitle = isTeam
+    ? copy.revealFindTeam.replace("{n}", identity === "trio" ? "2" : "1")
+    : copy.revealFindSolo;
   const actionDetail = identity === "trio"
     ? `确认另外两人的屏幕也显示「${colorName}」`
     : identity === "duo"
@@ -669,16 +668,39 @@ function Reveal({ data, onDone }: { data: PollResult; onDone: () => void }) {
       className="reveal-page relative min-h-dvh overflow-hidden"
       style={{ background, color: foreground }}
     >
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -right-24 -top-28 h-80 w-80 rounded-full opacity-[0.13]"
-        style={{ background: foreground }}
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -bottom-20 -left-24 h-64 w-64 rounded-full opacity-[0.13]"
-        style={{ background: foreground }}
-      />
+      {midautumn ? (
+        /* 整屏铺一个队伍色，中秋就在这块色上再压一轮月亮和两道海浪：
+           和天空背景同一套形状，揭晓这一屏才不像从别的主题借来的。 */
+        <>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute right-8 top-[7.5rem] h-36 w-36 rounded-full opacity-[0.18]"
+            style={{ background: foreground }}
+          />
+          <svg
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-[34vh] w-full"
+            viewBox="0 0 375 260"
+            preserveAspectRatio="none"
+          >
+            <path d="M0 96c62-38 118 22 187 8s126-52 188-18v174H0Z" fill={foreground} opacity="0.12" />
+            <path d="M0 162c70-34 116 18 190 6s117-44 185-14v106H0Z" fill={foreground} opacity="0.18" />
+          </svg>
+        </>
+      ) : (
+        <>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-24 -top-28 h-80 w-80 rounded-full opacity-[0.13]"
+            style={{ background: foreground }}
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -bottom-20 -left-24 h-64 w-64 rounded-full opacity-[0.13]"
+            style={{ background: foreground }}
+          />
+        </>
+      )}
 
       <div className="reveal-layout relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pb-[max(2rem,env(safe-area-inset-bottom))] pt-[max(3.5rem,env(safe-area-inset-top))] text-center">
         <div className="reveal-identity flip-in flex flex-1 flex-col items-center justify-center pb-7 pt-5">

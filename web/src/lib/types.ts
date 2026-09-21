@@ -448,16 +448,19 @@ const SOLO_COLORS = [
 
 export function colorOf(group: string | null, copy: Copy = PASSPORT_COPY): { hex: string; zh: string } | null {
   if (!group) return null;
+  /* 色号（slug）是数据库里的身份，跨主题不变；每个主题只换它长什么样、叫什么名。 */
+  const map = copy.colors ?? COLOR_MAP;
+  const solos = copy.soloColors ?? SOLO_COLORS;
   if (group === "solo" || group.startsWith("solo-")) {
     const parsed = Number(group.split("-")[1] ?? "1");
     const slot = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
     return {
-      hex: SOLO_COLORS[(slot - 1) % SOLO_COLORS.length],
+      hex: solos[(slot - 1) % solos.length],
       zh: `${copy.soloColorLabel} ${String(slot).padStart(2, "0")}`,
     };
   }
   const base = group.split("-")[0];
-  const c = COLOR_MAP[base];
+  const c = map[base];
   if (!c) return { hex: "#888888", zh: group };
   const suffix = group.includes("-") ? ` ${group.split("-")[1]} 组` : "";
   return { hex: c.hex, zh: c.zh + suffix };
@@ -465,9 +468,10 @@ export function colorOf(group: string | null, copy: Copy = PASSPORT_COPY): { hex
 
 /** Stable visual fallback for Solo records created before the Solo-color migration. */
 export function soloColor(seed: string, copy: Copy = PASSPORT_COPY): { hex: string; zh: string } {
+  const solos = copy.soloColors ?? SOLO_COLORS;
   const hash = Array.from(seed).reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) >>> 0, 0);
-  const slot = (hash % SOLO_COLORS.length) + 1;
-  return { hex: SOLO_COLORS[slot - 1], zh: `${copy.soloColorLabel} ${String(slot).padStart(2, "0")}` };
+  const slot = (hash % solos.length) + 1;
+  return { hex: solos[slot - 1], zh: `${copy.soloColorLabel} ${String(slot).padStart(2, "0")}` };
 }
 
 export const IDENTITY_SHORT: Record<string, string> = Object.fromEntries(

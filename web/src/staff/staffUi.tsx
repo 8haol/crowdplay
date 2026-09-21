@@ -146,7 +146,7 @@ export function StickyBar({ children }: { children: ReactNode }) {
 /** One roster row: who is in this team and where each of them stands. */
 export function MemberRow({ member, stationsTotal }: { member: PlayerState; stationsTotal: number }) {
   const copy = useCopy();
-  const color = colorOf(member.color_group) ?? (member.identity === "solo" ? soloColor(member.code) : null);
+  const color = colorOf(member.color_group, copy) ?? (member.identity === "solo" ? soloColor(member.code, copy) : null);
   return (
     <div className="flex items-center gap-3 py-2.5">
       <span

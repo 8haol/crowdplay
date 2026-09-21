@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { AdminConsoleData, AdminPlayer } from "../../lib/types";
 import { colorOf, soloColor, teamLabel } from "../../lib/types";
+import { resolveTheme } from "../../theme/themes";
 import { AdminIcon, Btn, EmptyState, Panel, PanelHead, PageTitle } from "../adminUi";
 import { T, inputClass, inputStyle } from "../adminTokens";
 import { downloadCsv } from "../adminUtils";
@@ -16,6 +17,9 @@ export function PlayersView({
   players: AdminPlayer[];
   onPlayer: (code: string) => void;
 }) {
+  /* 队伍色的名字按这一场的主题来（中秋场叫「灯笼」不叫「正红」），
+     否则后台和玩家手机、义工屏说的不是同一个颜色。 */
+  const copy = resolveTheme(consoleData.current.theme).copy;
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<Status>("active");
   const [identity, setIdentity] = useState("all");
@@ -137,7 +141,7 @@ export function PlayersView({
               </thead>
               <tbody>
                 {rows.map((player) => {
-                  const color = colorOf(player.color_group) ?? (player.identity === "solo" ? soloColor(player.code) : null);
+                  const color = colorOf(player.color_group, copy) ?? (player.identity === "solo" ? soloColor(player.code, copy) : null);
                   return (
                     <tr
                       key={player.code}
@@ -168,7 +172,7 @@ export function PlayersView({
                       </td>
                       <td className="px-4 py-3.5">
                         <div className="text-sm font-black">
-                          {teamLabel(player.color_group, player.identity, player.code)}
+                          {teamLabel(player.color_group, player.identity, player.code, copy)}
                         </div>
                         <div className="mt-0.5 text-xs font-semibold" style={{ color: T.inkSoft }}>
                           {player.teammates.length > 0 ? player.teammates.join(" / ") : "独自同行"}

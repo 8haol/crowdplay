@@ -99,6 +99,18 @@ export interface Copy {
   secretTeaser: string;
   /** {team} is filled in by the board. */
   secretFeed: string;
+  /* 队伍色是现场找人的功能色，也是揭晓页整屏的底色，所以连同色名一起归主题管。
+     null = 用 lib/types.ts 里的默认表（人生护照那 24 色）。 */
+  colors: Record<string, { hex: string; zh: string }> | null;
+  soloColors: string[] | null;
+  /** 揭晓页眉题：「组队颜色」/「个人颜色」在中秋是灯笼。 */
+  revealTeamLabel: string;
+  revealSoloLabel: string;
+  /** 揭晓页的找人动作，{n} 是还要找几个人。 */
+  revealFindTeam: string;
+  revealFindSolo: string;
+  /** 揭晓前那几秒的等待文案。 */
+  revealLoading: string;
 }
 
 export const PASSPORT_COPY: Copy = {
@@ -200,7 +212,57 @@ export const PASSPORT_COPY: Copy = {
   fullMoonBody: "你的护照盖满了。还有一件事没有写在护照上。",
   secretTeaser: "神秘惊喜",
   secretFeed: "{team} 遇见了神秘人物",
+  colors: null,
+  soloColors: null,
+  revealTeamLabel: "组队颜色",
+  revealSoloLabel: "个人颜色",
+  revealFindTeam: "举起手机，找 {n} 位同色队友",
+  revealFindSolo: "无需组队，直接开始",
+  revealLoading: "正在分配身份",
 };
+
+/*
+ * 中秋的 24 个队伍色。色相顺序和默认表一一对应（red 还是红、teal 还是墨绿），
+ * 换掉的是饱和度和名字：正红 #E02E24 那种荧光色摆在奶油黄月亮和青蓝海浪中间
+ * 太跳，颁奖大屏整块铺开尤其难看。这里统一压到水彩纸上调得出来的浓度，
+ * 名字换成当晚看得见摸得着的东西（灯笼、桂花、石榴、月饼馅），
+ * 但仍然是「大色块 + 色名」一起出现，找人不靠单独认颜色。
+ * 相邻两色的色相仍然拉开 ≥ 25°，大厅灯光下不会认错。
+ */
+const MIDAUTUMN_COLORS: Record<string, { hex: string; zh: string }> = {
+  red: { hex: "#c9453c", zh: "灯笼" },
+  violet: { hex: "#a892c8", zh: "藕荷" },
+  pink: { hex: "#e890a6", zh: "桃酥" },
+  rose: { hex: "#bf4060", zh: "石榴" },
+  maroon: { hex: "#78303c", zh: "枣泥" },
+  fuchsia: { hex: "#a8508e", zh: "紫苏" },
+  purple: { hex: "#7d4fa8", zh: "夜合" },
+  plum: { hex: "#4e2c66", zh: "暮紫" },
+  indigo: { hex: "#5a5cb8", zh: "靛月" },
+  navy: { hex: "#2b3a6b", zh: "夜空" },
+  blue: { hex: "#2a62a8", zh: "深潮" },
+  sky: { hex: "#63aed2", zh: "月光" },
+  cyan: { hex: "#3e9aa4", zh: "潮青" },
+  teal: { hex: "#2f6152", zh: "松影" },
+  green: { hex: "#3a7845", zh: "桂叶" },
+  mint: { hex: "#6dbf95", zh: "荷叶" },
+  lime: { hex: "#8cb958", zh: "青柚" },
+  olive: { hex: "#8f8f3f", zh: "秋草" },
+  yellow: { hex: "#e8c145", zh: "桂花" },
+  gold: { hex: "#b5893c", zh: "烤金" },
+  orange: { hex: "#e8874a", zh: "柿子" },
+  coral: { hex: "#8a5a3a", zh: "栗子" },
+  amber: { hex: "#b3a684", zh: "芦苇" },
+  emerald: { hex: "#85898c", zh: "青石" },
+};
+
+/* 独自出发的人也拿一盏灯：同一族陶土暖红，深浅不同，靠编号区分。
+   这一族刻意不落在上面 24 色的任何一格里 —— 柿子、栗子、烤金都在更黄的一侧，
+   免得 Duo / Trio 把独行的人错当成自己的队友举着灯找过来。 */
+const MIDAUTUMN_SOLO_COLORS = [
+  "#a85c4e", "#b86e5c", "#96503f", "#c4806c",
+  "#9d5a46", "#b07463", "#8c4c3c", "#bd8570",
+];
 
 export const MIDAUTUMN_COPY: Copy = {
   stageNames: ["第一次际遇", "第二次际遇", "最后一次际遇"],
@@ -232,7 +294,7 @@ export const MIDAUTUMN_COPY: Copy = {
   joinAction: "开始游园",
   issuingCard: "正在领取集章卡…",
   queryCard: "查询这张集章卡 →",
-  soloColorLabel: "独自出发色",
+  soloColorLabel: "独行灯",
   card: "中秋集章卡",
   cardEn: "MOON STAMP CARD",
   game: "中秋游园会",
@@ -253,8 +315,8 @@ export const MIDAUTUMN_COPY: Copy = {
   teamName: { solo: "独自出发", duo: "两人同行", trio: "三人结伴" },
   identity: {
     solo: { short: "独自", name: "Solo 独自出发", desc: "无需寻找队友，独自逛完所有摊位。" },
-    duo: { short: "两人", name: "Duo 两人同行", desc: "举起手机，找到另一位组队颜色相同的玩家。" },
-    trio: { short: "三人", name: "Trio 三人结伴", desc: "举起手机，找到另外两位组队颜色相同的玩家。" },
+    duo: { short: "两人", name: "Duo 两人同行", desc: "举起手机当灯笼，找到另一位灯笼色相同的玩家。" },
+    trio: { short: "三人", name: "Trio 三人结伴", desc: "举起手机当灯笼，找到另外两位灯笼色相同的玩家。" },
   },
   journeyComplete: "游园完成",
   joinTitle: "中秋游园会",
@@ -295,4 +357,11 @@ export const MIDAUTUMN_COPY: Copy = {
   fullMoonBody: "七枚印章都亮了。今晚还有一件事，没有写在集章卡上。",
   secretTeaser: "神秘惊喜",
   secretFeed: "{team} 找到了神秘嘉宾",
+  colors: MIDAUTUMN_COLORS,
+  soloColors: MIDAUTUMN_SOLO_COLORS,
+  revealTeamLabel: "组队灯笼色",
+  revealSoloLabel: "你的灯笼色",
+  revealFindTeam: "举起手机当灯笼，找 {n} 位同色的人",
+  revealFindSolo: "一个人也有一盏灯，直接开逛",
+  revealLoading: "正在点亮你的灯笼",
 };

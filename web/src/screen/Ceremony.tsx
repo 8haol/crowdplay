@@ -1,4 +1,4 @@
-import type { AwardKey } from "../theme/copy";
+import type { AwardKey, Copy } from "../theme/copy";
 import { useCopy } from "../theme/ThemeProvider";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { BoardAwards, Identity, PodiumEntry, SpecialAward, TeamAward } from "../lib/types";
@@ -184,7 +184,7 @@ function IntroStat({ value, label }: { value: number; label: string }) {
 
 function SpecialSlide({ award }: { award: SpecialAward }) {
   const copy = useCopy();
-  const color = tone(award.color_group, award.name, award.identity);
+  const color = tone(award.color_group, award.name, award.identity, copy);
   return (
     <div className="grid w-full max-w-[92rem] items-center gap-[clamp(1.5rem,4vw,5rem)] lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
       <div className="text-center lg:text-left">
@@ -216,7 +216,7 @@ function SpecialSlide({ award }: { award: SpecialAward }) {
 
 function TeamSlide({ award }: { award: TeamAward }) {
   const copy = useCopy();
-  const color = colorOf(award.color_group)?.hex ?? "var(--color-ink)";
+  const color = colorOf(award.color_group, copy)?.hex ?? "var(--color-ink)";
   const ink = readableOn(color);
   return (
     <div className="w-full max-w-[84rem] text-center">
@@ -244,7 +244,7 @@ function TeamSlide({ award }: { award: TeamAward }) {
           {award.members}
         </div>
         <div className="mt-3 text-[clamp(.85rem,1.3vw,1.4rem)] font-black opacity-80">
-          {colorOf(award.color_group)?.zh ?? ""} · {copy.teamName[award.identity]}
+          {colorOf(award.color_group, copy)?.zh ?? ""} · {copy.teamName[award.identity]}
         </div>
         <div
           className="mt-[clamp(1rem,2vw,2rem)] inline-block rounded-full bg-white px-[clamp(1rem,2vw,2rem)] py-[clamp(.5rem,1vw,1rem)] text-[clamp(1rem,1.8vw,2rem)] font-black text-ink"
@@ -265,7 +265,7 @@ const PODIUM_LOOK: Record<number, { label: string; english: string; medal: strin
 function PodiumSlide({ entry, stationsTotal }: { entry: PodiumEntry; stationsTotal: number }) {
   const copy = useCopy();
   const look = PODIUM_LOOK[entry.rank] ?? PODIUM_LOOK[3];
-  const color = tone(entry.color_group, entry.name, entry.identity);
+  const color = tone(entry.color_group, entry.name, entry.identity, copy);
   const ink = readableOn(color);
   return (
     <div className="w-full max-w-[86rem] text-center">
@@ -370,6 +370,6 @@ function WinnerCard({
   );
 }
 
-function tone(colorGroup: string | null, seed: string, identity: Identity): string {
-  return colorOf(colorGroup)?.hex ?? (identity === "solo" ? soloColor(seed).hex : "var(--color-ink)");
+function tone(colorGroup: string | null, seed: string, identity: Identity, copy: Copy): string {
+  return colorOf(colorGroup, copy)?.hex ?? (identity === "solo" ? soloColor(seed, copy).hex : "var(--color-ink)");
 }

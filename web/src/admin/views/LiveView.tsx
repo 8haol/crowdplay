@@ -4,6 +4,7 @@ import { JoinQr } from "../../lib/JoinQr";
 import { joinUrl, screenUrl } from "../../lib/gameLinks";
 import type { AdminConsoleData, AdminPlayer } from "../../lib/types";
 import { IDENTITY_SHORT, colorOf } from "../../lib/types";
+import { resolveTheme } from "../../theme/themes";
 import { ErrorBanner } from "../../lib/ui";
 import { AdminIcon, Btn, EmptyState, Field, Metric, Panel, PanelHead, PageTitle } from "../adminUi";
 import { T, inputClass, inputStyle } from "../adminTokens";
@@ -65,7 +66,7 @@ export function LiveView({
         </div>
         <div className="space-y-5">
           <JoinPanel session={session} onDone={onDone} />
-          <AttentionPanel locked={locked} onPlayer={onPlayer} />
+          <AttentionPanel locked={locked} theme={session.theme} onPlayer={onPlayer} />
           <TeamPanel consoleData={consoleData} />
         </div>
       </div>
@@ -287,7 +288,10 @@ function JoinPanel({ session, onDone }: { session: AdminConsoleData["current"]; 
   );
 }
 
-function AttentionPanel({ locked, onPlayer }: { locked: AdminPlayer[]; onPlayer: (code: string) => void }) {
+function AttentionPanel({ locked, theme, onPlayer }: { locked: AdminPlayer[]; theme?: string; onPlayer: (code: string) => void }) {
+  /* 队伍色的名字按这一场的主题来（中秋场叫「灯笼」不叫「正红」），
+     否则后台和玩家手机、义工屏说的不是同一个颜色。 */
+  const copy = resolveTheme(theme).copy;
   if (locked.length === 0) {
     return (
       <Panel className="p-5">
@@ -324,7 +328,7 @@ function AttentionPanel({ locked, onPlayer }: { locked: AdminPlayer[]; onPlayer:
             <div>
               <div className="font-black">{player.name}</div>
               <div className="text-xs font-semibold" style={{ color: T.inkSoft }}>
-                {colorOf(player.color_group)?.zh ?? "未分配"} · 第 {player.pending_stage ?? "?"} 段人生
+                {colorOf(player.color_group, copy)?.zh ?? "未分配"} · 第 {player.pending_stage ?? "?"} 段人生
               </div>
             </div>
             <AdminIcon name="chevron" className="h-4 w-4" />
@@ -336,6 +340,9 @@ function AttentionPanel({ locked, onPlayer }: { locked: AdminPlayer[]; onPlayer:
 }
 
 function TeamPanel({ consoleData }: { consoleData: AdminConsoleData }) {
+  /* 队伍色的名字按这一场的主题来（中秋场叫「灯笼」不叫「正红」），
+     否则后台和玩家手机、义工屏说的不是同一个颜色。 */
+  const copy = resolveTheme(consoleData.current.theme).copy;
   /* How many stations this event runs, not the platform's old fixed seven —
      same count `_event_teams_detail.stations_done` is measured against
      (this event's roster, withdrawn ones excluded). Mirrors the Ceremony
@@ -360,7 +367,7 @@ function TeamPanel({ consoleData }: { consoleData: AdminConsoleData }) {
       />
       <div className="tool-scroll max-h-[26rem] overflow-y-auto">
         {consoleData.teams.map((team) => {
-          const color = colorOf(team.color_group);
+          const color = colorOf(team.color_group, copy);
           return (
             <div key={team.team_id} className="px-5 py-3" style={{ borderBottom: `1px solid ${T.lineSoft}` }}>
               <div className="flex items-center justify-between gap-3">

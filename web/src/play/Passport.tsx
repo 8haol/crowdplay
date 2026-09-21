@@ -1197,7 +1197,7 @@ function Ended({ data, joinToken }: { data: PollResult; joinToken: string }) {
   if (midautumn) {
     /* 效果图第四张手机：月亮里是积分，下面一排今晚的印章，再是标题、感言和两个按钮。 */
     const identity = player.identity ?? "solo";
-    const swatch = colorOf(player.color_group) ?? (identity === "solo" ? soloColor(player.code) : null);
+    const swatch = colorOf(player.color_group, copy) ?? (identity === "solo" ? soloColor(player.code, copy) : null);
     const ring = swatch?.hex ?? "var(--color-line)";
     const pages = visaPages(data.stations ?? [], data.attempts ?? [], theme);
     const icons = MIDAUTUMN_STAMPS;

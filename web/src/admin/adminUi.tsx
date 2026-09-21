@@ -1,5 +1,6 @@
 import { T } from "./adminTokens";
 import type { Phase } from "../lib/types";
+import { THEME_OPTIONS, type ThemeId } from "./adminUtils";
 
 export type IconName =
   | "events" | "live" | "players" | "life-events" | "stations" | "settings"
@@ -46,6 +47,18 @@ export function PhaseLabel({ phase }: { phase: Phase }) {
     >
       <span className={`h-1.5 w-1.5 rounded-full bg-current ${look.live ? "animate-pulse" : ""}`} />
       {look.t}
+    </span>
+  );
+}
+
+/** 隐藏摊位（神秘嘉宾）的小标签。玩家和大屏看不到这一站；只有义工和后台知道它在。 */
+export function HiddenTag({ className = "" }: { className?: string }) {
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center rounded-md px-1.5 py-0.5 text-[10px] font-black tracking-[0.08em] ${className}`}
+      style={{ background: T.accentSoft, color: T.warn, border: `1px solid ${T.accent}` }}
+    >
+      隐藏
     </span>
   );
 }
@@ -280,6 +293,53 @@ export function Toggle({
           style={{ transform: checked ? "translateX(1.5rem)" : "translateX(0)" }}
         />
       </button>
+    </div>
+  );
+}
+
+/* --------------------------------------------------------------- theme */
+
+/*
+ * 场次主题单选。只有两个值，非法值一律当 passport 看——和 RPC 的 BAD_THEME
+ * 回落一致。后台自己不换皮，这个控件只决定玩家、大屏、义工页长什么样。
+ * 选项表在 adminUtils.ts（THEME_OPTIONS）：这个文件只放组件，Fast Refresh 才稳。
+ */
+export function ThemeRadio({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string | null | undefined;
+  onChange: (value: ThemeId) => void;
+  disabled?: boolean;
+}) {
+  const current: ThemeId = THEME_OPTIONS.some((option) => option.id === value) ? (value as ThemeId) : "passport";
+  return (
+    <div role="group" aria-label="场次主题" className="grid gap-2 sm:grid-cols-2">
+      {THEME_OPTIONS.map((option) => {
+        const active = current === option.id;
+        return (
+          <button
+            key={option.id}
+            type="button"
+            aria-pressed={active}
+            disabled={disabled}
+            onClick={() => { if (!active) onChange(option.id); }}
+            className="pressable rounded-xl p-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+            style={
+              active
+                ? { border: `1px solid ${T.accent}`, background: T.accentSoft, color: T.ink }
+                : { border: "1px solid var(--color-admin-line-strong)", background: "var(--color-card)", color: T.ink }
+            }
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-black">{option.label}</span>
+              {active && <AdminIcon name="check" className="h-4 w-4 shrink-0" />}
+            </div>
+            <div className="mt-0.5 text-xs font-semibold" style={{ color: T.inkSoft }}>{option.note}</div>
+          </button>
+        );
+      })}
     </div>
   );
 }

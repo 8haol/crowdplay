@@ -2,8 +2,9 @@ import { useState } from "react";
 import { rpc, errorText } from "../../lib/api";
 import type { AdminConsoleData } from "../../lib/types";
 import { ErrorBanner } from "../../lib/ui";
-import { Btn, Field, Panel, PanelHead, PageTitle, Toggle } from "../adminUi";
+import { Btn, Field, Panel, PanelHead, PageTitle, ThemeRadio, Toggle } from "../adminUi";
 import { T, inputClass, inputStyle } from "../adminTokens";
+import { themeLabel } from "../adminUtils";
 
 /*
  * 只属于这一场活动的设置。
@@ -28,6 +29,7 @@ export function EventSettingsView({
   const [err, setErr] = useState<string | null>(null);
   const [custom, setCustom] = useState("");
   const [confirmRotate, setConfirmRotate] = useState(false);
+  const [themeBusy, setThemeBusy] = useState(false);
   // 已结束的场次不再收人、也不再需要轮换工作人员码；两项关掉但仍然显示，
   // 并写清楚为什么——藏起来会让人以为功能没了。
   const ended = session.phase === "ended";
@@ -98,6 +100,34 @@ export function EventSettingsView({
                 }}
               />
             </div>
+          </div>
+        </Panel>
+
+        <Panel className="overflow-hidden">
+          <PanelHead eyebrow="THEME" title="主题" note="玩家、大屏、义工页立即换皮；后台不变" />
+          <div className="p-5">
+            {/* 点即生效，没有「保存」键：换皮不改任何分数或名单，撤回就是再点一下。 */}
+            <ThemeRadio
+              value={session.theme}
+              disabled={themeBusy}
+              onChange={async (next) => {
+                setErr(null);
+                setThemeBusy(true);
+                try {
+                  await rpc("admin_update_game", {
+                    p_admin_key: adminKey,
+                    p_event_id: session.event_id,
+                    p_title: null,
+                    p_join_open: null,
+                    p_theme: next,
+                  });
+                  onDone(`主题已切换为「${themeLabel(next)}」`);
+                } catch (error) { setErr(errorText(error)); } finally { setThemeBusy(false); }
+              }}
+            />
+            <p className="mt-3 text-xs font-semibold" style={{ color: T.inkFaint }}>
+              进行中的场次也能换：玩家下一次刷新就是新皮，分数、印章、名单都不动。
+            </p>
           </div>
         </Panel>
 

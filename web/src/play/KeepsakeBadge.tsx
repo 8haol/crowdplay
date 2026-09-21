@@ -1,5 +1,6 @@
 import type { Copy } from "../theme/copy";
-import { useCopy } from "../theme/ThemeProvider";
+import { useCopy, useTheme } from "../theme/ThemeProvider";
+import type { ThemeId } from "../theme/themes";
 import { cssVar } from "../lib/color";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
@@ -29,6 +30,7 @@ type Keepsake = { url: string; file: File };
    prove it has one. */
 export default function KeepsakeBadge({ data, rank }: { data: PollResult; rank: number }) {
   const copy = useCopy();
+  const themeId = useTheme().id;
   const [keepsake, setKeepsake] = useState<Keepsake | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
@@ -59,14 +61,14 @@ export default function KeepsakeBadge({ data, rank }: { data: PollResult; rank: 
       date: eventDate,
       orgZh: data.org?.name_zh ?? copy.cardTitleCase,
       orgEn: data.org?.name_en ?? copy.cardTitleCase,
-    }, copy)
+    }, copy, themeId)
       .then(({ url, blob }) => {
         if (!active) return;
         setKeepsake({ url, file: new File([blob], filename, { type: "image/png" }) });
       })
-      .catch(() => { if (active) setError("纪念徽章生成失败，请刷新后再试"); });
+      .catch((e: unknown) => { console.error("badge render failed", e); if (active) setError("纪念徽章生成失败，请刷新后再试"); });
     return () => { active = false; };
-  }, [copy, data.org?.name_en, data.org?.name_zh, rank, eventDate, filename, identity.name, player.name, player.score, playerColor.hex, playerColor.zh]);
+  }, [copy, themeId, data.org?.name_en, data.org?.name_zh, rank, eventDate, filename, identity.name, player.name, player.score, playerColor.hex, playerColor.zh]);
 
   const sharePayload = useMemo<ShareData | null>(
     () =>
@@ -203,12 +205,105 @@ type BadgeData = {
   orgEn: string;
 };
 
-async function renderBadge(data: BadgeData, copy: Copy): Promise<{ url: string; blob: Blob }> {
+async function renderBadge(data: BadgeData, copy: Copy, theme: ThemeId = "passport"): Promise<{ url: string; blob: Blob }> {
   const canvas = document.createElement("canvas");
   canvas.width = WIDTH;
   canvas.height = HEIGHT;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("NO_CANVAS");
+
+  if (theme === "midautumn") {
+    drawMidautumnBadge(ctx, data, copy);
+  } else {
+    drawPassportBadge(ctx, data, copy);
+  }
+
+  /* The <img> keeps the data URL: a long press saves it in WeChat, which a
+     blob: URL cannot be trusted to do. The Blob is what the share sheet takes. */
+  const url = canvas.toDataURL("image/png", 1);
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png", 1));
+  if (!blob) throw new Error("NO_BLOB");
+  return { url, blob };
+}
+
+/* 中秋：天空渐变、左上一轮月、底部两层海浪，中间一张白卡承载全部信息。取色全走 token。 */
+function drawMidautumnBadge(ctx: CanvasRenderingContext2D, data: BadgeData, copy: Copy) {
+  const sky = ctx.createLinearGradient(0, 0, 0, HEIGHT);
+  sky.addColorStop(0, cssVar("--color-sky-top"));
+  sky.addColorStop(0.55, cssVar("--color-night"));
+  sky.addColorStop(1, cssVar("--color-night-raise"));
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+  /* moon with a soft halo */
+  const halo = ctx.createRadialGradient(230, 300, 240, 230, 300, 520);
+  const paperHalo = cssVar("--color-card");
+  halo.addColorStop(0, withAlpha(paperHalo, 0.55));
+  halo.addColorStop(1, withAlpha(paperHalo, 0));
+  ctx.fillStyle = halo;
+  ctx.fillRect(0, 0, WIDTH, 900);
+  const moon = ctx.createRadialGradient(150, 220, 20, 230, 300, 300);
+  moon.addColorStop(0, cssVar("--color-stage-orb-light"));
+  moon.addColorStop(0.6, cssVar("--color-foil"));
+  moon.addColorStop(1, cssVar("--color-stage-orb-deep"));
+  circle(ctx, 230, 300, 300, moon);
+
+  /* two waves along the bottom */
+  wave(ctx, 1420, 90, cssVar("--color-wave-a"));
+  wave(ctx, 1560, 60, cssVar("--color-wave-b"));
+
+  /* the card */
+  const ink = cssVar("--color-ink");
+  const dim = cssVar("--color-ink-dim");
+  roundedRect(ctx, 90, 540, 900, 940, 58, cssVar("--color-card"));
+  trackedLabel(ctx, copy.card, 150, 640, 34, 6, ink, "left", 900);
+  trackedLabel(ctx, copy.cardEn, 930, 636, 24, 10, dim, "right", 800);
+
+  label(ctx, data.name, 150, 810, fitFont(ctx, data.name, 104, 780, 60), ink, "left", 900);
+  const identityText = `${data.colorName} · ${data.identity.toUpperCase()}`;
+  ctx.font = `800 36px -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", sans-serif`;
+  const identityWidth = Math.min(780, Math.ceil(ctx.measureText(identityText).width) + 140);
+  roundedRect(ctx, 150, 860, identityWidth, 84, 42, cssVar("--color-accent-soft"));
+  circle(ctx, 200, 902, 18, data.colorHex);
+  label(ctx, identityText, 236, 915, 36, cssVar("--color-accent-deep"), "left", 800);
+
+  trackedLabel(ctx, `${copy.score} · ${copy.scoreEn}`, 150, 1050, 28, 8, dim, "left", 800);
+  label(ctx, String(data.score), 140, 1300, fitFont(ctx, String(data.score), 250, 380, 180), cssVar("--color-moon"), "left", 900);
+  roundedRect(ctx, 560, 1170, 370, 96, 48, cssVar("--color-accent"));
+  label(ctx, `全场第 ${data.rank} 名`, 745, 1236, 40, cssVar("--color-accent-ink"), "center", 900);
+
+  dashedLine(ctx, 150, 1350, 930, cssVar("--color-line"));
+  label(ctx, "「我的恩典够你用的」", 150, 1415, 36, ink, "left", 900);
+  label(ctx, "You don't have to do life alone.", 150, 1462, 26, cssVar("--color-leaf-deep"), "left", 800);
+
+  /* footer on the waves */
+  const paper = cssVar("--color-card");
+  label(ctx, data.orgZh, 90, 1760, 26, paper, "left", 900);
+  trackedLabel(ctx, data.orgEn.toUpperCase(), 90, 1804, 20, 1.5, paper, "left", 700);
+  label(ctx, data.date, 990, 1782, 26, paper, "right", 800);
+  trackedLabel(ctx, copy.cardTagline || copy.game, 990, 1830, 20, 2, paper, "right", 700);
+}
+
+/** `#rrggbb` → `rgba(r, g, b, a)`; canvas gradients cannot take relative colour syntax on older phones. */
+function withAlpha(hex: string, alpha: number): string {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex.trim());
+  if (!m) return hex;
+  return `rgba(${parseInt(m[1], 16)}, ${parseInt(m[2], 16)}, ${parseInt(m[3], 16)}, ${alpha})`;
+}
+
+function wave(ctx: CanvasRenderingContext2D, top: number, amplitude: number, fill: string) {
+  ctx.beginPath();
+  ctx.moveTo(0, top + amplitude);
+  ctx.bezierCurveTo(WIDTH * 0.2, top - amplitude, WIDTH * 0.35, top - amplitude, WIDTH * 0.5, top + amplitude * 0.4);
+  ctx.bezierCurveTo(WIDTH * 0.68, top + amplitude * 1.6, WIDTH * 0.85, top + amplitude * 0.6, WIDTH, top - amplitude * 0.4);
+  ctx.lineTo(WIDTH, HEIGHT);
+  ctx.lineTo(0, HEIGHT);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+}
+
+function drawPassportBadge(ctx: CanvasRenderingContext2D, data: BadgeData, copy: Copy) {
 
   ctx.fillStyle = cssVar("--color-accent");
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
@@ -243,13 +338,6 @@ async function renderBadge(data: BadgeData, copy: Copy): Promise<{ url: string; 
   label(ctx, data.orgZh, 90, 1810, 24, cssVar("--color-moon"), "left", 900);
   trackedLabel(ctx, data.orgEn.toUpperCase(), 90, 1852, 20, 1.5, cssVar("--color-moon"), "left", 700);
   label(ctx, data.date, 990, 1832, 25, cssVar("--color-moon"), "right", 800);
-
-  /* The <img> keeps the data URL: a long press saves it in WeChat, which a
-     blob: URL cannot be trusted to do. The Blob is what the share sheet takes. */
-  const url = canvas.toDataURL("image/png", 1);
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png", 1));
-  if (!blob) throw new Error("NO_BLOB");
-  return { url, blob };
 }
 
 function label(
@@ -271,7 +359,7 @@ function label(
   ctx.restore();
 }
 
-function circle(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number, fill: string) {
+function circle(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number, fill: string | CanvasGradient) {
   ctx.beginPath();
   ctx.arc(x, y, radius, 0, Math.PI * 2);
   ctx.fillStyle = fill;

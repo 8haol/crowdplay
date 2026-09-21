@@ -266,10 +266,10 @@ function Lobby({
   const copy = useCopy();
   return (
     <div className="grid flex-1 min-h-0 grid-rows-[minmax(0,1fr)_auto] gap-[clamp(1rem,2vw,2.5rem)] px-[clamp(1.5rem,5vw,6rem)] pb-[clamp(1rem,2vw,2.5rem)]">
-      <div className="grid min-h-0 items-center gap-[clamp(2rem,5vw,6rem)] lg:grid-cols-[minmax(0,1fr)_minmax(18rem,28rem)]">
+      <div className="grid min-h-0 items-center gap-[clamp(1.5rem,3.5vw,4.5rem)] lg:grid-cols-[minmax(0,1fr)_minmax(20rem,34rem)]">
         <div>
           <p className="text-[clamp(.7rem,1vw,1rem)] font-black tracking-[0.35em] text-foil-dim">SCAN TO JOIN · 扫码入场</p>
-          <h2 className="mt-3 max-w-4xl text-balance text-[clamp(2.6rem,6.5vw,7rem)] font-black leading-[0.95] tracking-[-0.06em]">
+          <h2 className="mt-3 max-w-4xl text-balance text-[clamp(2.2rem,5vw,5.5rem)] font-black leading-[0.95] tracking-[-0.06em]">
             {landing?.title ?? copy.cardTitleCase}
           </h2>
           <div className="mt-[clamp(1.5rem,3vw,3rem)] flex items-end gap-5">
@@ -285,15 +285,18 @@ function Lobby({
           <ScreenVerse className="mt-[clamp(1.25rem,2.5vw,2.75rem)] max-w-2xl" />
         </div>
 
-        <div className="flex flex-col items-center rounded-[clamp(1.25rem,2.5vw,2.5rem)] bg-white p-[clamp(1rem,2vw,2rem)] shadow-[0_7px_0_var(--color-foil-shadow)]">
+        {/* 二维码吃掉这一列剩下的全部高度：卡片撑满整行，两行小字按自己的
+            高度占位，`flex-1 object-contain` 让码自己长到放得下的最大正方形。
+            以前是 `aspect-square w-full`，宽度说了算，屏幕越高越浪费。 */}
+        <div className="flex h-full min-h-0 flex-col items-center justify-center rounded-[clamp(1.25rem,2.5vw,2.5rem)] bg-white p-[clamp(.75rem,1.2vw,1.5rem)] shadow-[0_7px_0_var(--color-foil-shadow)]">
           {joinLink ? (
-            <JoinQr url={joinLink} className="aspect-square w-full rounded-2xl" />
+            <ZoomQr url={joinLink} className="min-h-0 w-full flex-1 rounded-2xl object-contain" />
           ) : (
-            <div className="aspect-square w-full animate-pulse rounded-2xl bg-line" />
+            <div className="min-h-0 w-full flex-1 animate-pulse rounded-2xl bg-line" />
           )}
-          <div className="mt-4 text-[clamp(1rem,1.6vw,1.7rem)] font-black">扫码加入游戏</div>
-          <div className="mt-1.5 text-center text-[clamp(.7rem,.95vw,1rem)] font-bold text-ink-dim">
-            镜头对准二维码 · 自动打开本场链接
+          <div className="mt-[clamp(.4rem,.8vw,.8rem)] text-[clamp(.95rem,1.4vw,1.5rem)] font-black">扫码加入游戏</div>
+          <div className="mt-1 text-center text-[clamp(.6rem,.8vw,.85rem)] font-bold text-ink-dim">
+            后排看不清？按 <b className="text-ink">Q</b> 或点二维码，放大到整屏
           </div>
           {!landing?.join_open && (
             <div className="mt-3 rounded-lg bg-fail-soft px-4 py-2 text-sm font-black text-seal">登记暂时关闭</div>
@@ -333,7 +336,7 @@ function NameWall({ players }: { players: BoardPlayer[] }) {
           {pageCount > 1 ? `第 ${page + 1}/${pageCount} 组 · 共 ${players.length} 位` : `共 ${players.length} 位`}
         </span>
       </div>
-      <div className="flex h-[clamp(5rem,13vh,10rem)] flex-wrap content-start justify-center gap-[clamp(0.3rem,0.6vw,0.7rem)] overflow-hidden">
+      <div className="flex h-[clamp(4rem,9.5vh,7.5rem)] flex-wrap content-start justify-center gap-[clamp(0.3rem,0.6vw,0.7rem)] overflow-hidden">
         {shown.map((p, i) => (
           <span
             key={p.id}
@@ -508,6 +511,49 @@ function Board({
   );
 }
 
+/* --------------------------------------------------------------------- qr */
+
+/*
+ * 大屏离后排太远，一张 30cm 的码站在第五排就扫不到了。所以每一张大屏二维码都能
+ * 整屏放大：点它，或者在投影那台电脑上按 Q。放大时它是白底、占满短边，整块屏幕
+ * 就是一张码，最后一排举起手机也能对上。再点一下、按 Q 或 Esc 收起。
+ *
+ * 入场页和游戏中的回场码不会同时出现（一个在 waiting，一个在 playing / ended），
+ * 所以这个键位不会一次打开两张。
+ */
+function ZoomQr({ url, className }: { url: string; className: string }) {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "q" || event.key === "Q") setOpen((value) => !value);
+      if (event.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} className="contents" aria-label="放大二维码">
+        <JoinQr url={url} level="L" className={className} />
+      </button>
+      {open && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-white p-[2vmin]"
+          role="presentation"
+          onClick={() => setOpen(false)}
+        >
+          <JoinQr url={url} level="L" className="h-[min(88vh,88vw)] w-[min(88vh,88vw)]" />
+          <p className="absolute inset-x-0 bottom-[2vmin] text-center text-[clamp(.8rem,1.4vw,1.5rem)] font-black text-ink-dim">
+            扫码加入 · 点一下或按 Q 收起
+          </p>
+        </div>
+      )}
+    </>
+  );
+}
+
 /* ------------------------------------------------------------------ rejoin */
 
 /** Anyone who closed the tab can get back in by rescanning from the wall. */
@@ -515,7 +561,7 @@ function RejoinCard({ url }: { url: string }) {
   const copy = useCopy();
   return (
     <div className="flex shrink-0 items-center gap-[clamp(0.6rem,1vw,1.1rem)] rounded-[20px] bg-white/90 p-[clamp(0.5rem,0.9vw,1rem)] shadow-[0_3px_0_var(--color-foil-shadow)]">
-      <JoinQr url={url} className="h-[clamp(4.5rem,7vw,7rem)] w-[clamp(4.5rem,7vw,7rem)] shrink-0 rounded-lg" />
+      <ZoomQr url={url} className="h-[clamp(5.5rem,9.5vw,10rem)] w-[clamp(5.5rem,9.5vw,10rem)] shrink-0 rounded-lg" />
       <div className="min-w-0">
         <div className="text-[clamp(0.55rem,0.75vw,0.8rem)] font-black tracking-[0.28em] text-foil-dim">REJOIN</div>
         <div className="mt-1 text-[clamp(0.9rem,1.25vw,1.35rem)] font-black leading-tight">
@@ -524,7 +570,7 @@ function RejoinCard({ url }: { url: string }) {
           扫这里回到游戏
         </div>
         <div className="mt-1.5 text-[clamp(0.6rem,0.8vw,0.88rem)] font-semibold leading-snug text-moon-dim">
-          进去后点「已经登记过？」，输入你的 3 位{copy.lifeNo}即可找回
+          进去后点「已经登记过？」，输入你的 3 位{copy.lifeNo}即可找回 · 按 Q 放大
         </div>
       </div>
     </div>

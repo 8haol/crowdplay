@@ -10,7 +10,7 @@ import type { PassportHeroProps, VisaPage } from "./Passport";
  */
 const RING_W = 320;
 const RING_H = 330;
-const RING_R = 135;
+const RING_R = 132;
 
 type SlotState = VisaPage["state"];
 
@@ -80,7 +80,7 @@ export function MoonStampCard(props: PassportHeroProps) {
         <div className="relative mx-auto mt-3.5 w-full max-w-[320px]" style={{ aspectRatio: `${RING_W} / ${RING_H}` }}>
           {/* 圆月：奶油黄，白边一圈，再套一圈队伍色。 */}
           <div
-            className="absolute left-1/2 top-1/2 grid h-[150px] w-[150px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full px-3 text-center"
+            className="absolute left-1/2 top-1/2 grid aspect-square w-[44%] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full px-3 text-center"
             style={{
               background:
                 "radial-gradient(circle at 42% 40%, var(--color-stage-orb-light) 0 30%, var(--color-foil) 60%, var(--color-stage-orb-deep) 100%)",
@@ -88,7 +88,7 @@ export function MoonStampCard(props: PassportHeroProps) {
             }}
           >
             <div>
-              <div className="break-words text-[24px] font-black leading-[1.1] text-moon">{player.name}</div>
+              <div className="break-words text-[clamp(18px,6.4vw,24px)] font-black leading-[1.1] text-moon">{player.name}</div>
               <div className="mt-[5px] text-[11px] font-black tracking-[0.16em] text-foil-dim">{copy.teamName[identity]}</div>
               <div className="tabular mt-1.5 text-[13px] font-black text-moon">
                 已集 {player.stations_done} / {player.stations_total}
@@ -108,12 +108,12 @@ export function MoonStampCard(props: PassportHeroProps) {
             return (
               <div
                 key={page.key}
-                className={`absolute grid h-14 w-14 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-[2.5px] ${tone.ring}`}
+                className={`absolute grid aspect-square w-[17.5%] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-[2.5px] ${tone.ring}`}
                 style={{ left: `${x}%`, top: `${y}%` }}
                 role="img"
                 aria-label={`${page.title}：${pill ?? "未挑战"}`}
               >
-                {Icon && <Icon className="h-[30px] w-[30px]" />}
+                {Icon && <Icon className="h-[54%] w-[54%]" />}
                 {pill && (
                   <span className={`tabular absolute -right-[9px] -top-[7px] min-w-[26px] rounded-full px-1.5 py-px text-center text-[10.5px] font-black leading-[1.4] ${tone.pill}`}>
                     {pill}
@@ -184,7 +184,7 @@ export function MoonWaitingCard({ name, code, online }: { name: string; code: st
       </div>
       <div className="relative mx-auto mt-3.5 w-full max-w-[320px]" style={{ aspectRatio: `${RING_W} / ${RING_H}` }}>
         <div
-          className="absolute left-1/2 top-1/2 grid h-[150px] w-[150px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full px-3 text-center"
+          className="absolute left-1/2 top-1/2 grid aspect-square w-[44%] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full px-3 text-center"
           style={{
             background:
               "radial-gradient(circle at 42% 40%, var(--color-stage-orb-light) 0 30%, var(--color-foil) 60%, var(--color-stage-orb-deep) 100%)",
@@ -192,9 +192,9 @@ export function MoonWaitingCard({ name, code, online }: { name: string; code: st
           }}
         >
           <div>
-            <div className="break-words text-[24px] font-black leading-[1.1] text-moon">{name}</div>
+            <div className="break-words text-[clamp(18px,6.4vw,24px)] font-black leading-[1.1] text-moon">{name}</div>
             <div className="mt-[5px] text-[11px] font-black tracking-[0.16em] text-foil-dim">{copy.lifeNoEn}</div>
-            <div className="tabular mt-1 text-[26px] font-black leading-none text-moon">{code}</div>
+            <div className="tabular mt-1 text-[clamp(20px,7vw,26px)] font-black leading-none text-moon">{code}</div>
           </div>
         </div>
         {slots.map((label, i) => {
@@ -205,12 +205,12 @@ export function MoonWaitingCard({ name, code, online }: { name: string; code: st
           return (
             <div
               key={label + i}
-              className={`absolute grid h-14 w-14 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-[2.5px] ${tone.ring}`}
+              className={`absolute grid aspect-square w-[17.5%] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-[2.5px] ${tone.ring}`}
               style={{ left: `${x}%`, top: `${y}%` }}
               role="img"
               aria-label={`${label}：未挑战`}
             >
-              {Icon && <Icon className="h-[30px] w-[30px]" />}
+              {Icon && <Icon className="h-[54%] w-[54%]" />}
               <span className={`absolute left-1/2 top-[calc(100%+3px)] -translate-x-1/2 whitespace-nowrap rounded-full bg-card px-2 py-0.5 font-black ${label.length > 4 ? "text-[9.5px]" : "text-[11px]"} ${tone.name}`}>
                 {label}
               </span>

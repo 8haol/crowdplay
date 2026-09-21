@@ -70,6 +70,12 @@ export interface Copy {
   joinTitle: string;
   joinSubtitle: string;
   joinIntro: string;
+  /** 标题的展示写法（可含换行）；空串 = 用 joinTitle / joinHeading。 */
+  joinTitleDisplay: string;
+  joinCardTitle: string;
+  joinCardEyebrow: string;
+  endedSaveButton: string;
+  endedGraceButton: string;
   cardTagline: string;
   endedTitle: string;
   endedBody: string;
@@ -156,6 +162,11 @@ export const PASSPORT_COPY: Copy = {
   joinTitle: "", // Preserve the event-title fallback on the existing registration page.
   joinSubtitle: "填写姓名即可，联系方式选填",
   joinIntro: "", // The current Join page has no introduction paragraph.
+  joinTitleDisplay: "",
+  joinCardTitle: "现场登记",
+  joinCardEyebrow: "ARRIVAL CARD",
+  endedSaveButton: "生成我的纪念徽章 →",
+  endedGraceButton: "去恩典站换纪念卡",
   cardTagline: "",
   endedTitle: "这是你走过的人生", // Passport.tsx: Ended.
   // Passport.tsx: FinishedCard's spent-token paragraph; <br /> becomes a newline.
@@ -248,6 +259,11 @@ export const MIDAUTUMN_COPY: Copy = {
   journeyComplete: "游园完成",
   joinTitle: "中秋游园会",
   joinSubtitle: "月下相遇，一路同行。",
+  joinTitleDisplay: "中秋\n游园会",
+  joinCardTitle: "领取集章卡",
+  joinCardEyebrow: "STAMP CARD",
+  endedSaveButton: "保存我的集章卡",
+  endedGraceButton: "去恩典站换纪念卡",
   joinIntro: "领取你的中秋集章卡，逛摊位、玩游戏、认识新朋友。收集一枚枚印章，也收获一段段相遇。在惊喜与挑战之间，一起发现陪伴的意义，想想什么让异乡有了家的感觉。",
   cardTagline: "收集月光下的相遇，留下属于你的中秋故事。",
   endedTitle: "游园会告一段落",

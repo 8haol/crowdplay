@@ -677,3 +677,64 @@ export interface ImpersonateResult {
   token: string;
   org_name: string;
 }
+
+/* ---------- 后台按站改分 / 隐藏摊位（2026-09-21 追加，只在这里追加，不改上面的接口） ---------- */
+
+/** `admin_player_attempts`: one row per enabled main station, unplayed ones carry nulls. */
+export interface PlayerAttemptRow {
+  station_id: number;
+  name_zh: string;
+  scoring_mode: ScoringMode;
+  score: number | null;
+  status: "passed" | "failed" | null;
+}
+
+/**
+ * `stations.hidden` / `stations.hint`, copied onto `event_stations`. A hidden
+ * station is the secret NPC: always `main` + `fixed`, never counted toward the
+ * station total, and `hint` is what players read once the visible mains are
+ * all stamped. Admin code intersects this with `Station` / `EventStation`.
+ */
+export interface StationHiddenFields {
+  hidden?: boolean;
+  hint?: string | null;
+}
+
+/* ---------- 玩家端：撞名登记、联系方式找回、月圆时刻（2026-09-21 追加，只在这里追加） ---------- */
+
+/** `join_by_link` found someone tonight with the same normalised name. */
+export interface DuplicateJoin {
+  name: string;
+  /** First digit shown, the rest masked: 「3●●」. */
+  code_hint: string;
+  has_contact: boolean;
+  contact_hint: string | null;
+}
+
+/** `join_by_link`: a fresh player, or a duplicate card to confirm first. */
+export type JoinResult = { player_id: string; code: string } | { duplicate: DuplicateJoin };
+
+/** `recover_by_link` / `recover_by_contact`: the player json, code and name. */
+export interface RecoveredPlayer {
+  code: string;
+  name: string;
+}
+
+/** `poll_player_by_link.full_moon`: every visible main station stamped. */
+export interface FullMoonState {
+  reached: boolean;
+  /** The hidden station's hint, or null when the event runs none. */
+  hint: string | null;
+  secret_done: boolean;
+}
+
+// Declaration merging: `PollResult` above gains the optional block without
+// touching the original interface.
+export interface PollResult {
+  full_moon?: FullMoonState;
+}
+
+/** An attempt feed row at the hidden station: the board says 「找到了神秘嘉宾」 and hides the station name. */
+export interface SecretFeedFlag {
+  secret?: boolean;
+}

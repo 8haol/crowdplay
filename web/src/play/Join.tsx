@@ -1,6 +1,8 @@
 import { useCopy } from "../theme/ThemeProvider";
 import { useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { rpc, errorText, newIdemKey, RpcError } from "../lib/api";
+import type { DuplicateJoin, JoinResult, RecoveredPlayer } from "../lib/types";
 import { ActionButton, BrandMark, ErrorBanner, UpLink } from "../lib/ui";
 
 /* The join form is an "arrival card": a light paper immigration form
@@ -9,10 +11,10 @@ import { ActionButton, BrandMark, ErrorBanner, UpLink } from "../lib/ui";
 const cardInput =
   "mt-1.5 w-full rounded-[14px] border-2 border-transparent bg-join-input px-4 py-3.5 text-lg font-bold text-ink placeholder:text-ink-disabled outline-none transition-shadow duration-200 focus:bg-card focus:shadow-[0_0_0_3px_var(--color-accent)]";
 
-function admissionKey(joinToken: string): string {
+function admissionKey(joinToken: string, fresh = false): string {
   const storageKey = `lp_join_idem:${joinToken}`;
   try {
-    const existing = localStorage.getItem(storageKey);
+    const existing = fresh ? null : localStorage.getItem(storageKey);
     if (existing) return existing;
     const created = newIdemKey();
     localStorage.setItem(storageKey, created);
@@ -35,7 +37,12 @@ export default function Join(props: {
   preview?: boolean;
 }) {
   const copy = useCopy();
+  const [searchParams] = useSearchParams();
   const [mode, setMode] = useState<"join" | "recover">("join");
+  /* 找回有两条路：报编号，或报登记时留的联系方式。 */
+  const [recoverTab, setRecoverTab] = useState<"code" | "contact">("code");
+  /* 服务器发现今晚已有同名登记时先问一句，而不是直接再发一本。 */
+  const [dup, setDup] = useState<DuplicateJoin | null>(null);
   const [name, setName] = useState("");
   const [contact, setContact] = useState("");
   const [code, setCode] = useState("");
@@ -46,27 +53,40 @@ export default function Join(props: {
 
   const normalizedName = (value: string) => value.trim().replace(/\s+/g, "").toLocaleLowerCase();
 
-  const join = async () => {
+  const join = async (force = false) => {
     if (submittingRef.current) return;
     setErr(null);
     /*
      * Demo mode walks the whole flow instead of refusing at the first tap. The
      * /guide page exists so a volunteer can see what a new arrival sees, and a
      * form that says "this is only a preview" showed them nothing.
+     * `?preview=join&dup=1` shows the duplicate-name card on the first submit.
      */
     if (props.preview) {
+      if (!force && searchParams.get("dup") === "1") {
+        setDup({ name: name.trim() || "林沐恩", code_hint: "3●●", has_contact: true, contact_hint: "wx…26" });
+        return;
+      }
       props.onCodeIssued(String(100 + Math.floor(Math.random() * 900)), name.trim() || "新朋友");
       return;
     }
     submittingRef.current = true;
     setSubmitting(true);
     try {
-      const r = await rpc<{ player_id: string; code: string }>("join_by_link", {
+      /* 「不是我」= 明知同名也要一本新的：换一个幂等键，否则服务器会把它当成
+         刚才那次请求的重放而原样返回撞名卡。 */
+      if (force) joinIdempotencyKey.current = admissionKey(props.joinToken, true);
+      const r = await rpc<JoinResult>("join_by_link", {
         p_name: name,
         p_join_token: props.joinToken,
         p_contact: contact.trim() || null,
         p_idempotency_key: joinIdempotencyKey.current,
+        p_force: force,
       });
+      if ("duplicate" in r) {
+        setDup(r.duplicate);
+        return;
+      }
       /*
        * Hand the code up immediately. The player row already exists server-side,
        * so they are on the roster and will be assigned an identity when the host
@@ -94,7 +114,7 @@ export default function Join(props: {
     submittingRef.current = true;
     setSubmitting(true);
     try {
-      const r = await rpc<{ code: string; name: string }>("recover_by_link", {
+      const r = await rpc<RecoveredPlayer>("recover_by_link", {
         p_join_token: props.joinToken,
         p_code: code,
       });
@@ -109,6 +129,46 @@ export default function Join(props: {
       setSubmitting(false);
     }
   };
+
+  /* 忘了编号：名字 + 登记时留的微信号 / WhatsApp。 */
+  const recoverByContact = async () => {
+    if (submittingRef.current) return;
+    setErr(null);
+    if (props.preview) {
+      props.onJoined("327");
+      return;
+    }
+    submittingRef.current = true;
+    setSubmitting(true);
+    try {
+      const r = await rpc<RecoveredPlayer>("recover_by_contact", {
+        p_join_token: props.joinToken,
+        p_name: name,
+        p_contact: contact.trim(),
+      });
+      props.onJoined(r.code);
+    } catch (e) {
+      setErr(e instanceof RpcError && e.code === "PLAYER_NOT_FOUND" ? copy.recoverContactMiss : errorText(e));
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
+  };
+
+  const switchMode = (next: "join" | "recover") => {
+    setErr(null);
+    setDup(null);
+    setMode(next);
+  };
+
+  const pillClass = (active: boolean) =>
+    `pressable min-h-11 flex-1 whitespace-nowrap rounded-full px-2 text-[12.5px] font-black transition-colors ${
+      active ? "bg-ink text-card shadow-[0_2px_0_var(--color-ink-shadow)]" : "bg-card/70 text-ink-dim"
+    }`;
+  const tabClass = (active: boolean) =>
+    `pressable min-h-10 flex-1 rounded-full px-3 text-[13px] font-black ${
+      active ? "bg-accent text-accent-ink" : "bg-join-input text-ink-dim"
+    }`;
 
   return (
     <div className="relative min-h-dvh overflow-hidden">
@@ -133,10 +193,26 @@ export default function Join(props: {
 
         {copy.joinIntro && <p className="rise mt-4 max-w-sm text-center text-sm font-semibold leading-6 text-ink-dim">{copy.joinIntro}</p>}
 
+        {/* Two doors, equal weight: most people are new, but the ones who are
+            not used to hunt for a small grey link under the form. */}
+        <div
+          className="rise mt-8 flex w-full max-w-sm gap-2 rounded-full bg-card/50 p-1"
+          style={{ "--i": 3 } as React.CSSProperties}
+          role="tablist"
+          aria-label="登记或找回"
+        >
+          <button type="button" role="tab" aria-selected={mode === "join"} aria-pressed={mode === "join"} className={pillClass(mode === "join")} onClick={() => switchMode("join")}>
+            {copy.joinEntryNew}
+          </button>
+          <button type="button" role="tab" aria-selected={mode === "recover"} aria-pressed={mode === "recover"} className={pillClass(mode === "recover")} onClick={() => switchMode("recover")}>
+            {copy.joinEntryReturn}
+          </button>
+        </div>
+
         {/* arrival card */}
         <div
-          className="rise mt-8 w-full max-w-sm rounded-[28px] bg-white px-6 py-6 text-ink shadow-[0_3px_0_var(--color-shadow-line)]"
-          style={{ "--i": 3 } as React.CSSProperties}
+          className="rise mt-3 w-full max-w-sm rounded-[28px] bg-white px-6 py-6 text-ink shadow-[0_3px_0_var(--color-shadow-line)]"
+          style={{ "--i": 4 } as React.CSSProperties}
         >
           <div className="flex items-baseline justify-between pb-3">
             <span className="text-lg font-black">{mode === "join" ? "现场登记" : copy.recoverTitle}</span>
@@ -147,7 +223,35 @@ export default function Join(props: {
 
           {props.notice && <div className="mt-4"><ErrorBanner text={props.notice} /></div>}
 
-          {mode === "join" ? (
+          {mode === "join" && dup ? (
+            /* Somebody with this name already has a card tonight. Ask before
+               issuing a second one — most of the time it is the same person
+               on a new phone, and a fresh code would strand their score. */
+            <div className="mt-4 space-y-4" role="group" aria-label={copy.duplicateAsk.replace("{name}", dup.name).replace("{hint}", dup.code_hint)}>
+              <div className="rounded-[20px] bg-accent-soft px-4 py-4">
+                <p className="text-[15px] font-black leading-6 text-accent-deep">
+                  {copy.duplicateAsk.replace("{name}", dup.name).replace("{hint}", dup.code_hint)}
+                </p>
+                {dup.has_contact && dup.contact_hint && (
+                  <p className="mt-2 text-[12px] font-bold text-accent-deep/80">登记时留的联系方式：{dup.contact_hint}</p>
+                )}
+              </div>
+              <ErrorBanner text={err} />
+              <ActionButton
+                onClick={() => {
+                  setErr(null);
+                  setDup(null);
+                  setRecoverTab(dup.has_contact ? "contact" : "code");
+                  setMode("recover");
+                }}
+              >
+                {copy.duplicateYes}
+              </ActionButton>
+              <ActionButton variant="night-ghost" onClick={() => join(true)} disabled={submitting}>
+                {submitting ? copy.issuingCard : copy.duplicateNo}
+              </ActionButton>
+            </div>
+          ) : mode === "join" ? (
             <div className="mt-4 space-y-4">
               <label className="block">
                 <span className="text-[12px] font-black tracking-[0.16em] text-ink-dim">姓名 · NAME</span>
@@ -173,12 +277,49 @@ export default function Join(props: {
                 </span>
               </label>
               <ErrorBanner text={err} />
-              <ActionButton onClick={join} disabled={!name.trim() || submitting}>
+              <ActionButton onClick={() => join()} disabled={!name.trim() || submitting}>
                 {submitting ? copy.issuingCard : (copy.joinTitle ? copy.startGame : copy.joinAction)}
               </ActionButton>
             </div>
+          ) : recoverTab === "contact" ? (
+            <div className="mt-4 space-y-4">
+              <div className="flex gap-1.5 rounded-full bg-join-input p-1" role="tablist" aria-label="找回方式">
+                <button type="button" role="tab" aria-selected={false} className={tabClass(false)} onClick={() => { setErr(null); setRecoverTab("code"); }}>{copy.recoverHaveCode}</button>
+                <button type="button" role="tab" aria-selected className={tabClass(true)}>{copy.recoverForgotCode}</button>
+              </div>
+              <label className="block">
+                <span className="text-[12px] font-black tracking-[0.16em] text-ink-dim">登记姓名 · NAME</span>
+                <input
+                  className={cardInput}
+                  placeholder="登记时填写的姓名"
+                  maxLength={20}
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                />
+              </label>
+              <label className="block">
+                <span className="text-[12px] font-black tracking-[0.12em] text-ink-dim">微信号 / WHATSAPP</span>
+                <input
+                  className={cardInput}
+                  placeholder="登记时留的那一个"
+                  maxLength={80}
+                  autoFocus
+                  value={contact}
+                  onChange={(event) => setContact(event.target.value)}
+                />
+              </label>
+              <ErrorBanner text={err} />
+              <ActionButton onClick={recoverByContact} disabled={!name.trim() || !contact.trim() || submitting}>
+                {submitting ? "正在核对…" : `找回我的${copy.cardShort}`}
+              </ActionButton>
+              <p className="text-[11px] font-semibold leading-5 text-ink-dim">{copy.recoverContactNote}</p>
+            </div>
           ) : (
             <div className="mt-4 space-y-4">
+              <div className="flex gap-1.5 rounded-full bg-join-input p-1" role="tablist" aria-label="找回方式">
+                <button type="button" role="tab" aria-selected className={tabClass(true)}>{copy.recoverHaveCode}</button>
+                <button type="button" role="tab" aria-selected={false} className={tabClass(false)} onClick={() => { setErr(null); setRecoverTab("contact"); }}>{copy.recoverForgotCode}</button>
+              </div>
               <label className="block">
                 <span className="text-[12px] font-black tracking-[0.16em] text-ink-dim">登记姓名 · NAME</span>
                 <input
@@ -212,17 +353,6 @@ export default function Join(props: {
           )}
         </div>
 
-        <button
-          type="button"
-          className="rise mt-6 inline-flex min-h-11 items-center rounded-full px-5 text-[14px] font-bold text-ink-dim hover:bg-white"
-          style={{ "--i": 4 } as React.CSSProperties}
-          onClick={() => {
-            setErr(null);
-            setMode(mode === "join" ? "recover" : "join");
-          }}
-        >
-          {mode === "join" ? `已经登记过？输入${copy.lifeNo}找回 →` : "← 返回现场登记"}
-        </button>
       </div>
     </div>
   );

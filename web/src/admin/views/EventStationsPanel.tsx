@@ -5,11 +5,12 @@ import type {
   EventStationsData,
   ScoringMode,
   Station,
+  StationHiddenFields,
   StationMetric,
   StationType,
 } from "../../lib/types";
 import { ErrorBanner } from "../../lib/ui";
-import { Btn, Panel, PanelHead } from "../adminUi";
+import { Btn, HiddenTag, Panel, PanelHead } from "../adminUi";
 import { T, inputClass, inputStyle } from "../adminTokens";
 import { TYPE_ZH, stationRule } from "../adminUtils";
 import { DisableStationModal } from "../AdminDialogs";
@@ -20,6 +21,8 @@ interface DraftRow {
   name_zh: string;
   type: StationType;
   scoring_mode: ScoringMode;
+  /** Display only — the server copies `hidden` / `hint` from the library row itself. */
+  hidden?: boolean;
 }
 
 /**
@@ -156,25 +159,38 @@ export function EventStationsPanel({
                   </span>
 
                   {editable ? (
-                    <input
-                      className={`${inputClass} !mt-0 !w-auto min-w-[9rem] flex-1`}
-                      style={inputStyle}
-                      value={row.name_zh}
-                      maxLength={30}
-                      aria-label={`第 ${index + 1} 站名称`}
-                      onChange={(event) => edit(index, { name_zh: event.target.value })}
-                    />
+                    <>
+                      <input
+                        className={`${inputClass} !mt-0 !w-auto min-w-[9rem] flex-1`}
+                        style={inputStyle}
+                        value={row.name_zh}
+                        maxLength={30}
+                        aria-label={`第 ${index + 1} 站名称`}
+                        onChange={(event) => edit(index, { name_zh: event.target.value })}
+                      />
+                      {row.hidden && <HiddenTag />}
+                    </>
                   ) : (
                     <div className="min-w-0 flex-1">
-                      <div className="truncate font-black">{row.name_zh}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="truncate font-black">{row.name_zh}</span>
+                        {row.hidden && <HiddenTag />}
+                      </div>
                       <div className="text-[11px] font-bold" style={{ color: T.inkFaint }}>
                         {stationRule(row.type, row.scoring_mode)}
+                        {row.hidden ? " · 神秘嘉宾" : ""}
                         {metric && row.type === "main" ? ` · 已处理 ${metric.visits} 次` : ""}
                       </div>
                     </div>
                   )}
 
-                  {editable && row.type === "main" && (
+                  {/* 隐藏摊位的计分方式由后端锁成固定 6 分，这里不给下拉。 */}
+                  {editable && row.type === "main" && row.hidden && (
+                    <span className="shrink-0 text-[11px] font-black" style={{ color: T.inkFaint }}>
+                      固定 6 分
+                    </span>
+                  )}
+                  {editable && row.type === "main" && !row.hidden && (
                     <select
                       className={`${inputClass} !mt-0 !w-auto shrink-0`}
                       style={inputStyle}
@@ -255,6 +271,7 @@ export function EventStationsPanel({
                     <span className="ml-1.5 font-bold" style={{ color: T.inkFaint }}>
                       {TYPE_ZH[station.type]}
                     </span>
+                    {station.hidden && <HiddenTag className="ml-1.5" />}
                   </button>
                 ))}
               </div>
@@ -334,22 +351,24 @@ function required(rows: DraftRow[], index: number): string | null {
   return null;
 }
 
-function toDraft(row: EventStation): DraftRow {
+function toDraft(row: EventStation & StationHiddenFields): DraftRow {
   return {
     station_id: row.station_id,
     name_zh: row.name_zh,
     type: row.type,
     scoring_mode: row.scoring_mode,
+    hidden: row.hidden ?? false,
   };
 }
 
 /* A library row joins the event under the library's current name; the event
    then owns that copy, and later renames in the library do not follow it. */
-function fromLibrary(station: Station): DraftRow {
+function fromLibrary(station: Station & StationHiddenFields): DraftRow {
   return {
     station_id: station.id,
     name_zh: station.name_zh,
     type: station.type,
     scoring_mode: station.scoring_mode,
+    hidden: station.hidden ?? false,
   };
 }

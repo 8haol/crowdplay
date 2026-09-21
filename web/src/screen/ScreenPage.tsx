@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { rpc, errorText } from "../lib/api";
 import { usePoll } from "../lib/usePoll";
-import type { BoardPlayer, BoardSnapshot, FeedItem, GameLanding } from "../lib/types";
+import type { BoardPlayer, BoardSnapshot, FeedItem, GameLanding, SecretFeedFlag } from "../lib/types";
 import { colorOf, soloColor } from "../lib/types";
 import { ConnDot, UpLink } from "../lib/ui";
 import { JoinQr } from "../lib/JoinQr";
@@ -641,6 +641,20 @@ function describe(item: FeedItem, copy: Copy): Line {
 
   if (item.kind === "attempt") {
     const who = item.name;
+    /* The hidden station stays hidden: the room hears that someone found the
+       secret guest, never where. `who` already names the team, so the
+       {team} slot in the copy is dropped here. */
+    if ((item as FeedItem & SecretFeedFlag).secret) {
+      return {
+        glyph: "star",
+        tone: "foil",
+        who,
+        dot: colorOf(item.color_group ?? null)?.hex ?? null,
+        what: copy.secretFeed.replace("{team}", "").trim(),
+        detail: null,
+        chip: `每人 +${item.score} 分`,
+      };
+    }
     if (item.status === "failed") {
       return {
         glyph: "cross",

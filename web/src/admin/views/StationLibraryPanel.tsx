@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { errorText, rpc } from "../../lib/api";
-import type { Station, StationLibrary } from "../../lib/types";
+import type { Station, StationHiddenFields, StationLibrary } from "../../lib/types";
 import { ErrorBanner } from "../../lib/ui";
-import { Btn, Panel, PanelHead } from "../adminUi";
+import { Btn, HiddenTag, Panel, PanelHead } from "../adminUi";
 import { T } from "../adminTokens";
 import { TYPE_ZH, stationRule } from "../adminUtils";
 import { LibraryStationModal } from "../AdminDialogs";
@@ -132,13 +132,17 @@ function Group({ title, note, children }: { title: string; note: string; childre
   );
 }
 
-function Row({ station, children }: { station: Station; children: React.ReactNode }) {
+function Row({ station, children }: { station: Station & StationHiddenFields; children: React.ReactNode }) {
   return (
     <li className="flex flex-wrap items-center gap-3 px-5 py-3.5">
       <div className="min-w-0 flex-1">
-        <div className="truncate font-black">{station.name_zh}</div>
+        <div className="flex items-center gap-2">
+          <span className="truncate font-black">{station.name_zh}</span>
+          {station.hidden && <HiddenTag />}
+        </div>
         <div className="text-[11px] font-bold" style={{ color: T.inkFaint }}>
           {TYPE_ZH[station.type]} · {stationRule(station.type, station.scoring_mode)}
+          {station.hidden ? " · 神秘嘉宾，不计入主站总数" : ""}
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-2">{children}</div>

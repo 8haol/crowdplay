@@ -141,6 +141,10 @@ export default function Passport(props: {
     : "cover";
   // 中秋主题只有一种集章卡版式，三方案与封皮色的预览控件不再出现。
   const showStylePicker = searchParams.get("preview") === "passport" && !midautumn;
+  /* 中秋的集章卡是 max-w-md 的一栏；下面每一段都得跟着它，
+     不然电脑端上面窄、下面宽，看着像两张页面拼起来的。 */
+  const col = midautumn ? "max-w-[480px]" : "max-w-2xl";        // 里面再 px-4
+  const colFlush = midautumn ? "max-w-md" : "max-w-2xl";        // 自己带 w-[calc(100%-2rem)]
   const requestedColor = searchParams.get("passportColor");
   const previewColor = showStylePicker && PASSPORT_PREVIEW_COLORS.some(({ slug }) => slug === requestedColor)
     ? requestedColor
@@ -167,7 +171,7 @@ export default function Passport(props: {
       <div className="night-sky" />
       <div className="relative z-10 pb-12">
         {showStylePicker && (
-          <div className="rise mx-auto mt-4 w-[calc(100%-2rem)] max-w-2xl" style={{ "--i": 0 } as React.CSSProperties}>
+          <div className={`rise mx-auto mt-4 w-[calc(100%-2rem)] ${colFlush}`} style={{ "--i": 0 } as React.CSSProperties}>
             <div className="passport-style-picker" aria-label={`${copy.cardShort}主面板设计方案`}>
               {([
                 ["cover", "01 经典封皮"],
@@ -274,7 +278,7 @@ export default function Passport(props: {
 
         {/* status effect notice */}
         {player.status_effect?.type === "cap_next" && (
-          <div className="rise mx-auto mt-4 w-[calc(100%-2rem)] max-w-2xl rounded-2xl bg-accent-soft px-4 py-3 text-sm font-black text-accent-deep"
+          <div className={`rise mx-auto mt-4 w-[calc(100%-2rem)] ${colFlush} rounded-2xl bg-accent-soft px-4 py-3 text-sm font-black text-accent-deep`}
                style={{ "--i": 1 } as React.CSSProperties}>
             重感冒卧床中 · 下一{copy.stationUnit}最多得 {player.status_effect.value} 分
           </div>
@@ -283,7 +287,7 @@ export default function Passport(props: {
         {journey.complete && <FinishedCard player={player} />}
 
         {/* visa pages */}
-        <section className="mx-auto mt-7 max-w-2xl px-4">
+        <section className={`mx-auto mt-7 ${col} px-4`}>
           <div className="rise flex items-baseline justify-between" style={{ "--i": 2 } as React.CSSProperties}>
             <h2 className="text-xl font-black">{`${player.stations_total} ${copy.stationUnit}${copy.stationList}`}</h2>
             <span className="tabular text-xs text-moon-dim">
@@ -319,7 +323,7 @@ export default function Passport(props: {
         </section>
 
         {/* grace token */}
-        <section className={`mx-auto mt-6 max-w-2xl px-4 ${midautumn && player.token_available ? "hidden" : ""}`}>
+        <section className={`mx-auto mt-6 ${col} px-4 ${midautumn && player.token_available ? "hidden" : ""}`}>
           {/* Spendable, so it is a button: the rules for spending it are one tap
               away instead of back in the guide. Spent, it is a keepsake and
               nothing to press. */}
@@ -374,7 +378,7 @@ export default function Passport(props: {
 
         {/* life events */}
         {life_events.length > 0 && (
-          <section className="mx-auto mt-7 max-w-2xl px-4">
+          <section className={`mx-auto mt-7 ${col} px-4`}>
             <div className="flex items-baseline justify-between">
               <h2 className="text-xl font-black">{copy.lifeEventLog}</h2>
               <span className="tabular text-xs text-moon-dim">
@@ -793,7 +797,7 @@ function FinishedCard({ player }: { player: PollResult["player"] }) {
   const copy = useCopy();
   const midautumn = useTheme().id === "midautumn";
   return (
-    <section className="mx-auto mt-5 w-[calc(100%-2rem)] max-w-2xl">
+    <section className={`mx-auto mt-5 w-[calc(100%-2rem)] ${midautumn ? "max-w-md" : "max-w-2xl"}`}>
       <div
         className="rise rounded-[24px] px-5 py-5"
         style={{

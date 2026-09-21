@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { BrandMark, UpLink } from "../lib/ui";
 import { useScrollMemory } from "../lib/useScrollMemory";
@@ -34,6 +34,14 @@ const SECTIONS = [
 ];
 
 const SCROLL_KEY = "lp_guide_scroll";
+const THEME_KEY = "lp_guide_theme";
+
+/** 演示按钮能用哪些皮肤。第一个是默认，URL 上不写。 */
+const PREVIEW_THEMES: Array<[id: string, label: string, note: string]> = [
+  ["passport", "人生护照", "Glasgow 迎新会那套"],
+  ["midautumn", "中秋游园会", "Soho 中秋派对那套"],
+];
+const DEFAULT_PREVIEW_THEME = PREVIEW_THEMES[0][0];
 
 /** Shared measure. Everything on the page lines up on these two edges. */
 const COLUMN = "mx-auto w-full max-w-[46rem] px-5 sm:px-7";
@@ -41,6 +49,7 @@ const COLUMN = "mx-auto w-full max-w-[46rem] px-5 sm:px-7";
 export default function GuidePage() {
   const active = useActiveSection(SECTIONS.map((section) => section.id));
   useScrollMemory(SCROLL_KEY);
+  useRememberedPreviewTheme();
 
   return (
     /* No overflow-x here: any overflow value other than visible turns this into
@@ -224,31 +233,54 @@ function Body({ children, className = "" }: { children: React.ReactNode; classNa
 /** 手册里的演示按钮跟着页面上的「预览主题」走：选了中秋，所有演示都以中秋皮肤打开。 */
 function usePreviewTheme(): [string, (next: string) => void] {
   const [searchParams, setSearchParams] = useSearchParams();
-  const current = searchParams.get("theme") === "midautumn" ? "midautumn" : "passport";
+  const current = knownTheme(searchParams.get("theme"));
   const set = (next: string) => {
     const params = new URLSearchParams(searchParams);
-    if (next === "passport") params.delete("theme"); else params.set("theme", next);
+    if (next === DEFAULT_PREVIEW_THEME) params.delete("theme"); else params.set("theme", next);
+    // 记住这次浏览选了什么，见 useRememberedPreviewTheme。
+    sessionStorage.setItem(THEME_KEY, next);
     setSearchParams(params, { replace: true });
   };
   return [current, set];
 }
 
+function knownTheme(value: string | null): string {
+  return PREVIEW_THEMES.some(([id]) => id === value) ? value! : DEFAULT_PREVIEW_THEME;
+}
+
+/**
+ * 选过的预览主题跟着这次浏览走，而不是跟着 URL。
+ *
+ * 演示屏幕上的「返回说明页」（还有事件库那两个入口）都只指向裸 /guide，
+ * 回来时 ?theme= 就没了 —— 选了中秋的人每看完一个演示都被打回迎新主题，
+ * 下一个演示又得重选。选择写进 sessionStorage，回到说明页时再接回 URL：
+ * URL 仍然是唯一的真相，选中态和演示按钮都只读它。
+ */
+function useRememberedPreviewTheme() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  // 布局阶段改回来，选中态不会先闪一帧默认主题。
+  useLayoutEffect(() => {
+    if (searchParams.has("theme")) return;
+    const saved = knownTheme(sessionStorage.getItem(THEME_KEY));
+    if (saved === DEFAULT_PREVIEW_THEME) return;
+    const params = new URLSearchParams(searchParams);
+    params.set("theme", saved);
+    setSearchParams(params, { replace: true });
+  }, [searchParams, setSearchParams]);
+}
+
 function withTheme(href: string, theme: string): string {
-  if (theme === "passport") return href;
+  if (theme === DEFAULT_PREVIEW_THEME) return href;
   return `${href}${href.includes("?") ? "&" : "?"}theme=${theme}`;
 }
 
 function PreviewThemePicker() {
   const [theme, setTheme] = usePreviewTheme();
-  const options: Array<[string, string, string]> = [
-    ["passport", "人生护照", "Glasgow 迎新会那套"],
-    ["midautumn", "中秋游园会", "Soho 中秋派对那套"],
-  ];
   return (
     <div className="mt-6 rounded-[18px] bg-white p-3 shadow-[0_2px_0_var(--color-foil-shadow)]" role="group" aria-label="演示用哪个主题">
       <p className="px-1 text-[11px] font-black tracking-[0.2em] text-ink-dim">预览主题 · 下面所有演示按钮都按它打开</p>
       <div className="mt-2 grid grid-cols-2 gap-2">
-        {options.map(([id, label, note]) => (
+        {PREVIEW_THEMES.map(([id, label, note]) => (
           <button
             key={id}
             type="button"

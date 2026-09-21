@@ -37,13 +37,23 @@ export function useScrollMemory(key: string, ready = true) {
   }, [key, ready]);
 
   useEffect(() => {
+    /* Only record while the reader is actually still on this page. Leaving for
+       a demo screen scrolls the *next* route to the top (RouteScrollManager)
+       while this listener is still attached — a deleted subtree's passive
+       cleanup runs after the commit that scrolled — and that stray event used
+       to overwrite the stored position with 0, which is why every trip back
+       from a demo landed at the very top. The path is checked when the value
+       is written, not when the listener is attached. */
+    const path = window.location.pathname;
     let frame = 0;
+    const save = () => {
+      frame = 0;
+      if (window.location.pathname !== path) return;
+      sessionStorage.setItem(key, String(Math.round(window.scrollY)));
+    };
     const onScroll = () => {
       if (frame) return;
-      frame = requestAnimationFrame(() => {
-        frame = 0;
-        sessionStorage.setItem(key, String(Math.round(window.scrollY)));
-      });
+      frame = requestAnimationFrame(save);
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {

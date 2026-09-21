@@ -1,3 +1,4 @@
+import { useCopy } from "../theme/ThemeProvider";
 import { useRef, useState } from "react";
 import { rpc, errorText, newIdemKey, RpcError } from "../lib/api";
 import { ActionButton, BrandMark, ErrorBanner, UpLink } from "../lib/ui";
@@ -33,6 +34,7 @@ export default function Join(props: {
   gameTitle?: string;
   preview?: boolean;
 }) {
+  const copy = useCopy();
   const [mode, setMode] = useState<"join" | "recover">("join");
   const [name, setName] = useState("");
   const [contact, setContact] = useState("");
@@ -120,14 +122,16 @@ export default function Join(props: {
       <div className="relative z-10 flex min-h-dvh w-[100vw] max-w-[100vw] flex-col items-center px-6 pt-16 pb-10">
         <BrandMark className="rise !w-[104px] !gap-1 !rounded-[18px] !p-2.5 !shadow-[0_3px_0_var(--color-foil-shadow)]" />
         <p className="rise mt-7 text-[11px] font-black tracking-[0.45em] text-foil-dim" style={{ "--i": 0 } as React.CSSProperties}>
-          LIFE PASSPORT
+          {copy.cardEn}
         </p>
         <h1 className="rise mt-2 text-[42px] font-black leading-tight tracking-[-0.05em] text-ink" style={{ "--i": 1 } as React.CSSProperties}>
-          领取人生编号
+          {copy.joinTitle || copy.joinHeading}
         </h1>
         <p className="rise mt-2 max-w-xs text-center text-sm font-semibold text-ink-dim" style={{ "--i": 2 } as React.CSSProperties}>
-          {props.gameTitle ?? "本场活动"} · 填写姓名即可，联系方式选填
+          {!copy.joinTitle && <>{props.gameTitle ?? "本场活动"} · </>}{copy.joinSubtitle}
         </p>
+
+        {copy.joinIntro && <p className="rise mt-4 max-w-sm text-center text-sm font-semibold leading-6 text-ink-dim">{copy.joinIntro}</p>}
 
         {/* arrival card */}
         <div
@@ -135,7 +139,7 @@ export default function Join(props: {
           style={{ "--i": 3 } as React.CSSProperties}
         >
           <div className="flex items-baseline justify-between pb-3">
-            <span className="text-lg font-black">{mode === "join" ? "现场登记" : "找回人生"}</span>
+            <span className="text-lg font-black">{mode === "join" ? "现场登记" : copy.recoverTitle}</span>
             <span className="font-mono text-[10px] tracking-[0.25em] text-ink-dim">
               {mode === "join" ? "ARRIVAL CARD" : "RE-ENTRY"}
             </span>
@@ -170,7 +174,7 @@ export default function Join(props: {
               </label>
               <ErrorBanner text={err} />
               <ActionButton onClick={join} disabled={!name.trim() || submitting}>
-                {submitting ? "正在签发护照…" : "领取人生编号"}
+                {submitting ? copy.issuingCard : (copy.joinTitle ? copy.startGame : copy.joinAction)}
               </ActionButton>
             </div>
           ) : (
@@ -186,7 +190,7 @@ export default function Join(props: {
                 />
               </label>
               <label className="block">
-                <span className="text-[12px] font-black tracking-[0.16em] text-ink-dim">人生编号 · LIFE NO.</span>
+                <span className="text-[12px] font-black tracking-[0.16em] text-ink-dim">{copy.lifeNo} · {copy.lifeNoEn}</span>
                 <input
                   inputMode="numeric"
                   pattern="[0-9]*"
@@ -202,7 +206,7 @@ export default function Join(props: {
               {/* Codes are 3 digits now; 4 stays accepted so a passport issued
                   by an older session can still be recovered. */}
               <ActionButton onClick={recover} disabled={code.length < 3 || !name.trim() || submitting}>
-                {submitting ? "正在核对…" : "找回我的护照"}
+                {submitting ? "正在核对…" : `找回我的${copy.cardShort}`}
               </ActionButton>
             </div>
           )}
@@ -217,7 +221,7 @@ export default function Join(props: {
             setMode(mode === "join" ? "recover" : "join");
           }}
         >
-          {mode === "join" ? "已经登记过？输入人生编号找回 →" : "← 返回现场登记"}
+          {mode === "join" ? `已经登记过？输入${copy.lifeNo}找回 →` : "← 返回现场登记"}
         </button>
       </div>
     </div>
@@ -231,23 +235,24 @@ export default function Join(props: {
  * on this screen.
  */
 export function CodeIssued({ code, onContinue }: { code: string; onContinue: () => void }) {
+  const copy = useCopy();
   return (
     <div className="brand-stage relative min-h-dvh overflow-hidden">
       <div className="night-sky" />
       <div className="relative z-10 flex min-h-dvh flex-col items-center justify-center p-6">
         <div className="w-full max-w-sm text-center text-ink">
           <p className="rise text-[11px] font-black tracking-[0.4em] text-foil-dim" style={{ "--i": 0 } as React.CSSProperties}>
-            LIFE NO. · 已生成
+            {copy.lifeNoEn} · 已生成
           </p>
           <h1 className="rise mt-2 text-3xl font-black" style={{ "--i": 1 } as React.CSSProperties}>
-            这是你的人生编号
+            这是你的{copy.lifeNo}
           </h1>
 
           <div
             className="rise sheen mt-8 rounded-[32px] bg-white px-6 pb-7 pt-8 shadow-[0_5px_0_var(--color-foil-shadow)]"
             style={{ "--i": 2 } as React.CSSProperties}
           >
-            <div className="text-[11px] font-black tracking-[0.28em] text-ink-dim">LIFE NO. · 人生编号</div>
+            <div className="text-[11px] font-black tracking-[0.28em] text-ink-dim">{copy.lifeNoEn} · {copy.lifeNo}</div>
             <div className="tabular mt-4 text-[80px] font-black leading-none tracking-[-0.06em] text-ink">
               {code}
             </div>
@@ -257,7 +262,7 @@ export function CodeIssued({ code, onContinue }: { code: string; onContinue: () 
           <p className="rise mt-5 text-sm font-semibold leading-relaxed text-foil-dim" style={{ "--i": 3 } as React.CSSProperties}>
             请<b className="text-ink">截图保存</b>这三位数字。
             <br />
-            现场报分、找回护照，全程只用这一个编号。
+            现场报分、找回{copy.cardShort}，全程只用这一个编号。
           </p>
           <div className="rise mt-8" style={{ "--i": 4 } as React.CSSProperties}>
             <ActionButton onClick={onContinue}>我记住了 · 进入候场区 →</ActionButton>

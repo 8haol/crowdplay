@@ -1,3 +1,4 @@
+import { useCopy } from "../theme/ThemeProvider";
 import type { ReactNode } from "react";
 import type { PlayerState } from "../lib/types";
 import { colorOf, soloColor } from "../lib/types";
@@ -144,6 +145,7 @@ export function StickyBar({ children }: { children: ReactNode }) {
 
 /** One roster row: who is in this team and where each of them stands. */
 export function MemberRow({ member, stationsTotal }: { member: PlayerState; stationsTotal: number }) {
+  const copy = useCopy();
   const color = colorOf(member.color_group) ?? (member.identity === "solo" ? soloColor(member.code) : null);
   return (
     <div className="flex items-center gap-3 py-2.5">
@@ -156,10 +158,10 @@ export function MemberRow({ member, stationsTotal }: { member: PlayerState; stat
       <div className="min-w-0 flex-1">
         <div className="truncate text-[15px] font-black">{member.name}</div>
         <div className="tabular text-[11px] font-semibold text-ink-dim">
-          {member.code} · {member.stations_done}/{member.stations_total ?? stationsTotal} 站 ·{" "}
-          {member.life_events_done}/{member.life_events_total} 人生
+          {member.code} · {member.stations_done}/{member.stations_total ?? stationsTotal} {copy.stationUnit} ·{" "}
+          {member.life_events_done}/{member.life_events_total} {copy.stageShort}
           {member.locked_for_life_event && <span className="font-black text-seal"> · 手机待选</span>}
-          {!member.token_available && <span> · 无 Token</span>}
+          {!member.token_available && <span> · 无 {copy.tokenShort}</span>}
         </div>
       </div>
       <span className="tabular shrink-0 text-xl font-black">{member.score}</span>

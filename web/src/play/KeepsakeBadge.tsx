@@ -1,8 +1,10 @@
+import type { Copy } from "../theme/copy";
+import { useCopy } from "../theme/ThemeProvider";
 import { cssVar } from "../lib/color";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import type { PollResult } from "../lib/types";
-import { IDENTITY_ZH, colorOf, soloColor } from "../lib/types";
+import { colorOf, soloColor } from "../lib/types";
 import { ActionButton, ErrorBanner } from "../lib/ui";
 
 const WIDTH = 1080;
@@ -26,6 +28,7 @@ type Keepsake = { url: string; file: File };
    the ranks. Taking it as a required prop makes the page that opens this one
    prove it has one. */
 export default function KeepsakeBadge({ data, rank }: { data: PollResult; rank: number }) {
+  const copy = useCopy();
   const [keepsake, setKeepsake] = useState<Keepsake | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
@@ -33,8 +36,8 @@ export default function KeepsakeBadge({ data, rank }: { data: PollResult; rank: 
   const [generatedAt] = useState(() => Date.now());
   const cardRef = useRef<HTMLDivElement>(null);
   const player = data.player;
-  const identity = IDENTITY_ZH[player.identity ?? "solo"];
-  const playerColor = colorOf(player.color_group) ?? soloColor(player.code);
+  const identity = copy.identity[player.identity ?? "solo"];
+  const playerColor = colorOf(player.color_group, copy) ?? soloColor(player.code, copy);
   const eventDate = useMemo(
     () => {
       const date = new Date(data.started_at ?? generatedAt);
@@ -42,7 +45,7 @@ export default function KeepsakeBadge({ data, rank }: { data: PollResult; rank: 
     },
     [data.started_at, generatedAt],
   );
-  const filename = useMemo(() => `人生护照-${safeFilename(player.name)}.png`, [player.name]);
+  const filename = useMemo(() => `${copy.card}-${safeFilename(player.name)}.png`, [player.name, copy.card]);
 
   useEffect(() => {
     let active = true;
@@ -54,27 +57,27 @@ export default function KeepsakeBadge({ data, rank }: { data: PollResult; rank: 
       score: player.score,
       rank,
       date: eventDate,
-      orgZh: data.org?.name_zh ?? "Life Passport",
-      orgEn: data.org?.name_en ?? "Life Passport",
-    })
+      orgZh: data.org?.name_zh ?? copy.cardTitleCase,
+      orgEn: data.org?.name_en ?? copy.cardTitleCase,
+    }, copy)
       .then(({ url, blob }) => {
         if (!active) return;
         setKeepsake({ url, file: new File([blob], filename, { type: "image/png" }) });
       })
       .catch(() => { if (active) setError("纪念徽章生成失败，请刷新后再试"); });
     return () => { active = false; };
-  }, [data.org?.name_en, data.org?.name_zh, rank, eventDate, filename, identity.name, player.name, player.score, playerColor.hex, playerColor.zh]);
+  }, [copy, data.org?.name_en, data.org?.name_zh, rank, eventDate, filename, identity.name, player.name, player.score, playerColor.hex, playerColor.zh]);
 
   const sharePayload = useMemo<ShareData | null>(
     () =>
       keepsake
         ? {
-            title: `${player.name} 的人生纪念徽章`,
+            title: `${player.name} 的${copy.keepsakeName}`,
             text: "You don't have to do life alone",
             files: [keepsake.file],
           }
         : null,
-    [keepsake, player.name],
+    [keepsake, player.name, copy.keepsakeName],
   );
 
   /* Asked before the tap, so the button can promise only what this browser can
@@ -124,9 +127,9 @@ export default function KeepsakeBadge({ data, rank }: { data: PollResult; rank: 
       <div className="night-sky" />
       <div className="relative z-10 mx-auto w-full max-w-md">
         <div>
-          <p className="text-[10px] font-black tracking-[0.4em] text-foil-dim">LIFE PASSPORT · SHARE</p>
+          <p className="text-[10px] font-black tracking-[0.4em] text-foil-dim">{copy.shareTitle}</p>
           <h1 className="mt-2 text-[22px] font-black tracking-[-0.03em]">分享图（长按保存 · 发朋友圈）</h1>
-          <p className="mt-2 text-sm font-semibold text-ink-dim">你的姓名、同行身份、总分与全场名次都已写进这一程。</p>
+          <p className="mt-2 text-sm font-semibold text-ink-dim">你的姓名、同行身份、{copy.score}与全场名次都已写进这一程。</p>
         </div>
 
         <div
@@ -136,7 +139,7 @@ export default function KeepsakeBadge({ data, rank }: { data: PollResult; rank: 
           {keepsake ? (
             <img
               src={keepsake.url}
-              alt={`${player.name} 的人生纪念徽章：${player.score} 分，全场第 ${rank} 名`}
+              alt={`${player.name} 的${copy.keepsakeName}：${player.score} 分，全场第 ${rank} 名`}
               className="block h-auto w-full"
               width={WIDTH}
               height={HEIGHT}
@@ -157,7 +160,7 @@ export default function KeepsakeBadge({ data, rank }: { data: PollResult; rank: 
             <div className="rounded-2xl bg-night px-4 py-4 shadow-[0_3px_0_var(--color-foil-shadow)]">
               <p className="text-[10px] font-black tracking-[0.3em] text-foil-dim">保存图片 · 发给朋友</p>
               <ol className="mt-3 space-y-2 text-sm font-bold text-accent-deep">
-                <li>1 · 长按上面那张护照图片</li>
+                <li>1 · 长按上面那张{copy.cardShort}图片</li>
                 <li>2 · 选择「保存图片」到相册</li>
                 <li>3 · {IN_WECHAT ? "回到聊天或朋友圈，把它发出去" : "在微信里把它发给朋友"}</li>
               </ol>
@@ -170,7 +173,7 @@ export default function KeepsakeBadge({ data, rank }: { data: PollResult; rank: 
           )}
           {hint && <div className="rounded-2xl bg-accent-soft px-4 py-3 text-sm font-bold text-accent-deep">{hint}</div>}
           <ActionButton onClick={share} disabled={!keepsake}>
-            {canOpenShareSheet ? "分享这张人生护照" : "保存图片 · 发给朋友"}
+            {canOpenShareSheet ? `分享这张${copy.card}` : "保存图片 · 发给朋友"}
           </ActionButton>
           {!IN_WECHAT && (
             <ActionButton variant="tool-ghost" onClick={save} disabled={!keepsake}>下载 PNG</ActionButton>
@@ -179,7 +182,7 @@ export default function KeepsakeBadge({ data, rank }: { data: PollResult; rank: 
             ← 返回结算页
           </Link>
           <p className="px-4 text-center text-xs font-semibold leading-5 text-ink-dim">
-            微信中建议直接长按图片保存。分享图不包含你的人生编号。
+            微信中建议直接长按图片保存。分享图不包含你的{copy.lifeNo}。
           </p>
         </div>
       </div>
@@ -200,7 +203,7 @@ type BadgeData = {
   orgEn: string;
 };
 
-async function renderBadge(data: BadgeData): Promise<{ url: string; blob: Blob }> {
+async function renderBadge(data: BadgeData, copy: Copy): Promise<{ url: string; blob: Blob }> {
   const canvas = document.createElement("canvas");
   canvas.width = WIDTH;
   canvas.height = HEIGHT;
@@ -213,8 +216,8 @@ async function renderBadge(data: BadgeData): Promise<{ url: string; blob: Blob }
   circle(ctx, 30, 890, 210, cssVar("--color-stage-orb-deep"));
   circle(ctx, 1040, 1500, 175, cssVar("--color-stage-orb-light"));
 
-  trackedLabel(ctx, "人生护照", 90, 145, 30, 9, cssVar("--color-moon"), "left", 900);
-  trackedLabel(ctx, "LIFE PASSPORT", 990, 145, 27, 12, cssVar("--color-moon"), "right", 700);
+  trackedLabel(ctx, copy.card, 90, 145, 30, 9, cssVar("--color-moon"), "left", 900);
+  trackedLabel(ctx, copy.cardEn, 990, 145, 27, 12, cssVar("--color-moon"), "right", 700);
 
   label(ctx, data.name, 90, 405, fitFont(ctx, data.name, 106, 900, 62), cssVar("--color-moon"), "left", 900);
 
@@ -225,7 +228,7 @@ async function renderBadge(data: BadgeData): Promise<{ url: string; blob: Blob }
   circle(ctx, 143, 515, 19, data.colorHex);
   label(ctx, identityText, 183, 528, 38, cssVar("--color-moon"), "left", 800);
 
-  trackedLabel(ctx, "最终总分 · FINAL SCORE", 90, 710, 30, 10, cssVar("--color-moon"), "left", 800);
+  trackedLabel(ctx, `最终${copy.score} · ${copy.scoreEn}`, 90, 710, 30, 10, cssVar("--color-moon"), "left", 800);
   label(ctx, String(data.score), 80, 1068, fitFont(ctx, String(data.score), 310, 430, 220), cssVar("--color-moon"), "left", 900);
   roundedRect(ctx, 535, 895, 410, 104, 52, cssVar("--color-moon"));
   label(ctx, `全场第 ${data.rank} 名`, 740, 966, 42, cssVar("--color-accent"), "center", 900);

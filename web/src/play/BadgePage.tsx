@@ -1,4 +1,4 @@
-import { ThemeProvider } from "../theme/ThemeProvider";
+import { ThemeProvider, useCopy } from "../theme/ThemeProvider";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useMemo, type ReactNode } from "react";
 import { rpc, errorText } from "../lib/api";
@@ -55,10 +55,7 @@ export default function BadgePage() {
 
     if (!stored) {
       return (
-        <BadgeUnavailable
-          title="这台手机上没有护照"
-          detail="纪念徽章从本机保存的人生编号生成。请回到玩家页，用你的人生编号找回护照后再来。"
-        />
+        <MissingPassport />
       );
     }
 
@@ -67,7 +64,7 @@ export default function BadgePage() {
         <main className="relative grid min-h-dvh place-items-center overflow-hidden p-6 text-center">
           <div className="night-sky" />
           <div className="relative z-10">
-            <div className="dots text-2xl font-black">正在读取人生记录<span>.</span><span>.</span><span>.</span></div>
+            <div className="dots text-2xl font-black"><RecordLoadingLabel /><span>.</span><span>.</span><span>.</span></div>
             {!online && <p className="mt-3 text-sm font-bold text-seal">{errorText(error)}</p>}
             {!online && (
               <Link to="/play" className="pressable mt-6 inline-block rounded-full bg-ink px-6 py-3 font-black text-white">
@@ -87,6 +84,11 @@ export default function BadgePage() {
   };
 
   return <ThemeProvider theme={searchParams.get("theme") ?? data?.theme}>{renderContent()}</ThemeProvider>;
+}
+
+function RecordLoadingLabel() {
+  const copy = useCopy();
+  return <>{copy.loadingRecord}</>;
 }
 
 /*
@@ -118,4 +120,9 @@ function BadgeUnavailable({ title, detail }: { title: string; detail: string }) 
       </div>
     </main>
   );
+}
+
+function MissingPassport() {
+  const copy = useCopy();
+  return <BadgeUnavailable title={`这台手机上没有${copy.cardShort}`} detail={`纪念徽章从本机保存的${copy.lifeNo}生成。请回到玩家页，用你的${copy.lifeNo}找回${copy.cardShort}后再来。`} />;
 }

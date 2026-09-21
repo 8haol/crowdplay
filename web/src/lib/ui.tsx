@@ -1,3 +1,4 @@
+import { useCopy } from "../theme/ThemeProvider";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
@@ -87,6 +88,7 @@ export function CodeInput(props: {
   placeholder?: string;
   autoFocus?: boolean;
 }) {
+  const copy = useCopy();
   return (
     <input
       inputMode="numeric"
@@ -94,7 +96,7 @@ export function CodeInput(props: {
       maxLength={3}
       autoFocus={props.autoFocus}
       className="w-full rounded-[14px] border-2 border-transparent bg-card px-4 py-3.5 text-center text-3xl font-black tabular tracking-[0.35em] text-ink placeholder:text-ink-placeholder placeholder:text-xl placeholder:tracking-normal outline-none transition-shadow duration-200 focus:shadow-[0_0_0_3px_var(--color-accent)]"
-      placeholder={props.placeholder ?? "人生编号"}
+      placeholder={props.placeholder ?? copy.lifeNo}
       value={props.value}
       onChange={(e) => props.onChange(e.target.value.replace(/\D/g, "").slice(0, 3))}
     />
@@ -108,7 +110,7 @@ export function Mrz({ name, code }: { name: string; code: string }) {
   return <div className="mrz select-none" aria-hidden>{line}</div>;
 }
 
-/** Four-block brand signature from the Life Passport design language. */
+/** Four-block brand signature from the card design language. */
 export function BrandMark({ className = "" }: { className?: string }) {
   return (
     <div className={`geometry-mark ${className}`} aria-hidden="true">

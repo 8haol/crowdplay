@@ -1,4 +1,4 @@
-import { PASSPORT_COPY } from "../theme/copy";
+import { PASSPORT_COPY, type Copy } from "../theme/copy";
 
 export type Phase = "waiting" | "playing" | "ended";
 export type Identity = "solo" | "duo" | "trio" | null;
@@ -446,14 +446,14 @@ const SOLO_COLORS = [
   "#C67F6C", "#D18D79", "#A95747", "#BC6653",
 ];
 
-export function colorOf(group: string | null): { hex: string; zh: string } | null {
+export function colorOf(group: string | null, copy: Copy = PASSPORT_COPY): { hex: string; zh: string } | null {
   if (!group) return null;
   if (group === "solo" || group.startsWith("solo-")) {
     const parsed = Number(group.split("-")[1] ?? "1");
     const slot = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
     return {
       hex: SOLO_COLORS[(slot - 1) % SOLO_COLORS.length],
-      zh: `独行色 ${String(slot).padStart(2, "0")}`,
+      zh: `${copy.soloColorLabel} ${String(slot).padStart(2, "0")}`,
     };
   }
   const base = group.split("-")[0];
@@ -464,10 +464,10 @@ export function colorOf(group: string | null): { hex: string; zh: string } | nul
 }
 
 /** Stable visual fallback for Solo records created before the Solo-color migration. */
-export function soloColor(seed: string): { hex: string; zh: string } {
+export function soloColor(seed: string, copy: Copy = PASSPORT_COPY): { hex: string; zh: string } {
   const hash = Array.from(seed).reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) >>> 0, 0);
   const slot = (hash % SOLO_COLORS.length) + 1;
-  return { hex: SOLO_COLORS[slot - 1], zh: `独行色 ${String(slot).padStart(2, "0")}` };
+  return { hex: SOLO_COLORS[slot - 1], zh: `${copy.soloColorLabel} ${String(slot).padStart(2, "0")}` };
 }
 
 export const IDENTITY_SHORT: Record<string, string> = Object.fromEntries(
@@ -479,9 +479,9 @@ export const IDENTITY_SHORT: Record<string, string> = Object.fromEntries(
  * A Duo/Trio is "its colour + its size" — the same two things its members see
  * on their own phones when they hold them up to find each other.
  */
-export function teamLabel(colorGroup: string | null, identity: Identity, seed = ""): string {
-  const color = colorOf(colorGroup) ?? (identity === "solo" ? soloColor(seed) : null);
-  const size = identity ? `${IDENTITY_SHORT[identity]}同行` : "未分配";
+export function teamLabel(colorGroup: string | null, identity: Identity, seed = "", copy: Copy = PASSPORT_COPY): string {
+  const color = colorOf(colorGroup, copy) ?? (identity === "solo" ? soloColor(seed, copy) : null);
+  const size = identity ? copy.teamName[identity] : "未分配";
   return color ? `${color.zh} · ${size}` : size;
 }
 

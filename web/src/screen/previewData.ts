@@ -1,4 +1,4 @@
-import type { BoardPlayer, BoardSnapshot, FeedItem } from "../lib/types";
+import type { BoardPlayer, BoardSnapshot, FeedItem, SecretFeedFlag } from "../lib/types";
 
 const NAMES = [
   "林沐恩", "陈子谦", "黄恩慈", "张乐言", "王心怡", "李俊熙", "周以诺", "吴佳音",
@@ -28,7 +28,8 @@ const players: BoardPlayer[] = NAMES.map((name, index) => ({
 /** Minutes ago, so the feed clock agrees with the elapsed timer above it. */
 const ago = (minutes: number) => new Date(Date.now() - minutes * 60 * 1000).toISOString();
 
-const feed: FeedItem[] = [
+const feed: (FeedItem & SecretFeedFlag)[] = [
+  { id: "f0", kind: "attempt", name: "张乐言 / 赵恩慈", color_group: "green", identity: "duo", station: "神秘摊位", status: "passed", score: 6, total: 61, at: ago(0), secret: true },
   { id: "f1", kind: "attempt", name: "林沐恩 / 周以诺", color_group: "red", identity: "duo", station: "创意工坊", status: "passed", score: 9, total: 58, at: ago(1) },
   { id: "f2", kind: "life_event", name: "黄恩慈", card: "choice_all_wallet", label: "失主留下一句谢谢", scene: "捡到钱包", choice: "先交给失物处", outcome: "失主留下一句谢谢", stage: 2, before: 45, after: 48, at: ago(2) },
   { id: "f3", kind: "token", name: "张乐言", usage: "second_chance", station: "默契挑战", at: ago(4) },
@@ -62,11 +63,13 @@ export const SCREEN_AWARDS: BoardSnapshot["awards"] = {
     { key: "unlucky", emoji: "🌧️", title: "时运不济", subtitle: "人生事件扣分最多", caption: "人生事件净亏 12 分", name: "王心怡", color_group: "violet", identity: "trio", score: 26 },
     { key: "rollercoaster", emoji: "🎢", title: "人生过山车", subtitle: "同时经历了最高的加分和最重的扣分", caption: "一次 +21，一次 -9，落差 30 分", name: "吴佳音", color_group: "solo-2", identity: "solo", score: 33 },
     { key: "steady_heart", emoji: "🌊", title: "波澜不惊", subtitle: "经历过人生，却最稳得住", caption: "三段人生上下不超过 3 分", name: "何嘉树", color_group: "cyan", identity: "trio", score: 44 },
+    { key: "median", emoji: "⚖️", title: "不偏不倚", subtitle: "分数正好落在全场正中间", caption: "全场 24 人，正好排第 12", name: "赵恩慈", color_group: "green", identity: "duo", score: 39 },
   ],
   /* Exactly one team award: the station run is the only thing a team does
      together, and the two retired station-score awards always went to the
      same team as each other. */
   team_awards: [
     { key: "fastest", emoji: "⚡", title: "最快通关", subtitle: "全场最先走完所有站点", caption: "全场第一个完成 7 站", members: "林沐恩 / 周以诺", member_count: 2, color_group: "red", identity: "duo" },
+    { key: "full_moon", emoji: "🌕", title: "满月收集", subtitle: "拿下最多个满分", caption: "7 站里拿了 4 个满分", members: "王心怡 / 李俊熙 / 何嘉树", member_count: 3, color_group: "violet", identity: "trio" },
   ],
 };

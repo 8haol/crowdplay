@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>中秋游园会 · 主题效果图</title>
+<style>
+  /* 取自 Soho 海报：奶油黄月、浅蓝灰天、沙色、青蓝海浪、珊瑚红、深棕 */
+  :root {
+    --moon: #f4e49d; --moon-deep: #ead98a;
+    --sky: #dbe8ec; --sky-top: #cfe0e6; --sand: #ece4c2;
+    --wave: #67bccc; --wave-deep: #4392b2;
+    --coral: #e98b86; --coral-deep: #d8706b; --coral-soft: #fde3e1; --coral-ink: #8a3d3a;
+    --brown: #4a4034; --grey: #6f7f8c; --line: #cfdad6; --card: #fff;
+    --font: -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e9eef0; font-family: var(--font); color: var(--brown); }
+  .board { display: flex; flex-wrap: wrap; gap: 28px; padding: 28px; align-items: flex-start; }
+  .label { font-size: 12px; font-weight: 800; color: var(--grey); margin: 0 0 8px 4px; letter-spacing: .04em; }
+
+  /* ---- 手机框 ---- */
+  .phone { width: 390px; height: 844px; border-radius: 44px; overflow: hidden; position: relative; background: var(--sky);
+           box-shadow: 0 30px 60px rgb(40 60 70 / .18), inset 0 0 0 1px rgb(255 255 255 / .6); font-size: 15px; }
+  .sky { position: absolute; inset: 0; overflow: hidden;
+         background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky) 55%, var(--sand) 100%); }
+  .sky .moon { position: absolute; left: -70px; top: -60px; width: 250px; height: 250px; border-radius: 50%;
+               background: radial-gradient(circle at 42% 40%, #fbf1bd 0 30%, var(--moon) 60%, var(--moon-deep) 100%);
+               box-shadow: 0 0 0 26px rgb(255 255 255 / .35), 0 0 90px 30px rgb(244 228 157 / .55); }
+  .sky .moon::after { content: ""; position: absolute; inset: 0; border-radius: 50%; opacity: .35; mix-blend-mode: multiply;
+               background: radial-gradient(circle at 68% 62%, #d9c77a 0 12px, transparent 13px),
+                           radial-gradient(circle at 30% 70%, #d9c77a 0 8px, transparent 9px),
+                           radial-gradient(circle at 60% 28%, #d9c77a 0 6px, transparent 7px); }
+  .sky .grain { position: absolute; inset: 0; opacity: .09; mix-blend-mode: multiply;
+                background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.3 0 0 0 0 0.3 0 0 0 0 0.3 0 0 0 0.6 0'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>"); }
+  .sky .waves { position: absolute; left: 0; right: 0; bottom: 0; height: 260px; }
+  .sky .waves svg { position: absolute; bottom: 0; width: 100%; height: 100%; }
+  .content { position: relative; z-index: 1; height: 100%; padding: 58px 20px 24px; overflow: hidden; }
+
+  /* 通用 */
+  .eyebrow { font-size: 11px; font-weight: 900; letter-spacing: .22em; color: var(--grey); }
+  .btn { display: flex; align-items: center; justify-content: center; min-height: 54px; border-radius: 999px; font-weight: 900; font-size: 17px;
+         background: var(--coral); color: #fff; box-shadow: 0 4px 0 var(--coral-deep); }
+  .btn.ghost { background: rgb(255 255 255 / .8); color: var(--brown); box-shadow: 0 3px 0 #c9dbe0; font-size: 15px; min-height: 48px; }
+  .card { background: var(--card); border-radius: 28px; box-shadow: 0 3px 0 #c9dbe0; }
+  .wave-edge { clip-path: polygon(0 0, 100% 0, 100% calc(100% - 14px), 95% 100%, 85% calc(100% - 10px), 75% 100%, 65% calc(100% - 10px), 55% 100%, 45% calc(100% - 10px), 35% 100%, 25% calc(100% - 10px), 15% 100%, 5% calc(100% - 10px), 0 100%); padding-bottom: 14px; }
+  .field { display: block; margin-top: 14px; }
+  .field span { display: block; font-size: 12px; font-weight: 900; letter-spacing: .12em; color: var(--grey); }
+  .field div { margin-top: 6px; height: 50px; border-radius: 16px; background: #f3f6f7; box-shadow: inset 0 0 0 2px #e1e9ec; display: flex; align-items: center; padding: 0 14px; font-weight: 800; color: var(--brown); }
+  .field div.empty { color: #a9b5bc; font-weight: 600; }
+
+  /* ---- 加入页 ---- */
+  .join h1 { margin: 26px 0 0; font-size: 44px; line-height: 1.05; font-weight: 900; letter-spacing: .02em; color: var(--brown); }
+  .join .sub { margin: 10px 0 0; font-size: 18px; font-weight: 800; color: var(--wave-deep); }
+  .join .intro { margin: 14px 0 0; font-size: 13.5px; line-height: 1.75; color: var(--brown); opacity: .85; max-width: 32ch; }
+  .join .church { font-size: 12px; font-weight: 800; color: var(--grey); }
+  .join .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 22px; padding: 5px; border-radius: 999px; background: rgb(255 255 255 / .6); }
+  .join .tabs div { text-align: center; padding: 11px 0; border-radius: 999px; font-size: 13px; font-weight: 900; color: var(--grey); }
+  .join .tabs .on { background: var(--brown); color: #fff; }
+  .join .card { margin-top: 12px; padding: 20px 20px 22px; }
+  .join .card h2 { margin: 0; font-size: 18px; font-weight: 900; display: flex; justify-content: space-between; align-items: baseline; }
+  .join .card h2 small { font-size: 10px; letter-spacing: .25em; color: var(--grey); }
+  .join .btn { margin-top: 18px; }
+
+  /* ---- 集章卡 ---- */
+  .pass .top { display: flex; justify-content: space-between; align-items: center; }
+  .pass .top .who { font-size: 12px; font-weight: 800; color: var(--grey); }
+  .pass .top .live { font-size: 11px; font-weight: 900; color: var(--wave-deep); display: flex; gap: 6px; align-items: center; }
+  .pass .top .live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--wave-deep); }
+  .stampcard { margin-top: 14px; padding: 18px 18px 26px; }
+  .stampcard .head { display: flex; justify-content: space-between; align-items: baseline; }
+  .stampcard .head b { font-size: 17px; font-weight: 900; }
+  .stampcard .head span { font-size: 11px; font-weight: 900; letter-spacing: .18em; color: var(--grey); }
+  .ring { position: relative; width: 320px; height: 330px; margin: 14px auto 0; }
+  .ring .bigmoon { position: absolute; left: 50%; top: 50%; width: 150px; height: 150px; transform: translate(-50%, -50%); border-radius: 50%;
+                   display: grid; place-items: center; text-align: center;
+                   background: radial-gradient(circle at 42% 40%, #fbf1bd 0 30%, var(--moon) 60%, var(--moon-deep) 100%);
+                   box-shadow: 0 0 0 6px #fff, 0 0 0 11px var(--team, #1f8a70), 0 12px 30px rgb(74 64 52 / .15); }
+  .ring .bigmoon .name { font-size: 24px; font-weight: 900; color: var(--brown); line-height: 1.1; }
+  .ring .bigmoon .who { margin-top: 5px; font-size: 11px; font-weight: 900; letter-spacing: .16em; color: #7a6a3a; }
+  .ring .bigmoon .no { margin-top: 6px; font-size: 13px; font-weight: 900; color: var(--brown); font-variant-numeric: tabular-nums; }
+  .slot { position: absolute; width: 56px; height: 56px; transform: translate(-50%, -50%); border-radius: 50%; border: 2.5px solid var(--line); background: #fff;
+          display: grid; place-items: center; color: #b9c6cc; }
+  .slot svg { width: 30px; height: 30px; }
+  .slot.blank { border-style: dashed; }
+  .slot.pass { border-color: var(--wave-deep); color: var(--wave-deep); background: #eef7fa; }
+  .slot.fail { border-color: var(--coral); color: var(--coral); background: #fff5f4; }
+  .slot.retry { border-style: dashed; border-color: var(--grey); color: var(--grey); }
+  .slot .pts { position: absolute; top: -7px; right: -9px; min-width: 26px; text-align: center; padding: 1px 6px; border-radius: 999px; background: var(--wave-deep); color: #fff; font-size: 10.5px; font-weight: 900; }
+  .slot.fail .pts { background: var(--coral); }
+  .slot .pts.retry { background: var(--grey); font-size: 9px; }
+  .slot .nm { position: absolute; top: calc(100% + 3px); white-space: nowrap; padding: 2px 8px; border-radius: 999px; background: #fff; color: var(--brown); font-size: 11px; font-weight: 900; box-shadow: 0 0 0 1.5px var(--line); }
+  .slot.pass .nm { box-shadow: 0 0 0 1.5px var(--wave-deep); }
+  .slot.fail .nm { box-shadow: 0 0 0 1.5px var(--coral); }
+  .slot.blank .nm { color: var(--grey); }
+  .score { display: flex; align-items: baseline; justify-content: center; gap: 10px; margin-top: 8px; }
+  .score span { font-size: 12px; font-weight: 900; letter-spacing: .16em; color: var(--grey); }
+  .score b { font-size: 40px; font-weight: 900; font-variant-numeric: tabular-nums; }
+  .tagline { margin: 8px 0 0; text-align: center; font-size: 13px; font-weight: 700; color: var(--grey); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .mini { padding: 14px 14px 12px; }
+  .mini .k { font-size: 11px; font-weight: 900; letter-spacing: .16em; color: var(--grey); }
+  .mini .v { margin-top: 4px; font-size: 15px; font-weight: 900; }
+  .mini.grace { background: var(--coral-soft); box-shadow: none; display: flex; align-items: center; gap: 10px; }
+  .mini.grace .coin { width: 40px; height: 40px; border-radius: 50%; background: var(--coral); color: #fff; display: grid; place-items: center; font-size: 10px; font-weight: 900; box-shadow: inset 0 0 0 4px rgb(255 255 255 / .5); }
+  .mini.grace .v { color: var(--coral-ink); }
+  .mini.grace .k { color: var(--coral-ink); opacity: .8; }
+
+  /* ---- 际遇弹窗 ---- */
+  .dim { position: absolute; inset: 0; z-index: 2; background: rgb(69 93 116 / .55); backdrop-filter: blur(6px); display: flex; align-items: flex-end; padding: 16px; }
+  .sheet { width: 100%; border-radius: 30px 30px 26px 26px; background: #fff; padding: 22px 22px 22px; box-shadow: 0 -10px 40px rgb(0 0 0 / .18); }
+  .sheet .eye { display: flex; justify-content: space-between; align-items: center; }
+  .sheet .eye b { font-size: 12px; font-weight: 900; letter-spacing: .2em; color: var(--wave-deep); }
+  .sheet .eye span { font-size: 11px; font-weight: 800; color: var(--grey); }
+  .sheet .scene { width: 84px; height: 84px; border-radius: 26px; background: var(--moon); display: grid; place-items: center; font-size: 42px; margin: 18px auto 0; box-shadow: 0 5px 0 var(--moon-deep); }
+  .sheet h3 { margin: 16px 0 0; text-align: center; font-size: 24px; font-weight: 900; }
+  .sheet p { margin: 10px auto 0; text-align: center; font-size: 14px; line-height: 1.7; max-width: 28ch; color: var(--brown); opacity: .85; }
+  .choice { margin-top: 12px; padding: 16px 18px; border-radius: 18px; background: #f3f6f7; font-weight: 900; font-size: 15px; display: flex; justify-content: space-between; align-items: center; }
+  .choice small { font-size: 11px; font-weight: 800; color: var(--grey); }
+  .choice.hot { background: var(--coral-soft); color: var(--coral-ink); }
+  .sheet .note { margin: 14px 0 0; text-align: center; font-size: 11.5px; color: var(--grey); font-weight: 700; }
+
+  /* ---- 结束页 ---- */
+  .end .content { text-align: center; }
+  .end .bigmoon2 { width: 190px; height: 190px; margin: 26px auto 0; border-radius: 50%; display: grid; place-items: center;
+                   background: radial-gradient(circle at 42% 40%, #fbf1bd 0 30%, var(--moon) 60%, var(--moon-deep) 100%);
+                   box-shadow: 0 0 0 10px #fff, 0 0 0 16px var(--team, #1f8a70), 0 0 80px 20px rgb(244 228 157 / .6); }
+  .end .bigmoon2 .k { font-size: 11px; letter-spacing: .2em; font-weight: 900; color: #7a6a3a; }
+  .end .bigmoon2 b { display: block; font-size: 64px; line-height: 1; font-weight: 900; margin-top: 4px; }
+  .end h1 { margin: 26px 0 0; font-size: 30px; font-weight: 900; }
+  .end p { margin: 14px auto 0; font-size: 14px; line-height: 1.8; max-width: 30ch; color: var(--brown); opacity: .85; }
+  .end .stamps { display: flex; justify-content: center; gap: 8px; margin-top: 18px; }
+  .end .stamps i { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--wave-deep); color: var(--wave-deep); background: #eef7fa; display: grid; place-items: center; }
+  .end .stamps i.fail { border-color: var(--coral); color: var(--coral); background: #fff5f4; }
+  .end .stamps svg { width: 18px; height: 18px; }
+  .end .btn { margin-top: 22px; }
+  .end .btn.ghost { margin-top: 10px; }
+
+  /* ---- 大屏 ---- */
+  .screen { width: 1120px; height: 630px; border-radius: 18px; overflow: hidden; position: relative; background: var(--sky);
+            box-shadow: 0 30px 60px rgb(40 60 70 / .18); }
+  .screen .sky .moon { left: -120px; top: -140px; width: 480px; height: 480px; }
+  .screen .sky .waves { height: 300px; }
+  .screen .content { padding: 40px 48px; display: grid; grid-template-columns: 300px 1fr; gap: 40px; }
+  .screen .brand h1 { margin: 0; font-size: 56px; line-height: 1.05; font-weight: 900; }
+  .screen .brand .sub { margin: 8px 0 0; font-size: 22px; font-weight: 800; color: var(--wave-deep); }
+  .screen .brand .church { margin: 12px 0 0; font-size: 14px; font-weight: 800; color: var(--grey); line-height: 1.6; }
+  .screen .qr { margin-top: 26px; width: 200px; padding: 14px; border-radius: 22px; background: #fff; box-shadow: 0 3px 0 #c9dbe0; }
+  .screen .qr .box { width: 172px; height: 172px; border-radius: 12px; background:
+      repeating-linear-gradient(90deg, var(--brown) 0 8px, transparent 8px 16px), repeating-linear-gradient(0deg, var(--brown) 0 8px, #fff 8px 16px); background-blend-mode: multiply; opacity: .85; }
+  .screen .qr div:last-child { margin-top: 10px; font-size: 13px; font-weight: 900; text-align: center; }
+  .rank { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-content: start; }
+  .rank .head { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: baseline; }
+  .rank .head b { font-size: 22px; font-weight: 900; }
+  .rank .head span { font-size: 13px; font-weight: 800; color: var(--grey); }
+  .team { background: rgb(255 255 255 / .9); border-radius: 22px; padding: 14px 16px; display: grid; grid-template-columns: 12px 1fr auto; gap: 12px; align-items: center; box-shadow: 0 3px 0 #c9dbe0; }
+  .team i { width: 12px; height: 46px; border-radius: 6px; background: var(--c); }
+  .team .n { font-size: 17px; font-weight: 900; line-height: 1.25; }
+  .team .n small { display: block; font-size: 12px; color: var(--grey); font-weight: 800; margin-top: 2px; }
+  .team .dots { display: flex; gap: 4px; margin-top: 6px; }
+  .team .dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--wave-deep); }
+  .team .dots i.o { background: var(--line); }
+  .team .dots i.f { background: var(--coral); }
+  .team b { font-size: 30px; font-weight: 900; font-variant-numeric: tabular-nums; }
+  .feed { grid-column: 1 / -1; display: flex; gap: 10px; flex-wrap: wrap; }
+  .feed span { padding: 8px 14px; border-radius: 999px; background: rgb(255 255 255 / .75); font-size: 13px; font-weight: 800; }
+  .feed span.hot { background: var(--coral-soft); color: var(--coral-ink); }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <g id="i-moon"><circle cx="24" cy="24" r="15" fill="currentColor" opacity=".18"/><circle cx="24" cy="24" r="15" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M28 12a13 13 0 0 0 0 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></g>
+    <g id="i-cake"><rect x="9" y="12" width="30" height="24" rx="8" fill="currentColor" opacity=".18"/><rect x="9" y="12" width="30" height="24" rx="8" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="24" cy="24" r="5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M14 24h5M29 24h5M24 14v5M24 29v5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></g>
+    <g id="i-rabbit"><path d="M17 26c-3-6-4-14-1-15 3 0 5 6 6 12M31 26c3-6 4-14 1-15-3 0-5 6-6 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><ellipse cx="24" cy="31" rx="11" ry="8" fill="currentColor" opacity=".18"/><ellipse cx="24" cy="31" rx="11" ry="8" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="20" cy="30" r="1.4" fill="currentColor"/><circle cx="28" cy="30" r="1.4" fill="currentColor"/></g>
+    <g id="i-flower"><g fill="currentColor" opacity=".18"><circle cx="24" cy="15" r="6"/><circle cx="33" cy="21" r="6"/><circle cx="30" cy="31" r="6"/><circle cx="18" cy="31" r="6"/><circle cx="15" cy="21" r="6"/></g><g fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="24" cy="15" r="6"/><circle cx="33" cy="21" r="6"/><circle cx="30" cy="31" r="6"/><circle cx="18" cy="31" r="6"/><circle cx="15" cy="21" r="6"/></g><circle cx="24" cy="24" r="3.5" fill="currentColor"/></g>
+    <g id="i-lantern"><path d="M20 9h8M22 9v3M26 9v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><ellipse cx="24" cy="24" rx="11" ry="12" fill="currentColor" opacity=".18"/><ellipse cx="24" cy="24" rx="11" ry="12" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M19 13v22M29 13v22" stroke="currentColor" stroke-width="1.6" opacity=".6"/><path d="M22 36v4M26 36v4M24 36v5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></g>
+    <g id="i-tea"><path d="M11 18h22v8a9 9 0 0 1-9 9h-4a9 9 0 0 1-9-9z" fill="currentColor" opacity=".18"/><path d="M11 18h22v8a9 9 0 0 1-9 9h-4a9 9 0 0 1-9-9z" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M33 21h3a4 4 0 0 1 0 8h-3" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 40h20" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M19 10c0 3-3 3-3 6M25 10c0 3-3 3-3 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></g>
+    <g id="i-star"><path d="M24 8l4.6 10.2 11.1 1.2-8.3 7.5 2.4 10.9L24 32.3l-9.8 5.5 2.4-10.9-8.3-7.5 11.1-1.2z" fill="currentColor" opacity=".18"/><path d="M24 8l4.6 10.2 11.1 1.2-8.3 7.5 2.4 10.9L24 32.3l-9.8 5.5 2.4-10.9-8.3-7.5 11.1-1.2z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/></g>
+    <g id="i-retry"><path d="M33 20a11 11 0 1 0 3 9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M34 12v8h-8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></g>
+    <symbol id="waves" viewBox="0 0 390 260" preserveAspectRatio="none">
+      <path fill="#a9d8e2" opacity=".55" d="M0 120 C60 70 120 70 180 110 S300 170 390 100 V260 H0Z"/>
+      <path fill="#67bccc" d="M0 160 C70 100 130 110 200 150 S320 210 390 140 V260 H0Z"/>
+      <path fill="#4392b2" d="M0 205 C80 165 140 175 210 205 S330 245 390 195 V260 H0Z"/>
+      <path fill="#fff" opacity=".7" d="M40 158c10-14 26-16 40-8-12 0-24 4-40 8zM250 150c14-10 30-8 42 2-14-2-28-2-42-2z"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="board">
+
+  <!-- 1 加入页 -->
+  <div>
+    <p class="label">1 · 扫码进入 · 加入页</p>
+    <div class="phone join">
+      <div class="sky"><div class="moon"></div><div class="grain"></div><div class="waves"><svg><use href="#waves"/></svg></div></div>
+      <div class="content">
+        <div class="church">Chinese Church in London · Soho</div>
+        <h1>中秋<br>游园会</h1>
+        <p class="sub">月下相遇，一路同行。</p>
+        <p class="intro">领取你的中秋集章卡，逛摊位、玩游戏、认识新朋友。收集一枚枚印章，也收获一段段相遇。</p>
+        <div class="tabs"><div class="on">第一次来 · 现场登记</div><div>已经登记过 · 找回</div></div>
+        <div class="card">
+          <h2>领取集章卡 <small>STAMP CARD</small></h2>
+          <label class="field"><span>姓名</span><div>林沐恩</div></label>
+          <label class="field"><span>微信号 / WhatsApp · 选填，换手机时用来找回</span><div class="empty">muen_lin</div></label>
+          <div class="btn">开始游园</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2 集章卡 -->
+  <div>
+    <p class="label">2 · 我的集章卡（游戏中）</p>
+    <div class="phone pass" style="--team:#1f8a70">
+      <div class="sky"><div class="moon"></div><div class="grain"></div><div class="waves"><svg><use href="#waves"/></svg></div></div>
+      <div class="content">
+        <div class="top"><div class="who">青绿队 · 三人结伴</div><div class="live">连接中</div></div>
+        <div class="card stampcard wave-edge">
+          <div class="head"><b>中秋集章卡</b><span>NO. 327</span></div>
+          <div class="ring">
+            <div class="bigmoon"><div><div class="name">林沐恩</div><div class="who">三人结伴</div><div class="no">已集 4 / 7</div></div></div>
+            <!-- 7 个印章位，从 12 点顺时针；摊位名来自本场站点表 -->
+            <div class="slot pass"  style="left:50%;top:9%"><svg><use href="#i-moon"/></svg><span class="pts">+9</span><span class="nm">广寒宫</span></div>
+            <div class="slot pass"  style="left:82%;top:24.5%"><svg><use href="#i-cake"/></svg><span class="pts">+6</span><span class="nm">月饼坊</span></div>
+            <div class="slot retry" style="left:90%;top:58%"><svg><use href="#i-rabbit"/></svg><span class="pts retry">再挑战</span><span class="nm">玉兔站</span></div>
+            <div class="slot pass"  style="left:68%;top:84%"><svg><use href="#i-flower"/></svg><span class="pts">+6</span><span class="nm">桂花巷</span></div>
+            <div class="slot fail"  style="left:32%;top:84%"><svg><use href="#i-lantern"/></svg><span class="pts">✕</span><span class="nm">灯笼铺</span></div>
+            <div class="slot blank" style="left:10%;top:58%"><svg><use href="#i-tea"/></svg><span class="nm">茶话亭</span></div>
+            <div class="slot blank" style="left:18%;top:24.5%"><svg><use href="#i-star"/></svg><span class="nm">星桥</span></div>
+          </div>
+          <div class="score"><span>游园积分</span><b>38</b></div>
+          <p class="tagline">收集月光下的相遇，留下属于你的中秋故事。</p>
+        </div>
+        <div class="row2">
+          <div class="card mini grace"><div class="coin">求助</div><div><div class="k">同行求助券</div><div class="v">还有 1 张</div></div></div>
+          <div class="card mini"><div class="k">下一次际遇</div><div class="v">再 4 分 · 或第 5 摊</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3 月下际遇 -->
+  <div>
+    <p class="label">3 · 月下际遇弹窗</p>
+    <div class="phone pass" style="--team:#1f8a70">
+      <div class="sky"><div class="moon"></div><div class="grain"></div><div class="waves"><svg><use href="#waves"/></svg></div></div>
+      <div class="content" style="filter:saturate(.9)">
+        <div class="top"><div class="who">青绿队 · 三人结伴</div><div class="live">连接中</div></div>
+        <div class="card stampcard wave-edge" style="height:470px"></div>
+      </div>
+      <div class="dim">
+        <div class="sheet">
+          <div class="eye"><b>月下际遇</b><span>第 2 段 · 三段里的一段</span></div>
+          <div class="scene">🚏</div>
+          <h3>末班车刚刚开走</h3>
+          <p>你站在陌生的站牌下，手机只剩 8% 电。今晚要怎么回去？</p>
+          <div class="choice hot">打车回去 <small>花钱买安心</small></div>
+          <div class="choice">给刚认识的同行人发消息 <small>问问能不能一起走</small></div>
+          <p class="note">选完之后结果才会揭晓，同一个选择也可能走向不同的结局。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4 结束页 -->
+  <div>
+    <p class="label">4 · 游园结束页</p>
+    <div class="phone end" style="--team:#1f8a70">
+      <div class="sky"><div class="moon" style="opacity:.35"></div><div class="grain"></div><div class="waves"><svg><use href="#waves"/></svg></div></div>
+      <div class="content">
+        <div class="eyebrow">林沐恩 · 青绿队 · 三人结伴</div>
+        <div class="bigmoon2"><div><div class="k">游园积分</div><b>48</b></div></div>
+        <div class="stamps">
+          <i><svg><use href="#i-moon"/></svg></i><i><svg><use href="#i-cake"/></svg></i><i><svg><use href="#i-rabbit"/></svg></i>
+          <i><svg><use href="#i-flower"/></svg></i><i class="fail"><svg><use href="#i-lantern"/></svg></i><i><svg><use href="#i-tea"/></svg></i><i><svg><use href="#i-star"/></svg></i>
+        </div>
+        <h1>游园会告一段落</h1>
+        <p>今晚，你收集的不只是印章，还有相遇、欢笑与被帮助的时刻。对生命的探索仍在继续：什么让你感到被接纳？什么让一个地方成为家？</p>
+        <div class="btn">保存我的集章卡</div>
+        <div class="btn ghost">去恩典站换纪念卡</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5 大屏 -->
+  <div>
+    <p class="label">5 · 现场大屏（游戏中）</p>
+    <div class="screen">
+      <div class="sky"><div class="moon"></div><div class="grain"></div><div class="waves"><svg><use href="#waves"/></svg></div></div>
+      <div class="content">
+        <div class="brand">
+          <h1>中秋<br>游园会</h1>
+          <p class="sub">月下相遇，一路同行。</p>
+          <p class="church">Chinese Church in London · Soho<br>2026 · 9 · 24</p>
+          <div class="qr"><div class="box"></div><div>扫码领取集章卡</div></div>
+        </div>
+        <div class="rank">
+          <div class="head"><b>游园摊位 · 各队进度</b><span>47 人 · 7 个摊位 · 已开 38 分钟</span></div>
+          <div class="team" style="--c:#1f8a70"><i></i><div class="n">青绿队 · 三人结伴<small>林沐恩 / 周以诺 / 陈思语</small><div class="dots"><i></i><i></i><i class="f"></i><i></i><i class="o"></i><i class="o"></i><i class="o"></i></div></div><b>38</b></div>
+          <div class="team" style="--c:#e98b86"><i></i><div class="n">珊瑚队 · 两人同行<small>王一然 / 李知行</small><div class="dots"><i></i><i></i><i></i><i></i><i></i><i class="o"></i><i class="o"></i></div></div><b>35</b></div>
+          <div class="team" style="--c:#4392b2"><i></i><div class="n">海蓝队 · 三人结伴<small>张恩慈 / 赵沐阳 / 何以宁</small><div class="dots"><i></i><i class="f"></i><i></i><i class="o"></i><i class="o"></i><i class="o"></i><i class="o"></i></div></div><b>27</b></div>
+          <div class="team" style="--c:#c9a227"><i></i><div class="n">桂花色 · 独自出发<small>许安</small><div class="dots"><i></i><i></i><i></i><i class="o"></i><i class="o"></i><i class="o"></i><i class="o"></i></div></div><b>24</b></div>
+          <div class="team" style="--c:#7a5fa8"><i></i><div class="n">紫藤队 · 两人同行<small>孙乐 / 郑然</small><div class="dots"><i></i><i></i><i class="o"></i><i class="o"></i><i class="o"></i><i class="o"></i><i class="o"></i></div></div><b>18</b></div>
+          <div class="team" style="--c:#d8706b"><i></i><div class="n">灯笼红 · 独自出发<small>陈默</small><div class="dots"><i></i><i class="f"></i><i class="o"></i><i class="o"></i><i class="o"></i><i class="o"></i><i class="o"></i></div></div><b>12</b></div>
+          <div class="feed"><span class="hot">刚刚 · 青绿队在「玉兔站」拿了满分</span><span>周以诺 遇上了「末班车刚刚开走」</span><span>珊瑚队 用掉一张同行求助券</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

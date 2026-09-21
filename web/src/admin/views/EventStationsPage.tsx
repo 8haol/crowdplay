@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 import { errorText, rpc } from "../../lib/api";
 import { usePoll } from "../../lib/usePoll";
-import type { EventStationsData, StationMetric } from "../../lib/types";
-import { Btn, Metric, Panel, PageTitle } from "../adminUi";
+import type { EventStation, EventStationsData, StationHiddenFields, StationMetric } from "../../lib/types";
+import { Btn, HiddenTag, Metric, Panel, PageTitle } from "../adminUi";
 import { T } from "../adminTokens";
 import { PREVIEW_EVENT_STATIONS } from "../previewData";
 import { EventStationsPanel } from "./EventStationsPanel";
@@ -41,7 +41,19 @@ export function EventStationsPage({
 
   const done = (message: string) => { onDone(message); poll.refresh(); };
 
-  const mains = stationMetrics.filter((station) => station.type === "main" && !station.disabled);
+  /* 隐藏摊位（神秘嘉宾）不计入主站数：和后端 _main_station_total 的口径一致。
+     metrics 那份 payload 不带 hidden，从本场名单里查。 */
+  const hiddenIds = useMemo(
+    () => new Set(
+      ((data?.rows ?? []) as Array<EventStation & StationHiddenFields>)
+        .filter((row) => row.hidden)
+        .map((row) => row.station_id),
+    ),
+    [data],
+  );
+  const mains = stationMetrics.filter(
+    (station) => station.type === "main" && !station.disabled && !hiddenIds.has(station.station_id),
+  );
   const avgCompletion = mains.length
     ? Math.round(mains.reduce((sum, station) => sum + station.completion_pct, 0) / mains.length)
     : 0;
@@ -91,7 +103,7 @@ export function EventStationsPage({
             onDone={done}
           />
 
-          <StationNumbers metrics={stationMetrics} />
+          <StationNumbers metrics={stationMetrics} hiddenIds={hiddenIds} />
         </>
       )}
     </div>
@@ -100,7 +112,7 @@ export function EventStationsPage({
 
 /* 每个站的数字，放在编辑器下面：活动进行中这是总控盯着看的东西，
    但它是读数，不是控件。 */
-function StationNumbers({ metrics }: { metrics: StationMetric[] }) {
+function StationNumbers({ metrics, hiddenIds }: { metrics: StationMetric[]; hiddenIds: Set<number> }) {
   const mains = metrics.filter((station) => station.type === "main");
   if (mains.length === 0) return null;
   return (
@@ -119,7 +131,10 @@ function StationNumbers({ metrics }: { metrics: StationMetric[] }) {
                   {String(station.sort_order).padStart(2, "0")}
                 </span>
                 <div>
-                  <h2 className="font-black">{station.name_zh}</h2>
+                  <h2 className="flex items-center gap-2 font-black">
+                    {station.name_zh}
+                    {hiddenIds.has(station.station_id) && <HiddenTag />}
+                  </h2>
                   <div className="text-[11px] font-bold" style={{ color: T.inkFaint }}>
                     {station.scoring_mode === "graded"
                       ? "3 / 6 / 9 分级计分"
@@ -150,7 +165,7 @@ function StationNumbers({ metrics }: { metrics: StationMetric[] }) {
                 <span>队伍完成进度</span>
                 <span className="tabular">{station.completion_pct}%</span>
               </div>
-              <div className="mt-2 h-2.5 overflow-hidden rounded-full" style={{ background: "#eee8de" }}>
+              <div className="mt-2 h-2.5 overflow-hidden rounded-full" style={{ background: "var(--color-admin-neutral)" }}>
                 <div
                   className="h-full rounded-full"
                   style={{ width: `${Math.min(100, station.completion_pct)}%`, background: T.accent }}

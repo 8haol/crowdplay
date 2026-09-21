@@ -1,9 +1,11 @@
+import type { Copy } from "../theme/copy";
+import { ThemeProvider, useCopy } from "../theme/ThemeProvider";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { rpc, errorText } from "../lib/api";
 import { usePoll } from "../lib/usePoll";
-import type { BoardPlayer, BoardSnapshot, FeedItem, GameLanding } from "../lib/types";
-import { IDENTITY_SHORT, colorOf, soloColor } from "../lib/types";
+import type { BoardPlayer, BoardSnapshot, FeedItem, GameLanding, SecretFeedFlag } from "../lib/types";
+import { colorOf, soloColor } from "../lib/types";
 import { ConnDot, UpLink } from "../lib/ui";
 import { JoinQr } from "../lib/JoinQr";
 import { joinUrl } from "../lib/gameLinks";
@@ -50,73 +52,77 @@ export default function ScreenPage() {
     endedRef.current = ended;
   }, [data?.phase]);
 
-  if (!preview && !screenToken) {
-    /* `/screen` with no token. The projector link lives in the admin console
-       for exactly one event; there is no "current game" to guess at. */
-    return (
-      <Frame online={false}>
-        <div className="flex flex-1 flex-col items-center justify-center gap-5 px-8 text-center">
-          <p className="font-mono text-[clamp(.7rem,1vw,1rem)] font-black tracking-[0.35em] text-foil-dim">PROJECTOR</p>
-          <h1 className="font-serif text-[clamp(1.8rem,4vw,4rem)] font-black leading-tight">这台投影还没有连到任何一场</h1>
-          <p className="max-w-2xl text-[clamp(.95rem,1.4vw,1.5rem)] font-semibold leading-relaxed text-moon-dim">
-            请总控打开管理端 → 进入本场活动 → 复制「大屏链接」，在这台电脑的浏览器里打开。
-            每一场都有自己的大屏链接，链接本身就是场次。
-          </p>
-          <Link to="/admin" className="pressable rounded-full bg-ink px-6 py-3 text-[clamp(.9rem,1.2vw,1.2rem)] font-black text-white">
-            去管理端
-          </Link>
-        </div>
-      </Frame>
-    );
-  }
-
-  if (!data) {
-    return (
-      <Frame online={online}>
-        <div className="flex flex-1 flex-col items-center justify-center gap-4">
-          <div className="dots font-serif text-[clamp(1.5rem,3vw,3rem)] font-black">
-            正在连接现场<span>.</span><span>.</span><span>.</span>
+  const renderContent = () => {
+    if (!preview && !screenToken) {
+      /* `/screen` with no token. The projector link lives in the admin console
+         for exactly one event; there is no "current game" to guess at. */
+      return (
+        <Frame online={false}>
+          <div className="flex flex-1 flex-col items-center justify-center gap-5 px-8 text-center">
+            <p className="font-mono text-[clamp(.7rem,1vw,1rem)] font-black tracking-[0.35em] text-foil-dim">PROJECTOR</p>
+            <h1 className="font-serif text-[clamp(1.8rem,4vw,4rem)] font-black leading-tight">这台投影还没有连到任何一场</h1>
+            <p className="max-w-2xl text-[clamp(.95rem,1.4vw,1.5rem)] font-semibold leading-relaxed text-moon-dim">
+              请总控打开管理端 → 进入本场活动 → 复制「大屏链接」，在这台电脑的浏览器里打开。
+              每一场都有自己的大屏链接，链接本身就是场次。
+            </p>
+            <Link to="/admin" className="pressable rounded-full bg-ink px-6 py-3 text-[clamp(.9rem,1.2vw,1.2rem)] font-black text-white">
+              去管理端
+            </Link>
           </div>
-          {!online && <div className="text-lg text-seal">{errorText(error)}</div>}
-        </div>
+        </Frame>
+      );
+    }
+
+    if (!data) {
+      return (
+        <Frame online={online}>
+          <div className="flex flex-1 flex-col items-center justify-center gap-4">
+            <div className="dots font-serif text-[clamp(1.5rem,3vw,3rem)] font-black">
+              正在连接现场<span>.</span><span>.</span><span>.</span>
+            </div>
+            {!online && <div className="text-lg text-seal">{errorText(error)}</div>}
+          </div>
+        </Frame>
+      );
+    }
+
+    if (data.phase === "ended" && data.awards && !ceremonyDone) {
+      return (
+        <>
+          <Ceremony
+            awards={data.awards}
+            players={data.stats.players}
+            stationsTotal={data.stations_total}
+            onFinish={() => setCeremonyDone(true)}
+          />
+          {preview && <DemoRibbon />}
+        </>
+      );
+    }
+
+    return (
+      <Frame online={online} data={data} demo={preview}>
+        {data.phase === "waiting" ? (
+          <Lobby data={data} landing={landing} joinLink={joinLink} />
+        ) : (
+          <div className="grid grid-cols-1 gap-8 px-4 pb-24 lg:min-h-0 lg:flex-1 lg:grid-cols-[1fr_clamp(340px,26vw,460px)] lg:gap-[clamp(0.75rem,1.4vw,1.75rem)] lg:px-[clamp(0.75rem,1.6vw,2rem)] lg:pb-[clamp(0.75rem,1.4vw,1.75rem)]">
+            <Board
+              players={data.players}
+              ended={data.phase === "ended"}
+              stationsTotal={data.stations_total ?? 7}
+              onReplay={data.phase === "ended" && data.awards ? () => setCeremonyDone(false) : undefined}
+            />
+            <aside className="flex min-h-0 flex-col gap-[clamp(0.5rem,1vw,1.25rem)]">
+              <Ticker feed={data.feed} />
+              {joinLink && <RejoinCard url={joinLink} />}
+            </aside>
+          </div>
+        )}
       </Frame>
     );
-  }
+  };
 
-  if (data.phase === "ended" && data.awards && !ceremonyDone) {
-    return (
-      <>
-        <Ceremony
-          awards={data.awards}
-          players={data.stats.players}
-          stationsTotal={data.stations_total}
-          onFinish={() => setCeremonyDone(true)}
-        />
-        {preview && <DemoRibbon />}
-      </>
-    );
-  }
-
-  return (
-    <Frame online={online} data={data} demo={preview}>
-      {data.phase === "waiting" ? (
-        <Lobby data={data} landing={landing} joinLink={joinLink} />
-      ) : (
-        <div className="grid grid-cols-1 gap-8 px-4 pb-24 lg:min-h-0 lg:flex-1 lg:grid-cols-[1fr_clamp(340px,26vw,460px)] lg:gap-[clamp(0.75rem,1.4vw,1.75rem)] lg:px-[clamp(0.75rem,1.6vw,2rem)] lg:pb-[clamp(0.75rem,1.4vw,1.75rem)]">
-          <Board
-            players={data.players}
-            ended={data.phase === "ended"}
-            stationsTotal={data.stations_total ?? 7}
-            onReplay={data.phase === "ended" && data.awards ? () => setCeremonyDone(false) : undefined}
-          />
-          <aside className="flex min-h-0 flex-col gap-[clamp(0.5rem,1vw,1.25rem)]">
-            <Ticker feed={data.feed} />
-            {joinLink && <RejoinCard url={joinLink} />}
-          </aside>
-        </div>
-      )}
-    </Frame>
-  );
+  return <ThemeProvider theme={searchParams.get("theme") ?? data?.theme}>{renderContent()}</ThemeProvider>;
 }
 
 function previewData(mode: string | null): BoardSnapshot | null {
@@ -156,6 +162,7 @@ function Frame(props: { online: boolean; data?: BoardSnapshot; demo?: boolean; c
 }
 
 function Header({ online, data }: { online: boolean; data?: BoardSnapshot }) {
+  const copy = useCopy();
   const elapsed = useElapsed(data?.started_at ?? null);
   const phase = data?.phase;
   return (
@@ -168,12 +175,12 @@ function Header({ online, data }: { online: boolean; data?: BoardSnapshot }) {
               operator is the only person who needs the way out. */}
           <div className="flex items-center gap-1.5">
             <div className="text-[9px] font-black tracking-[0.36em] text-foil-dim lg:text-[clamp(0.5rem,0.75vw,0.8rem)] lg:tracking-[0.5em]">
-              LIFE PASSPORT · LIVE
+              {copy.cardEn} · LIVE
             </div>
             <UpLink label="入口" to="/" variant="icon" className="!h-5 !w-5 !text-[11px]" />
           </div>
           <h1 className="mt-1 text-2xl font-black leading-none tracking-[-0.04em] lg:text-[clamp(1.5rem,2.9vw,3.4rem)]">
-            人生护照实况
+            {copy.card}实况
           </h1>
         </div>
         <div className="flex items-end gap-2">
@@ -189,19 +196,19 @@ function Header({ online, data }: { online: boolean; data?: BoardSnapshot }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-5 items-end gap-2 rounded-2xl bg-white/75 p-3 shadow-[0_2px_0_#e0a800] lg:flex lg:gap-[clamp(0.75rem,1.6vw,2rem)] lg:bg-transparent lg:p-0 lg:pb-1 lg:shadow-none">
+      <div className="grid grid-cols-5 items-end gap-2 rounded-2xl bg-white/75 p-3 shadow-[0_2px_0_var(--color-foil-shadow)] lg:flex lg:gap-[clamp(0.75rem,1.6vw,2rem)] lg:bg-transparent lg:p-0 lg:pb-1 lg:shadow-none">
         {data && (
           <>
             <Stat label="旅客" value={data.stats.players} />
             <Stat label="队伍" value={data.stats.teams ?? data.players.length} />
             <Stat label="已盖章" value={data.stats.stamps} />
-            <Stat label="人生事件" value={data.stats.life_events} />
+            <Stat label={copy.lifeEvent} value={data.stats.life_events} />
             {/* The top score is deliberately withheld until the end: an hour of
                 "who is winning" on the wall is exactly what we removed. */}
             {data.phase === "ended" ? (
               <Stat label="最高分" value={data.stats.top_score} foil />
             ) : (
-              <Stat label="Token" value={data.stats.tokens_used} />
+              <Stat label={copy.tokenShort} value={data.stats.tokens_used} />
             )}
           </>
         )}
@@ -255,13 +262,14 @@ function Lobby({
   landing: GameLanding | null;
   joinLink: string | null;
 }) {
+  const copy = useCopy();
   return (
     <div className="grid flex-1 min-h-0 grid-rows-[minmax(0,1fr)_auto] gap-[clamp(1rem,2vw,2.5rem)] px-[clamp(1.5rem,5vw,6rem)] pb-[clamp(1rem,2vw,2.5rem)]">
       <div className="grid min-h-0 items-center gap-[clamp(2rem,5vw,6rem)] lg:grid-cols-[minmax(0,1fr)_minmax(18rem,28rem)]">
         <div>
           <p className="text-[clamp(.7rem,1vw,1rem)] font-black tracking-[0.35em] text-foil-dim">SCAN TO JOIN · 扫码入场</p>
           <h2 className="mt-3 max-w-4xl text-balance text-[clamp(2.6rem,6.5vw,7rem)] font-black leading-[0.95] tracking-[-0.06em]">
-            {landing?.title ?? "Life Passport"}
+            {landing?.title ?? copy.cardTitleCase}
           </h2>
           <div className="mt-[clamp(1.5rem,3vw,3rem)] flex items-end gap-5">
             <div className="tabular font-serif text-[clamp(3.5rem,9vw,9rem)] font-black leading-[0.78] tracking-[-0.08em] text-ink">
@@ -271,12 +279,12 @@ function Lobby({
           </div>
           <p className="mt-[clamp(1rem,2vw,2rem)] max-w-2xl text-[clamp(.9rem,1.3vw,1.35rem)] font-semibold leading-relaxed text-moon-dim">
             用<b className="text-ink">手机相机</b>或<b className="text-ink">微信扫一扫</b>对准二维码，
-            填写姓名，就能领到属于你的 3 位人生编号。
+            填写姓名，就能领到属于你的 3 位{copy.lifeNo}。
           </p>
           <ScreenVerse className="mt-[clamp(1.25rem,2.5vw,2.75rem)] max-w-2xl" />
         </div>
 
-        <div className="flex flex-col items-center rounded-[clamp(1.25rem,2.5vw,2.5rem)] bg-white p-[clamp(1rem,2vw,2rem)] shadow-[0_7px_0_#e0a800]">
+        <div className="flex flex-col items-center rounded-[clamp(1.25rem,2.5vw,2.5rem)] bg-white p-[clamp(1rem,2vw,2rem)] shadow-[0_7px_0_var(--color-foil-shadow)]">
           {joinLink ? (
             <JoinQr url={joinLink} className="aspect-square w-full rounded-2xl" />
           ) : (
@@ -287,7 +295,7 @@ function Lobby({
             镜头对准二维码 · 自动打开本场链接
           </div>
           {!landing?.join_open && (
-            <div className="mt-3 rounded-lg bg-[#fff0eb] px-4 py-2 text-sm font-black text-seal">登记暂时关闭</div>
+            <div className="mt-3 rounded-lg bg-fail-soft px-4 py-2 text-sm font-black text-seal">登记暂时关闭</div>
           )}
         </div>
       </div>
@@ -328,7 +336,7 @@ function NameWall({ players }: { players: BoardPlayer[] }) {
         {shown.map((p, i) => (
           <span
             key={p.id}
-            className="rise rounded-full bg-white font-bold shadow-[0_2px_0_#e0a800]"
+            className="rise rounded-full bg-white font-bold shadow-[0_2px_0_var(--color-foil-shadow)]"
             style={{
               "--i": Math.min(i, 18),
               padding: dense ? "0.18rem 0.7rem" : "0.28rem 0.95rem",
@@ -363,6 +371,7 @@ function Board({
   stationsTotal: number;
   onReplay?: () => void;
 }) {
+  const copy = useCopy();
   const changed = useChangedScores(players);
   const ordered = useMemo(
     () => (ended ? [...players].sort((a, b) => b.score - a.score) : players),
@@ -399,7 +408,7 @@ function Board({
     <section className="screen-board flex min-h-0 flex-col">
       <div className="mb-[clamp(0.35rem,0.7vw,0.9rem)] flex items-baseline justify-between gap-3">
         <h2 className="font-serif text-[clamp(1rem,1.7vw,2rem)] font-black">
-          {ended ? "最终个人排名" : "全场人生旅程"}
+          {ended ? "最终个人排名" : copy.boardTitle}
         </h2>
         <div className="flex items-baseline gap-3">
           {onReplay && (
@@ -430,7 +439,7 @@ function Board({
           }}
         >
           {visible.map((p, rowIndex) => {
-            const color = colorOf(p.color_group) ?? (p.identity === "solo" ? soloColor(p.id) : null);
+            const color = colorOf(p.color_group, copy) ?? (p.identity === "solo" ? soloColor(p.id, copy) : null);
             const rank = ranks.get(p.id) ?? 0;
             const isLead = ended && rank === 1 && p.score > 0;
             const flashed = changed.has(p.id);
@@ -469,12 +478,12 @@ function Board({
                     className="screen-player-meta block truncate leading-tight text-moon-dim"
                     style={{ fontSize: "clamp(0.65rem,0.78vw,0.86rem)" }}
                   >
-                    {p.identity ? IDENTITY_SHORT[p.identity] : "未分配"}
+                    {p.identity ? copy.identity[p.identity].short : "未分配"}
                     {" · "}
-                    {p.stations_done}/{stationsTotal} 站 · {p.life_events_done ?? 0}/3 人生
+                    {p.stations_done}/{stationsTotal} {copy.stationUnit} · {p.life_events_done ?? 0}/3 {copy.stageShort}
                     {p.locked && <span className="font-bold text-seal"> · 事件待选</span>}
                     {p.sick && <span className="text-seal"> · 感冒</span>}
-                    {!p.token_available && <span className="text-moon-dim/55"> · 无 Token</span>}
+                    {!p.token_available && <span className="text-moon-dim/55"> · 无 {copy.tokenShort}</span>}
                   </span>
                 </span>
 
@@ -502,8 +511,9 @@ function Board({
 
 /** Anyone who closed the tab can get back in by rescanning from the wall. */
 function RejoinCard({ url }: { url: string }) {
+  const copy = useCopy();
   return (
-    <div className="flex shrink-0 items-center gap-[clamp(0.6rem,1vw,1.1rem)] rounded-[20px] bg-white/90 p-[clamp(0.5rem,0.9vw,1rem)] shadow-[0_3px_0_#e0a800]">
+    <div className="flex shrink-0 items-center gap-[clamp(0.6rem,1vw,1.1rem)] rounded-[20px] bg-white/90 p-[clamp(0.5rem,0.9vw,1rem)] shadow-[0_3px_0_var(--color-foil-shadow)]">
       <JoinQr url={url} className="h-[clamp(4.5rem,7vw,7rem)] w-[clamp(4.5rem,7vw,7rem)] shrink-0 rounded-lg" />
       <div className="min-w-0">
         <div className="text-[clamp(0.55rem,0.75vw,0.8rem)] font-black tracking-[0.28em] text-foil-dim">REJOIN</div>
@@ -513,7 +523,7 @@ function RejoinCard({ url }: { url: string }) {
           扫这里回到游戏
         </div>
         <div className="mt-1.5 text-[clamp(0.6rem,0.8vw,0.88rem)] font-semibold leading-snug text-moon-dim">
-          进去后点「已经登记过？」，输入你的 3 位人生编号即可找回
+          进去后点「已经登记过？」，输入你的 3 位{copy.lifeNo}即可找回
         </div>
       </div>
     </div>
@@ -548,6 +558,7 @@ function ScreenVerse({ className = "" }: { className?: string }) {
 /* ------------------------------------------------------------------ ticker */
 
 function Ticker({ feed }: { feed: FeedItem[] }) {
+  const copy = useCopy();
   const fresh = useFreshIds(feed);
   const shown = feed.slice(0, FEED_SHOWN);
 
@@ -563,7 +574,7 @@ function Ticker({ feed }: { feed: FeedItem[] }) {
       {/* The rail holds more lines than fit; a bottom fade makes the cut read
           as "more below" instead of a half-clipped row. */}
       <div
-        className="screen-feed-rail min-h-0 flex-1 overflow-hidden rounded-[24px] bg-white/90 p-3 shadow-[0_3px_0_#e0a800] lg:p-[clamp(0.5rem,0.9vw,1.1rem)]"
+        className="screen-feed-rail min-h-0 flex-1 overflow-hidden rounded-[24px] bg-white/90 p-3 shadow-[0_3px_0_var(--color-foil-shadow)] lg:p-[clamp(0.5rem,0.9vw,1.1rem)]"
         style={{
           maskImage: "linear-gradient(to bottom, black 88%, transparent 100%)",
           WebkitMaskImage: "linear-gradient(to bottom, black 88%, transparent 100%)",
@@ -571,7 +582,7 @@ function Ticker({ feed }: { feed: FeedItem[] }) {
       >
         {shown.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center px-6 text-center">
-            <div className="text-[clamp(0.75rem,1.1vw,1.2rem)] text-moon-dim">等待第一个人生瞬间</div>
+            <div className="text-[clamp(0.75rem,1.1vw,1.2rem)] text-moon-dim">{copy.feedEmpty}</div>
             <ScreenVerse className="mt-[clamp(0.75rem,1.5vw,1.5rem)]" />
           </div>
         ) : (
@@ -604,20 +615,18 @@ interface Line {
   chip: string | null;
 }
 
-const STAGE_ZH = ["", "第一段人生", "第二段人生", "最后一段人生"];
-
 /**
  * Feed copy. The previous version glued a scene title onto an outcome label
  * ("在 15 分关口抽到「独自坐在面试门外 · 信息越看越乱」"), which read as
  * nonsense: the scene is where the player *was*, the outcome is what *happened*.
  * They are now separate clauses.
  */
-function describe(item: FeedItem): Line {
+function describe(item: FeedItem, copy: Copy): Line {
   if (item.kind === "life_event") {
     const delta = item.after - item.before;
     const good = delta > 0;
     const neutral = delta === 0;
-    const stage = item.stage ? STAGE_ZH[item.stage] ?? "人生事件" : "人生事件";
+    const stage = item.stage ? copy.stageNames[item.stage - 1] ?? copy.lifeEvent : copy.lifeEvent;
     return {
       glyph: good ? "spark" : neutral ? "ring" : "rain",
       tone: good ? "foil" : neutral ? "plain" : "seal",
@@ -632,6 +641,20 @@ function describe(item: FeedItem): Line {
 
   if (item.kind === "attempt") {
     const who = item.name;
+    /* The hidden station stays hidden: the room hears that someone found the
+       secret guest, never where. `who` already names the team, so the
+       {team} slot in the copy is dropped here. */
+    if ((item as FeedItem & SecretFeedFlag).secret) {
+      return {
+        glyph: "star",
+        tone: "foil",
+        who,
+        dot: colorOf(item.color_group ?? null)?.hex ?? null,
+        what: copy.secretFeed.replace("{team}", "").trim(),
+        detail: null,
+        chip: `每人 +${item.score} 分`,
+      };
+    }
     if (item.status === "failed") {
       return {
         glyph: "cross",
@@ -664,17 +687,17 @@ function describe(item: FeedItem): Line {
     glyph: "coin",
     tone: "foil",
     who: item.name,
-    what: `用掉 Grace Token，${usage}`,
+    what: `用掉 ${copy.graceToken}，${usage}`,
     detail: null,
     chip: null,
   };
 }
 
 const TONE_CLASS: Record<Tone, { rail: string; icon: string; chip: string }> = {
-  foil: { rail: "#e0a800", icon: "#7a5200", chip: "#7a5200" },
-  leaf: { rail: "#2f9e63", icon: "#1e7a34", chip: "#1e7a34" },
-  seal: { rail: "#c4402a", icon: "#c4402a", chip: "#c4402a" },
-  plain: { rail: "#c9bda6", icon: "#7d7261", chip: "#7d7261" },
+  foil: { rail: "var(--color-foil-shadow)", icon: "var(--color-accent-deep)", chip: "var(--color-accent-deep)" },
+  leaf: { rail: "var(--color-pass)", icon: "var(--color-leaf-deep)", chip: "var(--color-leaf-deep)" },
+  seal: { rail: "var(--color-fail)", icon: "var(--color-fail)", chip: "var(--color-fail)" },
+  plain: { rail: "var(--color-feed-line)", icon: "var(--color-ink-dim)", chip: "var(--color-ink-dim)" },
 };
 
 /** Hand-drawn glyph set. Emoji rendered inconsistently across the venue
@@ -706,7 +729,8 @@ function FeedGlyph({ glyph, color }: { glyph: Glyph; color: string }) {
 }
 
 function FeedLine({ item, fresh }: { item: FeedItem; fresh: boolean }) {
-  const line = describe(item);
+  const copy = useCopy();
+  const line = describe(item, copy);
   const tone = TONE_CLASS[line.tone];
   return (
     <li

@@ -1,0 +1,165 @@
+/* 中秋游园会：奶油黄月亮、青蓝海浪、水彩纸、珊瑚红点缀。 */
+:root[data-theme="midautumn"] {
+  /* Task 5 的基础色表；passport 的默认值仍留在 index.css。 */
+  --color-night: #dbe8ec;
+  --color-night-deep: #ffffff;
+  --color-night-raise: #ece4c2;
+  --color-foil: #f4e49d;
+  --color-foil-dim: #8a6d1e;
+  --color-foil-shadow: #c9dbe0;
+  --color-moon: #4a4034;
+  --color-moon-dim: #6f7f8c;
+  --color-desk: #dbe8ec;
+  --color-card: #ffffff;
+  --color-line: #cfdad6;
+  --color-ink: #4a4034;
+  --color-ink-dim: #6f7f8c;
+  --color-seal: #d8706b;
+  --color-seal-deep: #e98b86;
+  --color-leaf: #4392b2;
+  --color-leaf-deep: #2f6f8f;
+  --color-accent: #e98b86;
+  --color-accent-ink: #ffffff;
+  --color-accent-soft: #fde3e1;
+  --color-accent-deep: #8a3d3a;
+  --color-accent-shadow: #d8706b;
+  --color-shadow-line: #c9dbe0;
+  --color-pass: #4392b2;
+  --color-fail: #d8706b;
+
+  /* 共用控件、玩家弹窗、义工状态及徽章 Canvas 的派生色。 */
+  --color-black: #4a4034;
+  --color-white: #ffffff;
+  --color-contrast-dark: #4a4034;
+  --color-ink-shadow: #c9dbe0;
+  --color-seal-shadow: #c9dbe0;
+  --color-ink-disabled: #6f7f8c;
+  --color-ink-placeholder: #6f7f8c;
+  --color-pass-soft: #e3f1f5;
+  --color-fail-soft: #fde3e1;
+  --color-swatch-fallback: #6f7f8c;
+  --color-stage-orb-light: #fbf1bd;
+  --color-stage-orb-deep: #ead98a;
+  --color-badge-caption: #6f7f8c;
+  --color-badge-line: #cfdad6;
+  --color-grace-ink: #8a3d3a;
+  --color-grace-disabled: #fde3e1;
+  --color-grace-disabled-ink: #8a3d3a;
+  --color-ceremony-ink: #4a4034;
+  --color-ceremony-shadow: #c9dbe0;
+  --color-journey-complete-ink: #4a4034;
+  --color-event-result-good: #4392b2;
+  --color-event-result-bad: #d8706b;
+  --color-event-result-neutral: #b58b24;
+  --color-event-result-paper: #f3ecd6;
+  --color-event-paper: #f3ecd6;
+  --color-event-choice-paper: #e3f1f5;
+  --color-join-input: #e3f1f5;
+  --color-feed-line: #cfdad6;
+  --color-staff-accent-soft: #fde3e1;
+  --color-staff-accent-line: #cfdad6;
+  --color-staff-danger-line: #cfdad6;
+  --color-staff-good-soft: #e3f1f5;
+  --color-staff-good-line: #cfdad6;
+  --color-staff-step-idle: #f3ecd6;
+  --color-staff-step-idle-ink: #4a4034;
+  --color-passport-texture: #4a4034;
+  --color-passport-shadow: #c9dbe0;
+
+  /* 背景新增色也集中为 token；SVG 只提供形状和噪点。 */
+  --color-sky-top: #cfe0e6;
+  --color-wave-a: #67bccc;
+  --color-wave-b: #4392b2;
+  --wave-a: var(--color-wave-a);
+  --wave-b: var(--color-wave-b);
+  --paper-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.3 0 0 0 0 0.3 0 0 0 0 0.3 0 0 0 0.048 0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* 两个伪元素原本空闲，分别承载一层可随 token 换色的 SVG 海浪。 */
+:root[data-theme="midautumn"] .night-sky {
+  --moon-x: 14%;
+  --moon-y: 12%;
+  --moon-radius: 30vw;
+  --sea-height: 34vh;
+  background:
+    var(--paper-grain) repeat,
+    radial-gradient(circle at var(--moon-x) var(--moon-y),
+      var(--color-stage-orb-light) 0 calc(var(--moon-radius) * 0.3),
+      var(--color-foil) calc(var(--moon-radius) * 0.6),
+      var(--color-stage-orb-deep) var(--moon-radius),
+      transparent calc(var(--moon-radius) + 0.5vw)),
+    radial-gradient(circle at var(--moon-x) var(--moon-y),
+      rgb(from var(--color-card) r g b / 0.55) 0 calc(var(--moon-radius) + 2vw),
+      transparent calc(var(--moon-radius) + 10vw)),
+    linear-gradient(180deg, var(--color-sky-top) 0%, var(--color-night) 55%, var(--color-night-raise) 100%);
+  background-blend-mode: multiply, normal, normal, normal;
+}
+
+:root[data-theme="midautumn"] .night-sky::before,
+:root[data-theme="midautumn"] .night-sky::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: var(--sea-height);
+  pointer-events: none;
+  mask-size: 100% 100%;
+  mask-repeat: no-repeat;
+}
+
+:root[data-theme="midautumn"] .night-sky::before {
+  background: var(--paper-grain) repeat, var(--wave-a);
+  background-blend-mode: multiply;
+  opacity: 0.9;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 200' preserveAspectRatio='none'%3E%3Cpath d='M0 120 C150 40 300 40 450 110 S750 190 900 110 S1100 30 1200 90 V200 H0Z'/%3E%3C/svg%3E");
+}
+
+:root[data-theme="midautumn"] .night-sky::after {
+  background: var(--paper-grain) repeat, var(--wave-b);
+  background-blend-mode: multiply;
+  opacity: 0.9;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 200' preserveAspectRatio='none'%3E%3Cpath d='M0 150 C200 80 350 90 500 150 S800 210 1000 140 S1150 100 1200 130 V200 H0Z'/%3E%3C/svg%3E");
+}
+
+:root[data-theme="midautumn"] .screen-stage .night-sky {
+  --moon-x: 12%;
+  --moon-y: 18%;
+  --moon-radius: 22vw;
+  --sea-height: 42vh;
+}
+
+/* 可单独用于纸张表面；所有工具类在 passport 下均无效果。 */
+:root[data-theme="midautumn"] .paper-grain {
+  background-image: var(--paper-grain);
+  background-blend-mode: multiply;
+}
+
+:root[data-theme="midautumn"] .wave-edge {
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 14px),
+    95% 100%, 85% calc(100% - 10px), 75% 100%, 65% calc(100% - 10px), 55% 100%,
+    45% calc(100% - 10px), 35% 100%, 25% calc(100% - 10px), 15% 100%, 5% calc(100% - 10px), 0 100%);
+  padding-bottom: 14px;
+}
+
+:root[data-theme="midautumn"] .geometry-mark {
+  background: var(--color-card);
+  box-shadow: 0 5px 0 var(--color-shadow-line);
+}
+:root[data-theme="midautumn"] .geometry-mark > span {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--color-foil);
+}
+:root[data-theme="midautumn"] .geometry-mark > span:nth-child(2) { background: var(--wave-b); }
+:root[data-theme="midautumn"] .geometry-mark > span:nth-child(3) { background: var(--color-accent); box-shadow: none; }
+:root[data-theme="midautumn"] .geometry-mark > span:nth-child(4) { background: var(--wave-a); }
+
+/* 月圆时刻：卡片从 92% 亮到满亮，外圈放一圈月光。两个主题共用，不带主题前缀。 */
+.moon-fill { animation: moon-fill 600ms var(--ease-out-expo, ease-out) both; }
+@keyframes moon-fill {
+  from { filter: brightness(0.92); box-shadow: 0 3px 0 var(--color-shadow-line), 0 0 0 0 rgb(from var(--color-foil) r g b / 0.7); }
+  60% { filter: brightness(1.02); box-shadow: 0 3px 0 var(--color-shadow-line), 0 0 0 16px rgb(from var(--color-foil) r g b / 0.35); }
+  to { filter: brightness(1); box-shadow: 0 3px 0 var(--color-shadow-line), 0 0 0 28px rgb(from var(--color-foil) r g b / 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .moon-fill { animation: none; }
+}

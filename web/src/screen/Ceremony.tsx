@@ -1,6 +1,8 @@
+import type { AwardKey } from "../theme/copy";
+import { useCopy } from "../theme/ThemeProvider";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { BoardAwards, Identity, PodiumEntry, SpecialAward, TeamAward } from "../lib/types";
-import { IDENTITY_SHORT, colorOf, soloColor } from "../lib/types";
+import { colorOf, soloColor } from "../lib/types";
 import { darken, readableOn } from "../lib/color";
 
 /*
@@ -48,6 +50,7 @@ export default function Ceremony({
   stationsTotal: number;
   onFinish: () => void;
 }) {
+  const copy = useCopy();
   const slides = useMemo(() => buildSlides(awards, players), [awards, players]);
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -92,11 +95,11 @@ export default function Ceremony({
 
       <div className="relative z-10 flex h-full flex-col">
         <header className="flex items-center justify-between px-[clamp(1.5rem,3vw,3.5rem)] pt-[clamp(1rem,2vw,2rem)]">
-          <div className="text-[clamp(.6rem,.9vw,1rem)] font-black tracking-[0.45em] text-[#7a5200]">
-            LIFE PASSPORT · 颁奖典礼
+          <div className="text-[clamp(.6rem,.9vw,1rem)] font-black tracking-[0.45em] text-accent-deep">
+            {copy.cardEn} · 颁奖典礼
           </div>
           <div className="flex items-center gap-3">
-            <span className="tabular text-[clamp(.6rem,.9vw,1rem)] font-black text-[#7a5200]">
+            <span className="tabular text-[clamp(.6rem,.9vw,1rem)] font-black text-accent-deep">
               {Math.min(index + 1, slides.length)} / {slides.length}
             </span>
             <button
@@ -132,7 +135,7 @@ export default function Ceremony({
               style={{
                 width: i === index ? "1.75rem" : "0.45rem",
                 height: "0.45rem",
-                background: i <= index ? "#26211b" : "rgba(38,33,27,.22)",
+                background: i <= index ? "var(--color-ink)" : "rgb(from var(--color-ink) r g b / .22)",
               }}
             />
           ))}
@@ -145,10 +148,11 @@ export default function Ceremony({
 /* ------------------------------------------------------------------ slides */
 
 function IntroSlide({ players, awards }: { players: number; awards: BoardAwards }) {
+  const copy = useCopy();
   return (
     <div className="text-center">
-      <p className="text-[clamp(.75rem,1.1vw,1.2rem)] font-black tracking-[0.5em] text-[#7a5200]">
-        JOURNEY COMPLETE
+      <p className="text-[clamp(.75rem,1.1vw,1.2rem)] font-black tracking-[0.5em] text-accent-deep">
+        {copy.journeyComplete}
       </p>
       {/* Two CJK lines at 10rem: leading below 1 makes them overlap on a
           1080p projector, which is exactly where this slide is shown. */}
@@ -160,10 +164,10 @@ function IntroSlide({ players, awards }: { players: number; awards: BoardAwards 
       <div className="mt-[clamp(2rem,4vw,4rem)] flex flex-wrap items-end justify-center gap-[clamp(2rem,5vw,5rem)]">
         <IntroStat value={players} label="位旅客" />
         <IntroStat value={awards.specials.length + awards.podium.length + (awards.team_awards?.length ?? 0)} label="个奖项" />
-        <IntroStat value={awards.podium[0]?.score ?? 0} label="最高人生分" />
+        <IntroStat value={awards.podium[0]?.score ?? 0} label={`最高${copy.scoreUnit}`} />
       </div>
-      <p className="mt-[clamp(2rem,3.5vw,3.5rem)] text-[clamp(1rem,1.6vw,1.8rem)] font-black text-[#5c4a24]">
-        接下来，我们一个一个看看这些人生
+      <p className="mt-[clamp(2rem,3.5vw,3.5rem)] text-[clamp(1rem,1.6vw,1.8rem)] font-black text-ceremony-ink">
+        {copy.ceremonyIntro}
       </p>
     </div>
   );
@@ -173,27 +177,28 @@ function IntroStat({ value, label }: { value: number; label: string }) {
   return (
     <div className="text-center">
       <div className="tabular text-[clamp(3rem,7vw,7rem)] font-black leading-[0.8] tracking-[-0.06em]">{value}</div>
-      <div className="mt-2 text-[clamp(.8rem,1.1vw,1.2rem)] font-black text-[#7a5200]">{label}</div>
+      <div className="mt-2 text-[clamp(.8rem,1.1vw,1.2rem)] font-black text-accent-deep">{label}</div>
     </div>
   );
 }
 
 function SpecialSlide({ award }: { award: SpecialAward }) {
+  const copy = useCopy();
   const color = tone(award.color_group, award.name, award.identity);
   return (
     <div className="grid w-full max-w-[92rem] items-center gap-[clamp(1.5rem,4vw,5rem)] lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
       <div className="text-center lg:text-left">
-        <div className="ceremony-pop mx-auto grid aspect-square w-[clamp(9rem,17vw,17rem)] place-items-center rounded-[clamp(2rem,3.5vw,3.5rem)] bg-white text-[clamp(4.5rem,9vw,9rem)] shadow-[0_8px_0_#d19c13] lg:mx-0">
+        <div className="ceremony-pop mx-auto grid aspect-square w-[clamp(9rem,17vw,17rem)] place-items-center rounded-[clamp(2rem,3.5vw,3.5rem)] bg-white text-[clamp(4.5rem,9vw,9rem)] shadow-[0_8px_0_var(--color-ceremony-shadow)] lg:mx-0">
           {award.emoji}
         </div>
-        <p className="mt-[clamp(1rem,2vw,2rem)] text-[clamp(.7rem,1vw,1.05rem)] font-black tracking-[0.4em] text-[#7a5200]">
+        <p className="mt-[clamp(1rem,2vw,2rem)] text-[clamp(.7rem,1vw,1.05rem)] font-black tracking-[0.4em] text-accent-deep">
           SPECIAL AWARD
         </p>
         <h2 className="mt-2 text-[clamp(2.4rem,5.5vw,5.5rem)] font-black leading-[1] tracking-[-0.05em]">
-          {award.title}
+          {copy.awards[award.key as AwardKey]?.title ?? award.title}
         </h2>
-        <p className="mt-2 text-[clamp(.95rem,1.5vw,1.7rem)] font-black text-[#5c4a24]">{award.subtitle}</p>
-        <p className="mt-1.5 text-[clamp(.7rem,1vw,1.05rem)] font-bold text-[#7a5200]">
+        <p className="mt-2 text-[clamp(.95rem,1.5vw,1.7rem)] font-black text-ceremony-ink">{copy.awards[award.key as AwardKey]?.subtitle ?? award.subtitle}</p>
+        <p className="mt-1.5 text-[clamp(.7rem,1vw,1.05rem)] font-bold text-accent-deep">
           个人奖 · 队友之间也会不同
         </p>
       </div>
@@ -210,23 +215,24 @@ function SpecialSlide({ award }: { award: SpecialAward }) {
 }
 
 function TeamSlide({ award }: { award: TeamAward }) {
-  const color = colorOf(award.color_group)?.hex ?? "#26211b";
+  const copy = useCopy();
+  const color = colorOf(award.color_group)?.hex ?? "var(--color-ink)";
   const ink = readableOn(color);
   return (
     <div className="w-full max-w-[84rem] text-center">
-      <div className="ceremony-pop mx-auto grid aspect-square w-[clamp(7rem,12vw,12rem)] place-items-center rounded-[clamp(1.75rem,3vw,3rem)] bg-white text-[clamp(3.5rem,7vw,7rem)] shadow-[0_8px_0_#d19c13]">
+      <div className="ceremony-pop mx-auto grid aspect-square w-[clamp(7rem,12vw,12rem)] place-items-center rounded-[clamp(1.75rem,3vw,3rem)] bg-white text-[clamp(3.5rem,7vw,7rem)] shadow-[0_8px_0_var(--color-ceremony-shadow)]">
         {award.emoji}
       </div>
-      <p className="mt-[clamp(1rem,2vw,2rem)] text-[clamp(.7rem,1vw,1.05rem)] font-black tracking-[0.4em] text-[#7a5200]">
+      <p className="mt-[clamp(1rem,2vw,2rem)] text-[clamp(.7rem,1vw,1.05rem)] font-black tracking-[0.4em] text-accent-deep">
         TEAM AWARD · 队伍奖
       </p>
       <h2 className="mt-2 text-[clamp(2.4rem,5.5vw,5.5rem)] font-black leading-[1] tracking-[-0.05em]">
-        {award.title}
+        {copy.awards[award.key as AwardKey]?.title ?? award.title}
       </h2>
-      <p className="mt-2 text-[clamp(.95rem,1.5vw,1.7rem)] font-black text-[#5c4a24]">{award.subtitle}</p>
+      <p className="mt-2 text-[clamp(.95rem,1.5vw,1.7rem)] font-black text-ceremony-ink">{copy.awards[award.key as AwardKey]?.subtitle ?? award.subtitle}</p>
       {/* Stations are scored once per team, so this belongs to everyone who
           walked it — naming one member would be a coin flip. */}
-      <p className="mt-1.5 text-[clamp(.7rem,1vw,1.05rem)] font-bold text-[#7a5200]">
+      <p className="mt-1.5 text-[clamp(.7rem,1vw,1.05rem)] font-bold text-accent-deep">
         挑战按队伍进行，这个奖属于整队
       </p>
 
@@ -238,7 +244,7 @@ function TeamSlide({ award }: { award: TeamAward }) {
           {award.members}
         </div>
         <div className="mt-3 text-[clamp(.85rem,1.3vw,1.4rem)] font-black opacity-80">
-          {colorOf(award.color_group)?.zh ?? ""} · {IDENTITY_SHORT[award.identity] ?? award.identity}同行
+          {colorOf(award.color_group)?.zh ?? ""} · {copy.teamName[award.identity]}
         </div>
         <div
           className="mt-[clamp(1rem,2vw,2rem)] inline-block rounded-full bg-white px-[clamp(1rem,2vw,2rem)] py-[clamp(.5rem,1vw,1rem)] text-[clamp(1rem,1.8vw,2rem)] font-black text-ink"
@@ -257,13 +263,14 @@ const PODIUM_LOOK: Record<number, { label: string; english: string; medal: strin
 };
 
 function PodiumSlide({ entry, stationsTotal }: { entry: PodiumEntry; stationsTotal: number }) {
+  const copy = useCopy();
   const look = PODIUM_LOOK[entry.rank] ?? PODIUM_LOOK[3];
   const color = tone(entry.color_group, entry.name, entry.identity);
   const ink = readableOn(color);
   return (
     <div className="w-full max-w-[86rem] text-center">
       <div className="ceremony-pop text-[clamp(4rem,9vw,9rem)] leading-none">{look.medal}</div>
-      <p className="mt-[clamp(.5rem,1vw,1rem)] text-[clamp(.7rem,1vw,1.05rem)] font-black tracking-[0.45em] text-[#7a5200]">
+      <p className="mt-[clamp(.5rem,1vw,1rem)] text-[clamp(.7rem,1vw,1.05rem)] font-black tracking-[0.45em] text-accent-deep">
         {look.english}
       </p>
       <h2 className="mt-1 text-[clamp(1.6rem,3.4vw,3.4rem)] font-black tracking-[-0.03em]">{look.label}</h2>
@@ -276,14 +283,14 @@ function PodiumSlide({ entry, stationsTotal }: { entry: PodiumEntry; stationsTot
           {entry.name}
         </div>
         <div className="mt-[clamp(1rem,2vw,2rem)] flex flex-wrap items-end justify-center gap-[clamp(1.5rem,3.5vw,3.5rem)]">
-          <PodiumStat value={String(entry.score)} label="最终人生分" ink={ink} big />
+          <PodiumStat value={String(entry.score)} label={`最终${copy.scoreUnit}`} ink={ink} big />
           {/* Out of what this event ran, never a fixed 7: an event that
               dropped two stations must not announce its winner as 5/7. */}
-          <PodiumStat value={`${entry.stations_done}/${stationsTotal}`} label="完成站点" ink={ink} />
-          <PodiumStat value={`${entry.life_events}/3`} label="经历人生" ink={ink} />
+          <PodiumStat value={`${entry.stations_done}/${stationsTotal}`} label={`完成${copy.station}`} ink={ink} />
+          <PodiumStat value={`${entry.life_events}/3`} label={copy.stagesLabel} ink={ink} />
           {/* The card is already painted in this player's team colour, so the
               colour name would only add a word the room does not need. */}
-          <PodiumStat value={IDENTITY_SHORT[entry.identity ?? "solo"] ?? "独行"} label="同行" ink={ink} />
+          <PodiumStat value={copy.identity[entry.identity ?? "solo"].short} label="同行" ink={ink} />
         </div>
       </div>
     </div>
@@ -307,19 +314,20 @@ function PodiumStat({ value, label, ink, big }: { value: string; label: string; 
 }
 
 function OutroSlide() {
+  const copy = useCopy();
   return (
     <div className="text-center">
       <h1 className="text-[clamp(2.5rem,6.5vw,7rem)] font-black leading-[1.02] tracking-[-0.05em]">
         「我的恩典够你用的」
       </h1>
-      <p className="mt-[clamp(1rem,2vw,2rem)] text-[clamp(1rem,1.8vw,2rem)] font-black text-[#5c4a24]">
+      <p className="mt-[clamp(1rem,2vw,2rem)] text-[clamp(1rem,1.8vw,2rem)] font-black text-ceremony-ink">
         哥林多后书 12:9 · 2 CORINTHIANS 12:9
       </p>
       <p className="mt-[clamp(2rem,4vw,4rem)] text-[clamp(1.6rem,4vw,4rem)] font-black tracking-[-0.03em] text-seal-deep">
         You don't have to do life alone
       </p>
-      <p className="mt-[clamp(2rem,3.5vw,3.5rem)] text-[clamp(.9rem,1.3vw,1.4rem)] font-black text-[#7a5200]">
-        每个人都可以在手机上生成自己的纪念徽章 · 别忘了去恩典站
+      <p className="mt-[clamp(2rem,3.5vw,3.5rem)] text-[clamp(.9rem,1.3vw,1.4rem)] font-black text-accent-deep">
+        每个人都可以在手机上生成自己的纪念徽章 · 别忘了去{copy.graceStation}
       </p>
     </div>
   );
@@ -340,6 +348,7 @@ function WinnerCard({
   caption: string;
   score: number;
 }) {
+  const copy = useCopy();
   const ink = readableOn(color);
   return (
     <div
@@ -350,7 +359,7 @@ function WinnerCard({
         {name}
       </div>
       <div className="mt-3 text-[clamp(.85rem,1.2vw,1.3rem)] font-black opacity-80">
-        {IDENTITY_SHORT[identity ?? "solo"] ?? ""}同行 · 最终 {score} 分
+        {copy.teamName[identity ?? "solo"]} · 最终 {score} 分
       </div>
       <div
         className="mt-[clamp(1rem,2vw,2rem)] inline-block rounded-full bg-white px-[clamp(1rem,2vw,2rem)] py-[clamp(.5rem,1vw,1rem)] text-[clamp(1rem,1.8vw,2rem)] font-black text-ink"
@@ -362,5 +371,5 @@ function WinnerCard({
 }
 
 function tone(colorGroup: string | null, seed: string, identity: Identity): string {
-  return colorOf(colorGroup)?.hex ?? (identity === "solo" ? soloColor(seed).hex : "#26211b");
+  return colorOf(colorGroup)?.hex ?? (identity === "solo" ? soloColor(seed).hex : "var(--color-ink)");
 }

@@ -1,3 +1,4 @@
+import { useCopy } from "../theme/ThemeProvider";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
@@ -5,11 +6,11 @@ import { Link } from "react-router-dom";
    night world (player) uses foil/night variants, tool world uses ink. */
 
 const BTN_VARIANTS = {
-  foil: "bg-foil text-ink font-black shadow-[0_3px_0_#e0a800]",
-  "night-ghost": "bg-card text-ink font-black shadow-[0_2px_0_#f0e4ce]",
-  ink: "bg-ink text-card font-black shadow-[0_3px_0_#0f0d0a]",
+  foil: "bg-accent text-accent-ink font-black shadow-[0_3px_0_var(--color-accent-shadow)]",
+  "night-ghost": "bg-card text-ink font-black shadow-[0_2px_0_var(--color-shadow-line)]",
+  ink: "bg-ink text-card font-black shadow-[0_3px_0_var(--color-ink-shadow)]",
   "tool-ghost": "bg-night-raise text-ink font-black",
-  danger: "bg-seal text-card font-black shadow-[0_3px_0_#8f2e1f]",
+  danger: "bg-seal text-card font-black shadow-[0_3px_0_var(--color-seal-shadow)]",
 } as const;
 
 export type BtnVariant = keyof typeof BTN_VARIANTS;
@@ -26,7 +27,7 @@ export function ActionButton(props: {
   const look = BTN_VARIANTS[props.variant ?? "ink"];
   return (
     <button
-      className={`pressable min-h-[52px] w-full rounded-full px-5 py-3.5 text-[15px] disabled:bg-night-raise disabled:text-[#b5a88c] disabled:shadow-none ${look} ${props.className ?? ""}`}
+      className={`pressable min-h-[52px] w-full rounded-full px-5 py-3.5 text-[15px] disabled:bg-night-raise disabled:text-ink-disabled disabled:shadow-none ${look} ${props.className ?? ""}`}
       disabled={props.disabled || busy}
       onClick={async () => {
         if (busy) return;
@@ -73,7 +74,7 @@ export function ErrorBanner({ text }: { text: string | null }) {
 export function SuccessBanner({ text }: { text: string | null }) {
   if (!text) return null;
   return (
-    <div role="status" className="rounded-2xl bg-[#e4f5ea] text-leaf-deep px-4 py-3 text-sm font-black flex items-start gap-2.5">
+    <div role="status" className="rounded-2xl bg-pass-soft text-leaf-deep px-4 py-3 text-sm font-black flex items-start gap-2.5">
       <span className="mt-px grid h-5 w-5 shrink-0 place-items-center rounded-full bg-leaf text-white text-xs">✓</span>
       <span>{text}</span>
     </div>
@@ -87,14 +88,15 @@ export function CodeInput(props: {
   placeholder?: string;
   autoFocus?: boolean;
 }) {
+  const copy = useCopy();
   return (
     <input
       inputMode="numeric"
       pattern="[0-9]*"
       maxLength={3}
       autoFocus={props.autoFocus}
-      className="w-full rounded-[14px] border-2 border-transparent bg-card px-4 py-3.5 text-center text-3xl font-black tabular tracking-[0.35em] text-ink placeholder:text-[#c9bca1] placeholder:text-xl placeholder:tracking-normal outline-none transition-shadow duration-200 focus:shadow-[0_0_0_3px_#ffc838]"
-      placeholder={props.placeholder ?? "人生编号"}
+      className="w-full rounded-[14px] border-2 border-transparent bg-card px-4 py-3.5 text-center text-3xl font-black tabular tracking-[0.35em] text-ink placeholder:text-ink-placeholder placeholder:text-xl placeholder:tracking-normal outline-none transition-shadow duration-200 focus:shadow-[0_0_0_3px_var(--color-accent)]"
+      placeholder={props.placeholder ?? copy.lifeNo}
       value={props.value}
       onChange={(e) => props.onChange(e.target.value.replace(/\D/g, "").slice(0, 3))}
     />
@@ -108,7 +110,7 @@ export function Mrz({ name, code }: { name: string; code: string }) {
   return <div className="mrz select-none" aria-hidden>{line}</div>;
 }
 
-/** Four-block brand signature from the Life Passport design language. */
+/** Four-block brand signature from the card design language. */
 export function BrandMark({ className = "" }: { className?: string }) {
   return (
     <div className={`geometry-mark ${className}`} aria-hidden="true">

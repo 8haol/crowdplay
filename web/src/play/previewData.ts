@@ -110,6 +110,30 @@ export function previewState(state: string): PollResult {
       },
     };
   }
+  /* Every visible station stamped: the full-moon card with the hidden hint,
+     then the same phone after the secret NPC has stamped it too. */
+  if (state === "fullmoon" || state === "secret") {
+    const done = state === "secret";
+    return {
+      ...PREVIEW_DATA,
+      full_moon: { reached: true, hint: done ? null : "月亮最亮的时候，去问问穿灰袍的那位。", secret_done: done },
+      attempts: PREVIEW_STATIONS.map((station, i) => ({
+        station_id: station.id,
+        status: i === 4 ? "failed" as const : "passed" as const,
+        score: i === 4 ? 0 : [9, 6, 6, 6, 0, 9, 6][i],
+        created_at: `2026-08-25T12:${String(20 + i * 5).padStart(2, "0")}:00.000Z`,
+      })),
+      player: {
+        ...PREVIEW_DATA.player,
+        score: done ? 48 : 42,
+        stations_done: 7,
+        life_events_done: 2,
+        next_event_stage: 3,
+        next_event_after_station: 7,
+        next_event_score: 50,
+      },
+    };
+  }
   /* The same finish, before and after the host releases the ranks. Two demos
      rather than one, because the held screen is the one a host has never seen
      and will be looking at while a room waits. */

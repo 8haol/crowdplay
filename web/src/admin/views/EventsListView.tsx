@@ -131,14 +131,14 @@ export function EventsListView({
           title="活动列表"
           note="当前场次固定排在最上面"
           actions={
-            <div className="flex gap-1 rounded-lg p-1" style={{ background: "#eee8de" }}>
+            <div className="flex gap-1 rounded-lg p-1" style={{ background: "var(--color-admin-neutral)" }}>
               {([["all", "全部"], ["live", "当前"], ["archived", "已结束"]] as const).map(([id, label]) => (
                 <button
                   key={id}
                   type="button"
                   onClick={() => setFilter(id)}
                   className="rounded-md px-3 py-1.5 text-xs font-black"
-                  style={filter === id ? { background: "#fff", color: T.ink } : { color: T.inkSoft }}
+                  style={filter === id ? { background: "var(--color-card)", color: T.ink } : { color: T.inkSoft }}
                 >
                   {label}
                 </button>
@@ -171,7 +171,7 @@ export function EventsListView({
                 {shown.map((row) => (
                   <tr
                     key={row.event_id}
-                    className="cursor-pointer hover:bg-[#fffbf2]"
+                    className="cursor-pointer hover:bg-admin-row-hover"
                     style={{ borderBottom: `1px solid ${T.lineSoft}` }}
                     onClick={() => onOpenEvent(row.event_id)}
                   >

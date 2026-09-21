@@ -18,6 +18,20 @@ export const TYPE_ZH: Record<StationType, string> = {
   grace: "恩典站",
 };
 
+/*
+ * 场次主题。只有两个值；非法值前端回落 passport，和 RPC 的 BAD_THEME 一致。
+ * 文案里那两行小注是给后台操作员看的说明，不是玩家页的隐喻词，所以不走文案字典。
+ */
+export const THEME_OPTIONS = [
+  { id: "passport", label: "人生护照", note: "Glasgow 迎新会用的那套" },
+  { id: "midautumn", label: "中秋游园会", note: "奶油黄月亮 · 青蓝海浪 · 集章卡" },
+] as const;
+export type ThemeId = (typeof THEME_OPTIONS)[number]["id"];
+
+export function themeLabel(value: string | null | undefined): string {
+  return (THEME_OPTIONS.find((option) => option.id === value) ?? THEME_OPTIONS[0]).label;
+}
+
 /** One line that says how a station is run, in the operator's own words. */
 export function stationRule(type: StationType, mode: ScoringMode): string {
   if (type === "life_event") return "玩家手机自动完成 · 无需值守";

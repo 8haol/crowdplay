@@ -2,11 +2,19 @@
    not for legibility, so every surface painted with one has to derive its own
    text colour instead of assuming a light or dark background. */
 
-const INK = "#26211b";
-const CREAM = "#fff9f0";
+export function cssVar(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+const INK = "var(--color-ink)";
 
 function channels(hex: string): [number, number, number] | null {
-  const normalized = hex.replace("#", "");
+  const value = hex.startsWith("var(") ? cssVar(hex.slice(4, -1)) : hex;
+  let normalized = value.replace("#", "");
+  // Production CSS may shorten a token to three hex digits.
+  if (hex.startsWith("var(") && /^[0-9a-f]{3}$/i.test(normalized)) {
+    normalized = [...normalized].map((digit) => digit + digit).join("");
+  }
   if (!/^[0-9a-f]{6}$/i.test(normalized)) return null;
   const [r, g, b] = [0, 2, 4].map((offset) =>
     Number.parseInt(normalized.slice(offset, offset + 2), 16) / 255,
@@ -28,15 +36,15 @@ export function contrastRatio(a: number, b: number): number {
 }
 
 /** Whichever of black / white reads better on `hex`. */
-export function readableOn(hex: string): "#000000" | "#FFFFFF" {
+export function readableOn(hex: string): "var(--color-contrast-dark)" | "var(--color-card)" {
   const l = luminance(hex);
-  return contrastRatio(l, 0) >= contrastRatio(l, 1) ? "#000000" : "#FFFFFF";
+  return contrastRatio(l, 0) >= contrastRatio(l, 1) ? "var(--color-contrast-dark)" : "var(--color-card)";
 }
 
 /** `hex` if it is legible on cream paper, otherwise the brand ink. */
 export function inkOnCream(hex: string): string {
   if (!channels(hex)) return INK;
-  return contrastRatio(luminance(hex), luminance(CREAM)) >= 4.5 ? hex : INK;
+  return contrastRatio(luminance(hex), luminance(cssVar("--color-night"))) >= 4.5 ? hex : INK;
 }
 
 /** Blend `hex` toward white by `amount` (0-1). Used for tinted surfaces. */

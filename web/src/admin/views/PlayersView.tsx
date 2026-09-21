@@ -141,7 +141,7 @@ export function PlayersView({
                   return (
                     <tr
                       key={player.code}
-                      className={`cursor-pointer hover:bg-[#fffbf2] ${player.is_removed ? "opacity-50" : ""}`}
+                      className={`cursor-pointer hover:bg-admin-row-hover ${player.is_removed ? "opacity-50" : ""}`}
                       style={{ borderBottom: `1px solid ${T.lineSoft}` }}
                       onClick={() => onPlayer(player.code)}
                     >
@@ -149,7 +149,7 @@ export function PlayersView({
                         <div className="flex items-center gap-3">
                           <span
                             className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-xs font-black text-white"
-                            style={{ background: color?.hex ?? "#7d7261" }}
+                            style={{ background: color?.hex ?? "var(--color-ink-dim)" }}
                           >
                             {player.name.slice(0, 1)}
                           </span>
@@ -177,18 +177,18 @@ export function PlayersView({
                       <td className="px-4 py-3.5">
                         <div className="flex flex-wrap gap-1">
                           {player.locked_for_life_event && (
-                            <span className="rounded-md px-2 py-1 text-[11px] font-black" style={{ background: "#ffe6df", color: "#a53c2d" }}>
+                            <span className="rounded-md px-2 py-1 text-[11px] font-black" style={{ background: "var(--color-admin-removed-soft)", color: "var(--color-admin-removed-ink)" }}>
                               第 {player.pending_stage ?? "?"} 段待选
                             </span>
                           )}
                           {!player.token_available && (
-                            <span className="rounded-md px-2 py-1 text-[11px] font-black" style={{ background: "#eee8de" }}>Token 已用</span>
+                            <span className="rounded-md px-2 py-1 text-[11px] font-black" style={{ background: "var(--color-admin-neutral)" }}>Token 已用</span>
                           )}
                           {player.is_removed && (
-                            <span className="rounded-md px-2 py-1 text-[11px] font-black" style={{ background: "#eee8de" }}>已移除</span>
+                            <span className="rounded-md px-2 py-1 text-[11px] font-black" style={{ background: "var(--color-admin-neutral)" }}>已移除</span>
                           )}
                           {!player.locked_for_life_event && player.token_available && !player.is_removed && (
-                            <span className="text-xs font-bold" style={{ color: "#3c8459" }}>正常</span>
+                            <span className="text-xs font-bold" style={{ color: "var(--color-admin-player-active)" }}>正常</span>
                           )}
                         </div>
                       </td>

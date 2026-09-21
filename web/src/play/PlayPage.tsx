@@ -1,3 +1,5 @@
+import type { Copy } from "../theme/copy";
+import { ThemeProvider, useCopy } from "../theme/ThemeProvider";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { rpc, errorText, RpcError } from "../lib/api";
@@ -104,103 +106,107 @@ export default function PlayPage() {
     setIssuedCode(null);
   }, [activeToken, setIssuedCode, setRevealDone]);
 
-  if (preview === "join") {
-    return <Demo><PreviewJoinFlow /></Demo>;
-  }
-  if (preview === "code") {
-    return <Demo><CodeIssued code="327" onContinue={() => {}} /></Demo>;
-  }
-  if (preview === "waiting") {
-    return <Demo><WaitingRoom code="327" name="林沐恩" online preview /></Demo>;
-  }
-  if (["reveal", "reveal-duo", "reveal-solo"].includes(preview ?? "")) {
-    const revealData = preview === "reveal-duo"
-      ? previewState("duo")
-      : preview === "reveal-solo"
-        ? previewState("solo")
-        : PREVIEW_DATA;
-    return <Demo><Reveal data={revealData} onDone={() => {}} /></Demo>;
-  }
-  if (["passport", "solo", "sick", "lock", "ended", "ended-hold"].includes(preview ?? "")) {
-    return (
-      <Demo>
-        <Passport data={previewState(preview!)} stations={PREVIEW_STATIONS} online joinToken="preview" />
-      </Demo>
-    );
-  }
-
-  if (!routeToken) {
-    return <NoLinkGuidance />;
-  }
-
-  if (landingError) {
-    return <PlayerMessage title="暂时无法连接活动" body={errorText(landingError)} />;
-  }
-
-  if (!landing || !activeToken) {
-    return <PlayerLoading label="正在寻找本场活动" />;
-  }
-
-  if (landing.invalid) {
-    return <NoLinkGuidance broken />;
-  }
-
-  if (!landing.is_current || sessionArchived || (landing.phase === "ended" && !code)) {
-    return <ArchivedSession landing={landing} />;
-  }
-
-  if (!code) {
-    if (!landing.join_open) {
-      return <PlayerMessage title="本场登记已关闭" body="如果你已经登记过，可以联系工作人员帮你找回编号。" />;
+  const renderContent = () => {
+    if (preview === "join") {
+      return <Demo><PreviewJoinFlow /></Demo>;
     }
-    return (
-      <Join
-        onJoined={onJoined}
-        onCodeIssued={onCodeIssued}
-        notice={joinNotice}
-        joinToken={activeToken}
-        gameTitle={landing.title}
-      />
-    );
-  }
+    if (preview === "code") {
+      return <Demo><CodeIssued code="327" onContinue={() => {}} /></Demo>;
+    }
+    if (preview === "waiting") {
+      return <Demo><WaitingRoom code="327" name="林沐恩" online preview /></Demo>;
+    }
+    if (["reveal", "reveal-duo", "reveal-solo"].includes(preview ?? "")) {
+      const revealData = preview === "reveal-duo"
+        ? previewState("duo")
+        : preview === "reveal-solo"
+          ? previewState("solo")
+          : PREVIEW_DATA;
+      return <Demo><Reveal data={revealData} onDone={() => {}} /></Demo>;
+    }
+    if (["passport", "solo", "sick", "lock", "fullmoon", "secret", "ended", "ended-hold"].includes(preview ?? "")) {
+      return (
+        <Demo>
+          <Passport data={previewState(preview!)} stations={PREVIEW_STATIONS} online joinToken="preview" />
+        </Demo>
+      );
+    }
 
-  /*
-   * The number screen stays up from the moment the code is issued — including
-   * before the first poll has landed — and clears itself when the player taps
-   * or when the host starts the game, whichever comes first.
-   */
-  if (issuedCode && (!data || data.phase === "waiting")) {
-    return <CodeIssued code={issuedCode} onContinue={() => setIssuedCode(null)} />;
-  }
+    if (!routeToken) {
+      return <NoLinkGuidance />;
+    }
 
-  if (!data) {
-    return <PlayerLoading label={recovering?.token === activeToken ? "正在找回你的护照" : "正在读取你的人生"} error={!online ? errorText(error) : undefined} />;
-  }
+    if (landingError) {
+      return <PlayerMessage title="暂时无法连接活动" body={errorText(landingError)} />;
+    }
 
-  const { phase, player } = data;
+    if (!landing || !activeToken) {
+      return <PlayerLoading label="正在寻找本场活动" />;
+    }
 
-  if (phase === "waiting") {
-    return <WaitingRoom code={player.code} name={player.name} online={online} colorGroup={player.color_group} orgName={data.org?.name_zh} />;
-  }
+    if (landing.invalid) {
+      return <NoLinkGuidance broken />;
+    }
 
-  // Identity reveal: once per stored code, when playing begins.
-  const isCurrentRecovery = recovering?.token === activeToken && recovering.code === player.code;
-  if (phase === "playing" && player.identity && revealSeen !== player.code && !isCurrentRecovery) {
-    return (
-      <Reveal
-        data={data}
-        onDone={() => {
-          localStorage.setItem(`lp_reveal:${activeToken}`, player.code);
-          setRevealDone({ token: activeToken, code: player.code });
-        }}
-      />
-    );
-  }
+    if (!landing.is_current || sessionArchived || (landing.phase === "ended" && !code)) {
+      return <ArchivedSession landing={landing} />;
+    }
 
-  /* The roster rides along with the poll: which stations an event runs is
-     per-event state, and `stations` was the one table anon could read directly
-     until phase 2 closed it. Nothing is fetched separately here. */
-  return <Passport data={data} stations={data.stations} online={online} joinToken={activeToken} />;
+    if (!code) {
+      if (!landing.join_open) {
+        return <PlayerMessage title="本场登记已关闭" body="如果你已经登记过，可以联系工作人员帮你找回编号。" />;
+      }
+      return (
+        <Join
+          onJoined={onJoined}
+          onCodeIssued={onCodeIssued}
+          notice={joinNotice}
+          joinToken={activeToken}
+          gameTitle={landing.title}
+        />
+      );
+    }
+
+    /*
+     * The number screen stays up from the moment the code is issued — including
+     * before the first poll has landed — and clears itself when the player taps
+     * or when the host starts the game, whichever comes first.
+     */
+    if (issuedCode && (!data || data.phase === "waiting")) {
+      return <CodeIssued code={issuedCode} onContinue={() => setIssuedCode(null)} />;
+    }
+
+    if (!data) {
+      return <RecoveringPlayerLoading recovering={recovering?.token === activeToken} error={!online ? errorText(error) : undefined} />;
+    }
+
+    const { phase, player } = data;
+
+    if (phase === "waiting") {
+      return <WaitingRoom code={player.code} name={player.name} online={online} colorGroup={player.color_group} orgName={data.org?.name_zh} />;
+    }
+
+    // Identity reveal: once per stored code, when playing begins.
+    const isCurrentRecovery = recovering?.token === activeToken && recovering.code === player.code;
+    if (phase === "playing" && player.identity && revealSeen !== player.code && !isCurrentRecovery) {
+      return (
+        <Reveal
+          data={data}
+          onDone={() => {
+            localStorage.setItem(`lp_reveal:${activeToken}`, player.code);
+            setRevealDone({ token: activeToken, code: player.code });
+          }}
+        />
+      );
+    }
+
+    /* The roster rides along with the poll: which stations an event runs is
+       per-event state, and `stations` was the one table anon could read directly
+       until phase 2 closed it. Nothing is fetched separately here. */
+    return <Passport data={data} stations={data.stations} online={online} joinToken={activeToken} />;
+  };
+
+  return <ThemeProvider theme={searchParams.get("theme") ?? landing?.theme ?? data?.theme}>{renderContent()}</ThemeProvider>;
 }
 
 /** Demo wrapper: fixture screens always carry the ribbon. */
@@ -244,7 +250,7 @@ function PlayerLoading({ label, error }: { label: string; error?: string }) {
     <div className="relative min-h-dvh overflow-hidden">
       <div className="night-sky" />
       <div className="relative z-10 flex min-h-dvh flex-col items-center justify-center gap-5 p-8 text-center">
-        <BrandMark className="!w-[108px] !gap-1 !rounded-[18px] !p-2.5 !shadow-[0_3px_0_#e0a800]" />
+        <BrandMark className="!w-[108px] !gap-1 !rounded-[18px] !p-2.5 !shadow-[0_3px_0_var(--color-foil-shadow)]" />
         <div className="text-2xl font-black">{label}</div>
         <div className="dots font-semibold text-ink-dim">连接现场<span>.</span><span>.</span><span>.</span></div>
         {error && <div className="text-sm text-seal">{error}</div>}
@@ -260,6 +266,7 @@ function PlayerLoading({ label, error }: { label: string; error?: string }) {
  * their staff sent. Recovery needs the same link plus the code.
  */
 function NoLinkGuidance({ broken = false }: { broken?: boolean }) {
+  const copy = useCopy();
   return (
     <div className="brand-stage relative min-h-dvh overflow-hidden">
       <div className="night-sky" />
@@ -270,7 +277,7 @@ function NoLinkGuidance({ broken = false }: { broken?: boolean }) {
         <h1 className="mt-3 text-[38px] font-black leading-[1.05] tracking-[-0.05em]">
           {broken ? "这个链接打不开任何一场" : "从现场的二维码进来"}
         </h1>
-        <div className="mt-8 rounded-[28px] bg-white px-6 py-7 text-left shadow-[0_4px_0_#e0a800]">
+        <div className="mt-8 rounded-[28px] bg-white px-6 py-7 text-left shadow-[0_4px_0_var(--color-foil-shadow)]">
           <ol className="space-y-4 text-[15px] font-bold leading-6">
             <li className="flex gap-3">
               <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-foil text-sm font-black">1</span>
@@ -282,7 +289,7 @@ function NoLinkGuidance({ broken = false }: { broken?: boolean }) {
             </li>
             <li className="flex gap-3">
               <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-night-raise text-sm font-black">?</span>
-              <span className="text-ink-dim">已经登记过、手机关掉了？再点一次同一个链接就回到你的护照；找回也需要本场链接加你的 3 位编号。</span>
+              <span className="text-ink-dim">已经登记过、手机关掉了？再点一次同一个链接就回到你的{copy.cardShort}；找回也需要本场链接加你的 3 位编号。</span>
             </li>
           </ol>
         </div>
@@ -304,7 +311,7 @@ function ArchivedSession({ landing }: { landing: GameLanding }) {
       <main className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-6 py-12 text-center">
         <p className="text-[11px] font-black tracking-[0.4em] text-foil-dim">SESSION ARCHIVED</p>
         <h1 className="mt-3 text-[42px] font-black leading-[1.05] tracking-[-0.05em]">这一程已收好</h1>
-        <div className="ticket-notch mt-8 rounded-[28px] bg-white px-6 py-7 text-left shadow-[0_4px_0_#e0a800]">
+        <div className="ticket-notch mt-8 rounded-[28px] bg-white px-6 py-7 text-left shadow-[0_4px_0_var(--color-foil-shadow)]">
           <div className="text-xs font-black tracking-[0.18em] text-ink-dim">往期场次</div>
           <div className="mt-2 text-2xl font-black">{landing.title ?? "这场活动"}</div>
           <div className="mt-5 flex items-end justify-between border-t-2 border-dashed border-line pt-5">
@@ -325,7 +332,7 @@ function PlayerMessage({ title, body }: { title: string; body: string }) {
   return (
     <div className="relative grid min-h-dvh place-items-center overflow-hidden p-6 text-center">
       <div className="night-sky" />
-      <div className="relative z-10 max-w-sm rounded-[28px] bg-white p-7 shadow-[0_3px_0_#f0e4ce]">
+      <div className="relative z-10 max-w-sm rounded-[28px] bg-white p-7 shadow-[0_3px_0_var(--color-shadow-line)]">
         <h1 className="text-2xl font-black">{title}</h1>
         <p className="mt-3 text-sm font-semibold leading-6 text-ink-dim">{body}</p>
         <Link to="/" className="pressable mt-6 inline-block rounded-full bg-ink px-6 py-3 font-black text-white">回到首页</Link>
@@ -334,20 +341,20 @@ function PlayerMessage({ title, body }: { title: string; body: string }) {
   );
 }
 
-const RULES: { t: string; d: string }[] = [
+const rules = (copy: Copy): { t: string; d: string }[] => [
   { t: "组队揭晓", d: "开场时会显示同行方式和颜色；Duo / Trio 请寻找同色队友" },
-  { t: "整队闯七站", d: "报你的人生编号，工作人员只录一次，每位队员获得相同加分" },
-  { t: "三段人生", d: "分数到 15 / 35 / 45，或走完第 3 / 5 / 7 站，先到就触发一段人生事件" },
-  { t: "一枚 Grace Token", d: "整队可领实体恩典卡，或重挑任意已玩站点；不用的话，随时可换纪念卡" },
+  { t: `整队闯七${copy.stationUnit}`, d: `报你的${copy.lifeNo}，工作人员只录一次，每位队员获得相同加分` },
+  { t: `三${copy.stageUnit}`, d: `分数到 15 / 35 / 45，或走完第 3 / 5 / 7 ${copy.stationUnit}，先到就触发一段${copy.lifeEvent}` },
+  { t: `一枚 ${copy.graceToken}`, d: `整队可领实体恩典卡，或重挑任意已玩${copy.station}；不用的话，随时可换纪念卡` },
 ];
 
 const WAITING_COVER_COLORS = [
-  { slug: "maroon", label: "酒红", hex: colorOf("maroon")?.hex ?? "#7A1230" },
-  { slug: "coral-red", label: "珊瑚红", hex: "#D44C3E" },
-  { slug: "teal", label: "墨松", hex: colorOf("teal")?.hex ?? "#145C4A" },
-  { slug: "navy", label: "藏青", hex: colorOf("navy")?.hex ?? "#1B2E6B" },
-  { slug: "orange", label: "暖橙", hex: colorOf("orange")?.hex ?? "#FF8A3C" },
-  { slug: "mint", label: "薄荷", hex: colorOf("mint")?.hex ?? "#4ECB8D" },
+  { slug: "maroon", label: "酒红", hex: colorOf("maroon")!.hex },
+  { slug: "coral-red", label: "珊瑚红", hex: "var(--color-passport-cover-coral)" },
+  { slug: "teal", label: "墨松", hex: colorOf("teal")!.hex },
+  { slug: "navy", label: "藏青", hex: colorOf("navy")!.hex },
+  { slug: "orange", label: "暖橙", hex: colorOf("orange")!.hex },
+  { slug: "mint", label: "薄荷", hex: colorOf("mint")!.hex },
 ] as const;
 
 function WaitingRoom({ code, name, online, colorGroup = null, preview = false, orgName = null }: {
@@ -359,6 +366,7 @@ function WaitingRoom({ code, name, online, colorGroup = null, preview = false, o
   /** The organisation running this event; printed on the passport cover. */
   orgName?: string | null;
 }) {
+  const copy = useCopy();
   const [open, setOpen] = useState(false);
   const [opening, setOpening] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -374,7 +382,7 @@ function WaitingRoom({ code, name, online, colorGroup = null, preview = false, o
       <div className="night-sky" />
       <div className="passport-waiting-layout relative z-10">
         {preview && (
-          <div className="waiting-cover-picker" aria-label="等待页护照封面颜色预览">
+          <div className="waiting-cover-picker" aria-label={`等待页${copy.cardShort}封面颜色预览`}>
             <span>封面试色</span>
             <div>
               {WAITING_COVER_COLORS.map((option) => (
@@ -421,7 +429,7 @@ function WaitingRoom({ code, name, online, colorGroup = null, preview = false, o
           )}
         </div>
         <p className="text-center text-xs font-bold leading-5 text-foil-dim">
-          {open ? "玩法已经写在护照内页 · 随时可以合上" : "等待主持人开始游戏 · 同行颜色会自动出现"}
+          {open ? `玩法已经写在${copy.cardShort}内页 · 随时可以合上` : `等待主持人${copy.startGame} · 同行颜色会自动出现`}
         </p>
         {/* The wait is the one dead stretch in the night, so it is where an
             ambient line costs nothing — it fills time the player already has
@@ -459,19 +467,20 @@ function PassportCoverCard(props: {
   onOpen: () => void;
   onOpened: () => void;
 }) {
+  const copy = useCopy();
   const coverInk = readableOn(props.coverColor);
-  const darkCover = coverInk === "#FFFFFF";
+  const darkCover = coverInk === "var(--color-card)";
   const coverStyle = {
     "--doc-cover": props.coverColor,
     "--doc-cover-light": lighten(props.coverColor, 0.14),
     "--doc-cover-deep": darken(props.coverColor, 0.2),
     "--doc-cover-spine": darken(props.coverColor, 0.34),
-    "--doc-foil": darkCover ? "#FFE08A" : "#26211B",
+    "--doc-foil": darkCover ? "var(--color-passport-cover-foil)" : "var(--color-ink)",
     "--doc-text": coverInk,
-    "--doc-soft": darkCover ? "rgba(255,249,240,.74)" : "rgba(38,33,27,.68)",
-    "--doc-line": darkCover ? "rgba(255,224,138,.5)" : "rgba(38,33,27,.32)",
-    "--doc-action-bg": darkCover ? "#FFF9F0" : "#26211B",
-    "--doc-action-ink": darkCover ? darken(props.coverColor, 0.3) : "#FFF9F0",
+    "--doc-soft": darkCover ? "rgb(from var(--color-night) r g b / .74)" : "rgb(from var(--color-ink) r g b / .68)",
+    "--doc-line": darkCover ? "rgb(from var(--color-passport-cover-foil) r g b / .5)" : "rgb(from var(--color-ink) r g b / .32)",
+    "--doc-action-bg": darkCover ? "var(--color-night)" : "var(--color-ink)",
+    "--doc-action-ink": darkCover ? darken(props.coverColor, 0.3) : "var(--color-night)",
     "--doc-action-shadow": darken(props.coverColor, 0.42),
   } as React.CSSProperties;
 
@@ -484,7 +493,7 @@ function PassportCoverCard(props: {
       }}
       disabled={props.opening}
       aria-expanded={false}
-      aria-label={`翻开 ${props.name} 的人生护照，编号 ${props.code}`}
+      aria-label={`翻开 ${props.name} 的${copy.card}，编号 ${props.code}`}
       className={`doc-cover w-full text-left ${props.opening ? "doc-cover--opening" : ""}`}
       style={coverStyle}
     >
@@ -494,7 +503,7 @@ function PassportCoverCard(props: {
 
         <span className="doc-cover__content relative z-10">
           <span className="doc-cover__foil flex items-center justify-between font-mono text-[9px] font-black tracking-[0.22em]">
-            <span className="truncate">{props.orgName ?? "LIFE PASSPORT"}</span>
+            <span className="truncate">{props.orgName ?? copy.cardEn}</span>
             <span className="flex items-center gap-1.5">
               <ConnDot online={props.online} />
               <span className="doc-cover__soft">{props.online ? "已连接" : "重连中"}</span>
@@ -503,8 +512,8 @@ function PassportCoverCard(props: {
 
           <span className="doc-cover__middle flex flex-col items-center justify-center text-center">
             <span className="doc-crest"><PassportGlobe className="w-[3.75rem]" /></span>
-            <span className="doc-cover__foil mt-5 text-[34px] font-black leading-none tracking-[0.18em]">人生护照</span>
-            <span className="doc-cover__soft mt-2.5 font-mono text-[10px] font-black tracking-[0.34em]">LIFE PASSPORT</span>
+            <span className="doc-cover__foil mt-5 text-[34px] font-black leading-none tracking-[0.18em]">{copy.card}</span>
+            <span className="doc-cover__soft mt-2.5 font-mono text-[10px] font-black tracking-[0.34em]">{copy.cardEn}</span>
           </span>
 
           <span className="doc-cover__footer block">
@@ -514,12 +523,12 @@ function PassportCoverCard(props: {
                 <span className="doc-cover__text mt-1.5 block truncate text-xl font-black">{props.name}</span>
               </span>
               <span className="block text-right">
-                <span className="doc-cover__soft block font-mono text-[9px] font-black tracking-[0.22em]">LIFE NO.</span>
+                <span className="doc-cover__soft block font-mono text-[9px] font-black tracking-[0.22em]">{copy.lifeNoEn}</span>
                 <span className="doc-cover__foil tabular mt-1 block text-[42px] font-black leading-none tracking-[0.04em]">{props.code}</span>
               </span>
             </span>
             <span className="doc-cover__action mt-5 flex items-center justify-center gap-2 rounded-full py-3 text-[13px] font-black">
-              轻触翻开护照 <span aria-hidden="true">›</span>
+              轻触翻开{copy.cardShort} <span aria-hidden="true">›</span>
             </span>
             <span className="doc-cover__soft mt-3 block text-center text-[10px] font-bold leading-4">请截图保存编号 · 现场报分和找回都只用它</span>
           </span>
@@ -530,6 +539,8 @@ function PassportCoverCard(props: {
 
 /** The opened passport page fills the phone too. */
 function Briefing(props: { code: string; name: string; online: boolean; onClose: () => void; interactive: boolean }) {
+  const copy = useCopy();
+  const briefingRules = rules(copy);
   return (
     <main
       className="passport-open-page"
@@ -543,16 +554,16 @@ function Briefing(props: { code: string; name: string; online: boolean; onClose:
             <div className="mt-1 truncate text-lg font-black">{props.name}</div>
           </div>
           <div className="text-right">
-            <div className="font-mono text-[9px] font-black tracking-[0.22em] text-ink-dim">LIFE NO.</div>
+            <div className="font-mono text-[9px] font-black tracking-[0.22em] text-ink-dim">{copy.lifeNoEn}</div>
             <div className="tabular mt-0.5 text-3xl font-black leading-none">{props.code}</div>
           </div>
         </div>
 
         <div className="mt-4 flex-1 space-y-0">
-          {RULES.map((r, i) => (
+          {briefingRules.map((r, i) => (
             <div key={r.t} className="relative flex gap-3 pb-3.5 last:pb-0">
-              {i < RULES.length - 1 && <div className="absolute bottom-0 left-[13px] top-8 w-0.5 bg-line" />}
-              <div className="tabular flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-foil text-xs font-black text-ink shadow-[0_2px_0_#e0a800]">{i + 1}</div>
+              {i < briefingRules.length - 1 && <div className="absolute bottom-0 left-[13px] top-8 w-0.5 bg-line" />}
+              <div className="tabular flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-foil text-xs font-black text-ink shadow-[0_2px_0_var(--color-foil-shadow)]">{i + 1}</div>
               <div className="pt-0.5">
                 <div className="text-sm font-black">{r.t}</div>
                 <div className="mt-0.5 text-[12px] font-semibold leading-[1.55] text-ink-dim">{r.d}</div>
@@ -563,18 +574,19 @@ function Briefing(props: { code: string; name: string; online: boolean; onClose:
 
         <div className="mt-1 flex items-center justify-center gap-1.5 border-t-2 border-dashed border-line pt-4 text-xs font-black text-ink-dim">
           <ConnDot online={props.online} />
-          {props.online ? "已连接现场" : "重连中，护照编号仍保存在本机"}
+          {props.online ? "已连接现场" : `重连中，${copy.cardShort}编号仍保存在本机`}
         </div>
-        <button type="button" onClick={props.onClose} className="pressable mt-3 min-h-10 w-full rounded-full bg-ink text-xs font-black text-white shadow-[0_3px_0_#0f0d0a]">‹ 合上护照</button>
+        <button type="button" onClick={props.onClose} className="pressable mt-3 min-h-10 w-full rounded-full bg-ink text-xs font-black text-white shadow-[0_3px_0_var(--color-ink-shadow)]">‹ 合上{copy.cardShort}</button>
       </div>
     </main>
   );
 }
 
 function Reveal({ data, onDone }: { data: PollResult; onDone: () => void }) {
+  const copy = useCopy();
   const { player } = data;
   const identity = player.identity ?? "solo";
-  const color = colorOf(player.color_group) ?? (player.identity === "solo" ? soloColor(player.code) : null);
+  const color = colorOf(player.color_group, copy) ?? (player.identity === "solo" ? soloColor(player.code, copy) : null);
   const [step, setStep] = useState(0);
 
   useEffect(() => {
@@ -595,11 +607,11 @@ function Reveal({ data, onDone }: { data: PollResult; onDone: () => void }) {
     );
   }
 
-  const background = color?.hex ?? "#26211B";
+  const background = color?.hex ?? "var(--color-ink)";
   const foreground = readableOn(background);
   const actionForeground = inkOnCream(background);
   const identityEnglish = identity.toUpperCase();
-  const identityChinese = identity === "trio" ? "三人同行" : identity === "duo" ? "二人同行" : "独立同行";
+  const identityChinese = copy.identity[identity].name.split(" ").slice(1).join(" ");
   const isTeam = identity === "duo" || identity === "trio";
   const colorName = color?.zh ?? "未知色";
   const revealLabel = isTeam ? "组队颜色" : "个人颜色";
@@ -612,7 +624,7 @@ function Reveal({ data, onDone }: { data: PollResult; onDone: () => void }) {
     ? `确认另外两人的屏幕也显示「${colorName}」`
     : identity === "duo"
       ? `确认对方的屏幕也显示「${colorName}」`
-      : "你将以 Solo 身份独立完成七个站点";
+      : `你将以 Solo 身份独立完成七个${copy.station}`;
 
   return (
     <div
@@ -640,7 +652,7 @@ function Reveal({ data, onDone }: { data: PollResult; onDone: () => void }) {
             {colorName}
           </h1>
           <div
-            className="reveal-pill mt-5 rounded-full bg-[#fff9f0] px-5 py-2 text-sm font-black"
+            className="reveal-pill mt-5 rounded-full bg-night px-5 py-2 text-sm font-black"
             style={{ color: actionForeground }}
           >
             <span className="mr-2 tracking-[0.12em]">{identityEnglish}</span>
@@ -655,18 +667,23 @@ function Reveal({ data, onDone }: { data: PollResult; onDone: () => void }) {
           <button
             type="button"
             onClick={onDone}
-            className="pressable mt-4 min-h-14 w-full rounded-full bg-[#fff9f0] px-5 py-3 text-center shadow-[0_3px_0_rgba(38,33,27,.16)]"
+            className="pressable mt-4 min-h-14 w-full rounded-full bg-night px-5 py-3 text-center shadow-[0_3px_0_rgb(from_var(--color-ink)_r_g_b_/_.16)]"
             style={{ color: actionForeground }}
           >
             <span className="block text-[15px] font-black">
-              {isTeam ? "队友找齐了，开始游戏 →" : "开始游戏 →"}
+              {isTeam ? `队友找齐了，${copy.startGame} →` : `${copy.startGame} →`}
             </span>
           </button>
           <p className="mx-auto mt-3 max-w-xs text-[11px] font-semibold leading-5 opacity-75">
-            {isTeam ? "没找到？继续举着手机，或请工作人员帮忙" : "独行也不是孤单，恩典站永远为你开着"}
+            {isTeam ? "没找到？继续举着手机，或请工作人员帮忙" : `${copy.identity.solo.short}也不是孤单，${copy.graceStation}永远为你开着`}
           </p>
         </div>
       </div>
     </div>
   );
+}
+
+function RecoveringPlayerLoading({ recovering, error }: { recovering: boolean; error?: string }) {
+  const copy = useCopy();
+  return <PlayerLoading label={recovering ? `正在找回你的${copy.cardShort}` : copy.loadingPlayer} error={error} />;
 }

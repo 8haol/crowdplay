@@ -1,3 +1,4 @@
+import { useCopy } from "../theme/ThemeProvider";
 import type { ReactNode } from "react";
 import type { PlayerState } from "../lib/types";
 import { colorOf, soloColor } from "../lib/types";
@@ -19,10 +20,10 @@ export function StaffCard({
   className?: string;
 }) {
   const look = {
-    plain: { background: "#fff", border: "1px solid #e8dcc4" },
-    accent: { background: "#fffaea", border: "1px solid #e8c96a" },
-    danger: { background: "#fff3ef", border: "1px solid #edbdb1" },
-    good: { background: "#eef8f1", border: "1px solid #bfe0cb" },
+    plain: { background: "var(--color-card)", border: "1px solid var(--color-line)" },
+    accent: { background: "var(--color-staff-accent-soft)", border: "1px solid var(--color-staff-accent-line)" },
+    danger: { background: "var(--color-admin-danger-soft)", border: "1px solid var(--color-staff-danger-line)" },
+    good: { background: "var(--color-staff-good-soft)", border: "1px solid var(--color-staff-good-line)" },
   }[tone];
   return (
     <section className={`rounded-[22px] p-5 ${className}`} style={look}>
@@ -44,22 +45,22 @@ export function Stepper({ steps, current }: { steps: string[]; current: number }
               className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-[11px] font-black"
               style={
                 active
-                  ? { background: "#26211b", color: "#fff" }
+                  ? { background: "var(--color-ink)", color: "var(--color-card)" }
                   : done
-                    ? { background: "#ffc838", color: "#26211b" }
-                    : { background: "#efe7d6", color: "#a1957f" }
+                    ? { background: "var(--color-accent)", color: "var(--color-ink)" }
+                    : { background: "var(--color-staff-step-idle)", color: "var(--color-staff-step-idle-ink)" }
               }
             >
               {done ? "✓" : index + 1}
             </span>
             <span
               className="truncate text-[11px] font-black"
-              style={{ color: active ? "#26211b" : done ? "#7a5200" : "#a1957f" }}
+              style={{ color: active ? "var(--color-ink)" : done ? "var(--color-accent-deep)" : "var(--color-staff-step-idle-ink)" }}
             >
               {step}
             </span>
             {index < steps.length - 1 && (
-              <span className="h-0.5 min-w-2 flex-1 rounded-full" style={{ background: done ? "#ffc838" : "#e8dcc4" }} />
+              <span className="h-0.5 min-w-2 flex-1 rounded-full" style={{ background: done ? "var(--color-accent)" : "var(--color-line)" }} />
             )}
           </li>
         );
@@ -97,7 +98,7 @@ export function CodePad({
     <div>
       <div
         className="tabular flex min-h-[5.5rem] items-center justify-center rounded-[20px] px-4 text-[3.25rem] font-black leading-none tracking-[0.16em]"
-        style={{ background: "#fff", border: "2px solid #e8dcc4", color: value ? "#26211b" : "#c9bca1" }}
+        style={{ background: "var(--color-card)", border: "2px solid var(--color-line)", color: value ? "var(--color-ink)" : "var(--color-ink-placeholder)" }}
         aria-live="polite"
       >
         {value || "———"}
@@ -121,7 +122,7 @@ function PadKey({ label, onClick, small }: { label: string; onClick: () => void;
       type="button"
       onClick={onClick}
       className={`pressable rounded-[16px] py-4 font-black ${small ? "text-sm" : "tabular text-2xl"}`}
-      style={{ background: "#fff", border: "1px solid #e8dcc4", color: "#26211b" }}
+      style={{ background: "var(--color-card)", border: "1px solid var(--color-line)", color: "var(--color-ink)" }}
     >
       {label}
     </button>
@@ -134,7 +135,7 @@ export function StickyBar({ children }: { children: ReactNode }) {
     <div
       className="fixed inset-x-0 bottom-0 z-20 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3"
       style={{
-        background: "linear-gradient(to top, #fff9f0 62%, rgba(255,249,240,0))",
+        background: "linear-gradient(to top, var(--color-night) 62%, rgb(from var(--color-night) r g b / 0))",
       }}
     >
       <div className="mx-auto flex max-w-md flex-col gap-2">{children}</div>
@@ -144,22 +145,23 @@ export function StickyBar({ children }: { children: ReactNode }) {
 
 /** One roster row: who is in this team and where each of them stands. */
 export function MemberRow({ member, stationsTotal }: { member: PlayerState; stationsTotal: number }) {
+  const copy = useCopy();
   const color = colorOf(member.color_group) ?? (member.identity === "solo" ? soloColor(member.code) : null);
   return (
     <div className="flex items-center gap-3 py-2.5">
       <span
         className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-xs font-black text-white"
-        style={{ background: color?.hex ?? "#7d7261" }}
+        style={{ background: color?.hex ?? "var(--color-ink-dim)" }}
       >
         {member.name.slice(0, 1)}
       </span>
       <div className="min-w-0 flex-1">
         <div className="truncate text-[15px] font-black">{member.name}</div>
         <div className="tabular text-[11px] font-semibold text-ink-dim">
-          {member.code} · {member.stations_done}/{member.stations_total ?? stationsTotal} 站 ·{" "}
-          {member.life_events_done}/{member.life_events_total} 人生
+          {member.code} · {member.stations_done}/{member.stations_total ?? stationsTotal} {copy.stationUnit} ·{" "}
+          {member.life_events_done}/{member.life_events_total} {copy.stageShort}
           {member.locked_for_life_event && <span className="font-black text-seal"> · 手机待选</span>}
-          {!member.token_available && <span> · 无 Token</span>}
+          {!member.token_available && <span> · 无 {copy.tokenShort}</span>}
         </div>
       </div>
       <span className="tabular shrink-0 text-xl font-black">{member.score}</span>
@@ -173,7 +175,7 @@ export function Kv({ label, value, tone }: { label: string; value: ReactNode; to
       <div className="text-[10px] font-black tracking-[0.16em] text-ink-dim">{label}</div>
       <div
         className="tabular mt-0.5 text-xl font-black"
-        style={{ color: tone === "danger" ? "#c4402a" : tone === "good" ? "#1e7a34" : undefined }}
+        style={{ color: tone === "danger" ? "var(--color-fail)" : tone === "good" ? "var(--color-leaf-deep)" : undefined }}
       >
         {value}
       </div>

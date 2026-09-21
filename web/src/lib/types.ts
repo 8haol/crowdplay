@@ -1,3 +1,5 @@
+import { PASSPORT_COPY, type Copy } from "../theme/copy";
+
 export type Phase = "waiting" | "playing" | "ended";
 export type Identity = "solo" | "duo" | "trio" | null;
 
@@ -10,6 +12,7 @@ export interface Organization {
 
 /** What players and the projector may know about an event. Never carries a key. */
 export interface GameSession {
+  theme?: string;
   event_id: string;
   org_id?: string;
   title: string;
@@ -46,6 +49,7 @@ export interface GameLanding extends Partial<GameSession> {
 }
 
 export interface StaffSession {
+  theme?: string;
   event_id: string;
   title: string;
   phase: Phase;
@@ -241,6 +245,7 @@ export interface LifeEventChoiceResult {
 }
 
 export interface PollResult {
+  theme?: string;
   phase: Phase;
   started_at: string | null;
   /** Event title and organisation, so the passport cover and badge can brand themselves. */
@@ -441,14 +446,14 @@ const SOLO_COLORS = [
   "#C67F6C", "#D18D79", "#A95747", "#BC6653",
 ];
 
-export function colorOf(group: string | null): { hex: string; zh: string } | null {
+export function colorOf(group: string | null, copy: Copy = PASSPORT_COPY): { hex: string; zh: string } | null {
   if (!group) return null;
   if (group === "solo" || group.startsWith("solo-")) {
     const parsed = Number(group.split("-")[1] ?? "1");
     const slot = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
     return {
       hex: SOLO_COLORS[(slot - 1) % SOLO_COLORS.length],
-      zh: `独行色 ${String(slot).padStart(2, "0")}`,
+      zh: `${copy.soloColorLabel} ${String(slot).padStart(2, "0")}`,
     };
   }
   const base = group.split("-")[0];
@@ -459,30 +464,30 @@ export function colorOf(group: string | null): { hex: string; zh: string } | nul
 }
 
 /** Stable visual fallback for Solo records created before the Solo-color migration. */
-export function soloColor(seed: string): { hex: string; zh: string } {
+export function soloColor(seed: string, copy: Copy = PASSPORT_COPY): { hex: string; zh: string } {
   const hash = Array.from(seed).reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) >>> 0, 0);
   const slot = (hash % SOLO_COLORS.length) + 1;
-  return { hex: SOLO_COLORS[slot - 1], zh: `独行色 ${String(slot).padStart(2, "0")}` };
+  return { hex: SOLO_COLORS[slot - 1], zh: `${copy.soloColorLabel} ${String(slot).padStart(2, "0")}` };
 }
 
-export const IDENTITY_SHORT: Record<string, string> = { solo: "独行", duo: "二人", trio: "三人" };
+export const IDENTITY_SHORT: Record<string, string> = Object.fromEntries(
+  Object.entries(PASSPORT_COPY.identity).map(([key, { short }]) => [key, short]),
+);
 
 /**
  * How a team is named now that short team codes are gone from the product.
  * A Duo/Trio is "its colour + its size" — the same two things its members see
  * on their own phones when they hold them up to find each other.
  */
-export function teamLabel(colorGroup: string | null, identity: Identity, seed = ""): string {
-  const color = colorOf(colorGroup) ?? (identity === "solo" ? soloColor(seed) : null);
-  const size = identity ? `${IDENTITY_SHORT[identity]}同行` : "未分配";
+export function teamLabel(colorGroup: string | null, identity: Identity, seed = "", copy: Copy = PASSPORT_COPY): string {
+  const color = colorOf(colorGroup, copy) ?? (identity === "solo" ? soloColor(seed, copy) : null);
+  const size = identity ? copy.teamName[identity] : "未分配";
   return color ? `${color.zh} · ${size}` : size;
 }
 
-export const IDENTITY_ZH: Record<string, { name: string; desc: string }> = {
-  solo: { name: "Solo 独立同行", desc: "无需寻找队友，独立完成七个站点。" },
-  duo: { name: "Duo 二人同行", desc: "举起手机，找到另一位组队颜色相同的玩家。" },
-  trio: { name: "Trio 三人同行", desc: "举起手机，找到另外两位组队颜色相同的玩家。" },
-};
+export const IDENTITY_ZH: Record<string, { name: string; desc: string }> = Object.fromEntries(
+  Object.entries(PASSPORT_COPY.identity).map(([key, { name, desc }]) => [key, { name, desc }]),
+);
 
 // ---------------------------------------------------------------------------
 // Big-screen board (/screen). Never carries 4-digit codes: the payload is
@@ -586,6 +591,7 @@ export interface BoardAwards {
 }
 
 export interface BoardSnapshot {
+  theme?: string;
   /** One call carries everything the projector needs; there is no second poll. */
   event_id?: string;
   title?: string;
@@ -670,4 +676,65 @@ export interface PlatformOrgs {
 export interface ImpersonateResult {
   token: string;
   org_name: string;
+}
+
+/* ---------- 后台按站改分 / 隐藏摊位（2026-09-21 追加，只在这里追加，不改上面的接口） ---------- */
+
+/** `admin_player_attempts`: one row per enabled main station, unplayed ones carry nulls. */
+export interface PlayerAttemptRow {
+  station_id: number;
+  name_zh: string;
+  scoring_mode: ScoringMode;
+  score: number | null;
+  status: "passed" | "failed" | null;
+}
+
+/**
+ * `stations.hidden` / `stations.hint`, copied onto `event_stations`. A hidden
+ * station is the secret NPC: always `main` + `fixed`, never counted toward the
+ * station total, and `hint` is what players read once the visible mains are
+ * all stamped. Admin code intersects this with `Station` / `EventStation`.
+ */
+export interface StationHiddenFields {
+  hidden?: boolean;
+  hint?: string | null;
+}
+
+/* ---------- 玩家端：撞名登记、联系方式找回、月圆时刻（2026-09-21 追加，只在这里追加） ---------- */
+
+/** `join_by_link` found someone tonight with the same normalised name. */
+export interface DuplicateJoin {
+  name: string;
+  /** First digit shown, the rest masked: 「3●●」. */
+  code_hint: string;
+  has_contact: boolean;
+  contact_hint: string | null;
+}
+
+/** `join_by_link`: a fresh player, or a duplicate card to confirm first. */
+export type JoinResult = { player_id: string; code: string } | { duplicate: DuplicateJoin };
+
+/** `recover_by_link` / `recover_by_contact`: the player json, code and name. */
+export interface RecoveredPlayer {
+  code: string;
+  name: string;
+}
+
+/** `poll_player_by_link.full_moon`: every visible main station stamped. */
+export interface FullMoonState {
+  reached: boolean;
+  /** The hidden station's hint, or null when the event runs none. */
+  hint: string | null;
+  secret_done: boolean;
+}
+
+// Declaration merging: `PollResult` above gains the optional block without
+// touching the original interface.
+export interface PollResult {
+  full_moon?: FullMoonState;
+}
+
+/** An attempt feed row at the hidden station: the board says 「找到了神秘嘉宾」 and hides the station name. */
+export interface SecretFeedFlag {
+  secret?: boolean;
 }

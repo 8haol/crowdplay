@@ -1,3 +1,4 @@
+import { useCopy } from "../theme/ThemeProvider";
 import { useState } from "react";
 import { rpc, errorText, newIdemKey } from "../lib/api";
 import type { AwardTeamResult, StaffTeamLookup, EventStation } from "../lib/types";
@@ -22,6 +23,7 @@ export default function MainStation({
   station: EventStation;
   stationsTotal: number;
 }) {
+  const copy = useCopy();
   const [identifier, setIdentifier] = useState("");
   const [team, setTeam] = useState<StaffTeamLookup | null>(null);
   const [choice, setChoice] = useState<number | "failed" | null>(null);
@@ -36,7 +38,7 @@ export default function MainStation({
   const lookup = async () => {
     setErr(null);
     const clean = identifier.trim();
-    if (clean.length < 3) return setErr("请输入队里任意一位队员的 3 位人生编号");
+    if (clean.length < 3) return setErr(`请输入队里任意一位队员的 3 位${copy.lifeNo}`);
     if (staffKey === PREVIEW_STAFF_KEY) {
       setTeam(PREVIEW_TEAM);
       setChoice(null);
@@ -62,7 +64,7 @@ export default function MainStation({
     const attempted = team.attempted_station_ids?.includes(station.id);
     const retry = team.retry_station_ids?.includes(station.id);
     if (attempted && retry) return null; // a Second Chance re-opens the station
-    if (attempted) return "这支队伍已经挑战过本站，不能重复录分";
+    if (attempted) return `这支队伍已经挑战过本${copy.stationUnit}，不能重复录分`;
     return null;
   };
 
@@ -115,8 +117,8 @@ export default function MainStation({
                 className="rounded-xl px-4 py-3 text-right text-[15px] font-black"
                 style={
                   result.status === "failed"
-                    ? { background: "rgba(196,64,42,.1)", color: "#c4402a" }
-                    : { background: "rgba(47,158,99,.12)", color: "#1e7a34" }
+                    ? { background: "rgb(from var(--color-fail) r g b / .1)", color: "var(--color-fail)" }
+                    : { background: "rgb(from var(--color-pass) r g b / .12)", color: "var(--color-leaf-deep)" }
                 }
               >
                 {result.status === "failed" ? "本队本次未得分" : `每位队员 +${result.awarded} 分`}
@@ -128,7 +130,7 @@ export default function MainStation({
                   <span className="text-[15px] font-bold">
                     {member.name} <small className="tabular text-ink-dim">{member.code}</small>
                   </span>
-                  <span className="tabular font-black">总分 {member.new_score}</span>
+                  <span className="tabular font-black">{copy.score} {member.new_score}</span>
                 </div>
               ))}
             </div>
@@ -136,13 +138,13 @@ export default function MainStation({
 
           {triggered.length > 0 && (
             <StaffCard tone="accent">
-              <div className="text-[10px] font-black tracking-[0.2em] text-[#7a5200]">LIFE EVENT</div>
+              <div className="text-[10px] font-black tracking-[0.2em] text-accent-deep">{copy.lifeEventEyebrow}</div>
               <div className="mt-1.5 text-[15px] font-black">
-                {triggered.map((member) => member.name).join("、")} 触发了人生事件
+                {triggered.map((member) => member.name).join("、")} 触发了{copy.lifeEvent}
               </div>
               <p className="mt-1.5 text-xs font-semibold leading-6 text-ink-dim">
                 请提醒他们看一下手机 —— 屏幕上会先弹出一个整屏通知，点开才会出现选择。
-                队伍不用停在这里等，可以直接去下一站。
+                队伍不用停在这里等，可以直接去下一{copy.stationUnit}。
               </p>
             </StaffCard>
           )}
@@ -170,7 +172,7 @@ export default function MainStation({
                 <div className="text-[10px] font-black tracking-[0.2em] text-ink-dim">已识别整队</div>
                 {/* A team is named by its colour and its people, not by a code. */}
                 <div className="mt-1 text-[1.6rem] font-black leading-tight">
-                  {team.found ? teamLabel(team.color_group ?? null, team.identity ?? null, identifier) : "未找到"}
+                  {team.found ? teamLabel(team.color_group ?? null, team.identity ?? null, identifier, copy) : "未找到"}
                 </div>
               </div>
               {team.found && (
@@ -190,7 +192,7 @@ export default function MainStation({
             )}
 
             {retry && !blocked && (
-              <div className="mt-3 rounded-xl bg-foil/20 px-3 py-2.5 text-xs font-black text-[#7a5200]">
+              <div className="mt-3 rounded-xl bg-foil/20 px-3 py-2.5 text-xs font-black text-accent-deep">
                 ✨ 本次使用整队 Second Chance，会替换掉之前那次失败记录
               </div>
             )}
@@ -246,10 +248,12 @@ export default function MainStation({
         <StickyBar>
           <ActionButton onClick={submit} disabled={Boolean(blocked) || choice == null}>
             {choice == null
-              ? "先选一个结果"
+              ? (usesFreeScore ? "先选分数" : "先选一个结果")
               : choice === "failed"
-                ? "确认：本站未通过，全队 0 分"
-                : `确认：每位队员 +${choice} 分`}
+                ? `确认：本${copy.stationUnit}未通过，全队 0 分`
+                : usesFreeScore
+                  ? `记 ${choice} 分`
+                  : `确认：每位队员 +${choice} 分`}
           </ActionButton>
           <ActionButton variant="tool-ghost" onClick={reset}>重新识别</ActionButton>
         </StickyBar>
@@ -265,7 +269,7 @@ export default function MainStation({
         <StaffCard tone="accent">
           <div className="text-[15px] font-black">只有一个编号</div>
           <p className="mt-1 text-xs font-semibold leading-6 text-ink-dim">
-            问队里<b>任意一人</b>的 3 位人生编号就行 —— 系统会自动带出整队。
+            问队里<b>任意一人</b>的 3 位{copy.lifeNo}就行 —— 系统会自动带出整队。
             没有第二个号码要记。
           </p>
         </StaffCard>
@@ -273,7 +277,7 @@ export default function MainStation({
         <CodePad
           value={identifier}
           onChange={setIdentifier}
-          hint="护照上写着「现场报这个 · 人生编号」的那三位数字"
+          hint={`${copy.cardShort}上写着「现场报这个 · ${copy.lifeNo}」的那三位数字`}
         />
         <ErrorBanner text={err} />
       </div>
@@ -285,56 +289,62 @@ export default function MainStation({
   );
 }
 
-/** One-tap 0–10 score selector, deliberately matching the passport CodePad. */
+/**
+ * 0–10 score selector, deliberately matching the passport CodePad. Two habits
+ * both work: tap the number you mean, or type it keypad-style — 「1」 then 「0」
+ * is 10. The big readout turns fail-coloured at 0 and pass-coloured at 10.
+ */
 function ScorePad({ value, onChange }: { value: number | null; onChange: (score: number | null) => void }) {
+  const press = (digit: number) => {
+    if (value === 1 && digit === 0) return onChange(10);
+    onChange(digit);
+  };
+  const tone = value == null ? "text-ink-placeholder" : value === 0 ? "text-fail" : value === 10 ? "text-pass" : "text-ink";
   return (
     <div className="mt-4">
       <div
-        className="tabular flex min-h-[5.5rem] items-end justify-center gap-2 rounded-[20px] px-4 py-4"
-        style={{ background: "#fff", border: "2px solid #e8dcc4" }}
+        className="tabular flex min-h-[5.5rem] items-end justify-center gap-2 rounded-[20px] border-2 border-line bg-white px-4 py-4"
         aria-live="polite"
       >
-        <span
-          className="text-[3.25rem] font-black leading-none"
-          style={{ color: value == null ? "#c9bca1" : "#26211b" }}
-        >
-          {value ?? "—"}
-        </span>
+        <span className={`text-[3.25rem] font-black leading-none ${tone}`}>{value ?? "—"}</span>
         <span className="pb-1 text-sm font-black text-ink-dim">/ 10 分</span>
       </div>
 
       <div className="mt-3 grid grid-cols-3 gap-2" aria-label="选择 0 到 10 分">
         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((score) => (
-          <ScoreKey key={score} score={score} active={value === score} onClick={() => onChange(score)} />
+          <ScoreKey key={score} score={score} active={value === score} onClick={() => press(score)} />
         ))}
         <button
           type="button"
           onClick={() => onChange(null)}
-          className="pressable rounded-[16px] py-4 text-sm font-black"
-          style={{ background: "#fff", border: "1px solid #e8dcc4", color: "#26211b" }}
+          className="pressable rounded-[16px] border border-line bg-white py-4 text-sm font-black text-ink"
         >
           清空
         </button>
-        <ScoreKey score={0} active={value === 0} onClick={() => onChange(0)} />
-        <ScoreKey score={10} active={value === 10} onClick={() => onChange(10)} />
+        <ScoreKey score={0} active={value === 0} onClick={() => press(0)} className="col-span-2" />
+        <ScoreKey score={10} active={value === 10} onClick={() => press(10)} className="col-span-3" wide />
       </div>
+      <p className="mt-2 text-center text-[11px] font-bold text-ink-dim">先点 1 再点 0 也是 10 分</p>
     </div>
   );
 }
 
-function ScoreKey({ score, active, onClick }: { score: number; active: boolean; onClick: () => void }) {
+function ScoreKey({ score, active, onClick, className = "", wide = false }: {
+  score: number;
+  active: boolean;
+  onClick: () => void;
+  className?: string;
+  wide?: boolean;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-pressed={active}
       aria-label={`${score} 分`}
-      className="pressable tabular rounded-[16px] py-4 text-2xl font-black"
-      style={
-        active
-          ? { background: "#26211b", border: "1px solid #26211b", color: "#fff" }
-          : { background: "#fff", border: "1px solid #e8dcc4", color: "#26211b" }
-      }
+      className={`pressable tabular rounded-[16px] border font-black ${wide ? "py-5 text-3xl" : "py-4 text-2xl"} ${
+        active ? "border-ink bg-ink text-card" : "border-line bg-white text-ink"
+      } ${className}`}
     >
       {score}
     </button>
@@ -362,9 +372,9 @@ function ScoreBtn({
       style={
         active
           ? danger
-            ? { background: "#c4402a", color: "#fff", border: "2px solid #c4402a" }
-            : { background: "#26211b", color: "#fff", border: "2px solid #26211b" }
-          : { background: "#fff", color: "#26211b", border: "2px solid #e8dcc4" }
+            ? { background: "var(--color-fail)", color: "var(--color-card)", border: "2px solid var(--color-fail)" }
+            : { background: "var(--color-ink)", color: "var(--color-card)", border: "2px solid var(--color-ink)" }
+          : { background: "var(--color-card)", color: "var(--color-ink)", border: "2px solid var(--color-line)" }
       }
     >
       <span className="tabular block text-[2rem] font-black leading-none">{big}</span>

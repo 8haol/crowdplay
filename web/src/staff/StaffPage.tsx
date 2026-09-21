@@ -1,3 +1,5 @@
+import type { Copy } from "../theme/copy";
+import { ThemeProvider, useCopy } from "../theme/ThemeProvider";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { rpc, errorText } from "../lib/api";
@@ -15,10 +17,10 @@ const SESSION_KEY = "lp_staff_key";
 const LS_STATION = "lp_staff_station";
 
 /** Demo roster for `/staff?preview=1`, mirroring the shipped seed. */
-const PREVIEW_ALL_STATIONS: EventStation[] = [
+const previewStations = (copy: Copy): EventStation[] => [
   ...PREVIEW_STATIONS,
-  { id: 8, station_id: 8, name_zh: "人生盲盒", type: "life_event", scoring_mode: null, sort_order: 8 },
-  { id: 9, station_id: 9, name_zh: "恩典站", type: "grace", scoring_mode: null, sort_order: 9 },
+  { id: 8, station_id: 8, name_zh: copy.lifeEventBox, type: "life_event", scoring_mode: null, sort_order: 8 },
+  { id: 9, station_id: 9, name_zh: copy.graceStation, type: "grace", scoring_mode: null, sort_order: 9 },
 ];
 
 /*
@@ -36,7 +38,7 @@ export default function StaffPage() {
     const stored = localStorage.getItem(LS_STATION);
     return stored ? Number(stored) : null;
   });
-  const [notice, setNotice] = useState<string | null>(null);
+  const [stationRemoved, setStationRemoved] = useState(false);
 
   /*
    * `staff_session` carries both the event title and this event's enabled
@@ -59,80 +61,89 @@ export default function StaffPage() {
       if (stored && !result.stations.some((row) => row.id === Number(stored))) {
         localStorage.removeItem(LS_STATION);
         setStationId(null);
-        setNotice("这个站已经被撤下，请重新选择你负责的站点");
+        setStationRemoved(true);
       }
       return result;
     }),
     [preview, staffKey],
   );
   const { data: session } = usePoll<StaffSession>(pollFn, 15_000);
-  const stations = preview ? PREVIEW_ALL_STATIONS : (session?.stations ?? []);
   /* The code is the event. Show which one, so a volunteer who was sent two codes
      for two nights can tell at a glance that they are in tonight's. */
   const eventTitle = preview ? "演示场次" : (session?.title ?? null);
 
-  const stationsTotal = Math.max(1, stations.filter((station) => station.type === "main").length);
+  const renderContent = (copy: Copy) => {
+    const stations = preview ? previewStations(copy) : (session?.stations ?? []);
+    const stationsTotal = Math.max(1, stations.filter((station) => station.type === "main").length);
+    if (!staffKey) {
+      return (
+        <Login
+          title="工作人员"
+          onOk={(key) => {
+            sessionStorage.setItem(SESSION_KEY, key);
+            setStaffKey(key);
+          }}
+        />
+      );
+    }
 
-  if (!staffKey) {
-    return (
-      <Login
-        title="工作人员"
-        onOk={(key) => {
-          sessionStorage.setItem(SESSION_KEY, key);
-          setStaffKey(key);
-        }}
-      />
-    );
-  }
+    const station = stations.find((entry) => entry.id === stationId) ?? null;
 
-  const station = stations.find((entry) => entry.id === stationId) ?? null;
+    if (!station) {
+      return (
+        <Shell
+          demo={preview}
+          title={`选择你负责的${copy.station}`}
+          subtitle={eventTitle ? `${eventTitle} · 选好之后这台手机会记住` : "选好之后这台手机会记住"}
+          onLogout={() => logout(setStaffKey)}
+        >
+          {stationRemoved && (
+            <div className="mb-4">
+              <ErrorBanner text={`这个${copy.stationUnit}已经被撤下，请重新选择你负责的${copy.station}`} />
+            </div>
+          )}
+          <StationPicker
+            stations={stations}
+            onPick={(id) => {
+              localStorage.setItem(LS_STATION, String(id));
+              setStationId(id);
+              setStationRemoved(false);
+            }}
+          />
+        </Shell>
+      );
+    }
 
-  if (!station) {
     return (
       <Shell
         demo={preview}
-        title="选择你负责的站点"
-        subtitle={eventTitle ? `${eventTitle} · 选好之后这台手机会记住` : "选好之后这台手机会记住"}
+        title={station.name_zh}
+        subtitle={eventTitle ? `${eventTitle} · ${stationSubtitle(station)}` : stationSubtitle(station)}
+        badge={station.type === "main" ? `第 ${station.sort_order} ${copy.stationUnit}` : station.type === "grace" ? copy.graceStation : copy.lifeEventBox}
+        onSwitch={() => {
+          localStorage.removeItem(LS_STATION);
+          setStationId(null);
+        }}
         onLogout={() => logout(setStaffKey)}
       >
-        {notice && (
-          <div className="mb-4">
-            <ErrorBanner text={notice} />
-          </div>
+        {station.type === "main" && (
+          <MainStation key={station.id} staffKey={staffKey} station={station} stationsTotal={stationsTotal} />
         )}
-        <StationPicker
-          stations={stations}
-          onPick={(id) => {
-            localStorage.setItem(LS_STATION, String(id));
-            setStationId(id);
-            setNotice(null);
-          }}
-        />
+        {station.type === "life_event" && <LifeEventStation />}
+        {station.type === "grace" && (
+          <GraceStation staffKey={staffKey} stations={stations} stationsTotal={stationsTotal} />
+        )}
       </Shell>
     );
-  }
+  };
 
-  return (
-    <Shell
-      demo={preview}
-      title={station.name_zh}
-      subtitle={eventTitle ? `${eventTitle} · ${stationSubtitle(station)}` : stationSubtitle(station)}
-      badge={station.type === "main" ? `第 ${station.sort_order} 站` : station.type === "grace" ? "恩典站" : "人生盲盒"}
-      onSwitch={() => {
-        localStorage.removeItem(LS_STATION);
-        setStationId(null);
-      }}
-      onLogout={() => logout(setStaffKey)}
-    >
-      {station.type === "main" && (
-        <MainStation key={station.id} staffKey={staffKey} station={station} stationsTotal={stationsTotal} />
-      )}
-      {station.type === "life_event" && <LifeEventStation />}
-      {station.type === "grace" && (
-        <GraceStation staffKey={staffKey} stations={stations} stationsTotal={stationsTotal} />
-      )}
-    </Shell>
-  );
+  return <ThemeProvider theme={searchParams.get("theme") ?? (staffKey ? session?.theme : undefined)}><StaffContent render={renderContent} /></ThemeProvider>;
+}
+
+// Resolve copy inside the page provider, including its render-time labels.
+function StaffContent({ render }: { render: (copy: Copy) => React.ReactNode }) {
+  const copy = useCopy();
+  return render(copy);
 }
 
 function stationSubtitle(station: EventStation): string {
@@ -161,24 +172,25 @@ function Shell(props: {
   onSwitch?: () => void;
   onLogout: () => void;
 }) {
+  const copy = useCopy();
   return (
     <div className="min-h-dvh bg-desk text-ink">
       <header
         className="sticky top-0 z-30 px-3 py-2.5"
-        style={{ background: "#ffc838", boxShadow: "0 2px 0 #e0a800" }}
+        style={{ background: "var(--color-accent)", boxShadow: "0 2px 0 var(--color-foil-shadow)" }}
       >
         <div className="mx-auto max-w-md">
           {/* One level up, and it says where that is: inside a station it goes
               back to the station list, not out of the app. */}
           <div className="flex items-center justify-between gap-2 text-ink">
             {props.onSwitch ? (
-              <UpLink label="换站点" onClick={props.onSwitch} />
+              <UpLink label={`换${copy.station}`} onClick={props.onSwitch} />
             ) : (
               <UpLink label="入口" to="/" />
             )}
             <button
               type="button"
-              className="pressable inline-flex min-h-11 shrink-0 items-center rounded-full px-3.5 text-[14px] font-bold text-[#7a5200] hover:bg-black/8"
+              className="pressable inline-flex min-h-11 shrink-0 items-center rounded-full px-3.5 text-[14px] font-bold text-accent-deep hover:bg-black/8"
               onClick={props.onLogout}
             >
               退出
@@ -193,7 +205,7 @@ function Shell(props: {
             <span className="truncate text-[17px] font-black leading-tight">{props.title}</span>
           </div>
           {props.subtitle && (
-            <div className="mt-0.5 truncate text-[11px] font-bold text-[#7a5200]">{props.subtitle}</div>
+            <div className="mt-0.5 truncate text-[11px] font-bold text-accent-deep">{props.subtitle}</div>
           )}
         </div>
       </header>
@@ -204,13 +216,14 @@ function Shell(props: {
 }
 
 function StationPicker({ stations, onPick }: { stations: EventStation[]; onPick: (id: number) => void }) {
+  const copy = useCopy();
   if (stations.length === 0) {
-    return <StaffCard><div className="dots text-sm font-black text-ink-dim">加载站点<span>.</span><span>.</span><span>.</span></div></StaffCard>;
+    return <StaffCard><div className="dots text-sm font-black text-ink-dim">加载{copy.station}<span>.</span><span>.</span><span>.</span></div></StaffCard>;
   }
   const groups: Array<{ label: string; note: string; items: EventStation[] }> = [
     { label: "主线挑战", note: "整队识别一次，录一次结果", items: stations.filter((s) => s.type === "main") },
-    { label: "恩典站", note: "Token 求助与纪念卡兑换", items: stations.filter((s) => s.type === "grace") },
-    { label: "人生盲盒", note: "已数字化，无需值守", items: stations.filter((s) => s.type === "life_event") },
+    { label: copy.graceStation, note: `${copy.tokenShort} 求助与纪念卡兑换`, items: stations.filter((s) => s.type === "grace") },
+    { label: copy.lifeEventBox, note: "已数字化，无需值守", items: stations.filter((s) => s.type === "life_event") },
   ];
   return (
     <div className="space-y-5">
@@ -228,11 +241,11 @@ function StationPicker({ stations, onPick }: { stations: EventStation[]; onPick:
                   type="button"
                   onClick={() => onPick(station.id)}
                   className="pressable flex w-full items-center gap-3 rounded-[18px] bg-white px-4 py-4 text-left"
-                  style={{ border: "1px solid #e8dcc4" }}
+                  style={{ border: "1px solid var(--color-line)" }}
                 >
                   <span
                     className="tabular grid h-10 w-10 shrink-0 place-items-center rounded-xl text-sm font-black"
-                    style={{ background: "#f1e7d4" }}
+                    style={{ background: "var(--color-night-raise)" }}
                   >
                     {String(station.sort_order).padStart(2, "0")}
                   </span>
@@ -261,11 +274,12 @@ export function Login(props: {
   admin?: boolean;
   /** Overrides the default validation round-trip (`admin_dashboard` / `staff_session`). */
   verify?: (key: string) => Promise<unknown>;
-  /** Overrides the `LIFE PASSPORT · ADMIN|CREW` eyebrow line. */
+  /** Overrides the brand/admin/crew eyebrow line. */
   eyebrow?: string;
   /** Overrides the caption under the title. */
   hint?: string;
 }) {
+  const copy = useCopy();
   const [key, setKey] = useState("");
   const [err, setErr] = useState<string | null>(null);
   return (
@@ -277,9 +291,9 @@ export function Login(props: {
         <UpLink label="入口" to="/" />
       </div>
       <div className="relative z-10 flex w-full max-w-xs flex-col items-center">
-        <BrandMark className="!w-[104px] !gap-1 !rounded-[18px] !p-2.5 !shadow-[0_3px_0_#e0a800]" />
+        <BrandMark className="!w-[104px] !gap-1 !rounded-[18px] !p-2.5 !shadow-[0_3px_0_var(--color-foil-shadow)]" />
         <p className="mt-6 font-mono text-[10px] font-black tracking-[0.4em] text-ink-dim">
-          {props.eyebrow ?? `LIFE PASSPORT · ${props.admin ? "ADMIN" : "CREW"}`}
+          {props.eyebrow ?? `${copy.cardEn} · ${props.admin ? "ADMIN" : "CREW"}`}
         </p>
         <h1 className="mt-2 text-3xl font-black">{props.title}</h1>
         <p className="mt-2 text-center text-xs font-semibold text-ink-dim">
@@ -299,7 +313,7 @@ export function Login(props: {
             autoComplete={props.admin ? "current-password" : "one-time-code"}
             autoCapitalize={props.admin ? "off" : "characters"}
             spellCheck={false}
-            className={`w-full rounded-[16px] bg-card px-4 py-3.5 text-lg font-bold outline-none transition-shadow duration-200 focus:shadow-[0_0_0_3px_#ffc838] ${props.admin ? "" : "text-center font-mono tracking-[0.3em] uppercase"}`}
+            className={`w-full rounded-[16px] bg-card px-4 py-3.5 text-lg font-bold outline-none transition-shadow duration-200 focus:shadow-[0_0_0_3px_var(--color-accent)] ${props.admin ? "" : "text-center font-mono tracking-[0.3em] uppercase"}`}
             style={{ border: "2px solid transparent" }}
             placeholder={props.admin ? "密码" : "工作人员码"}
             maxLength={props.admin ? 64 : 6}
@@ -337,15 +351,16 @@ export function Login(props: {
 /* ------------------------------------------------------------- life event */
 
 function LifeEventStation() {
+  const copy = useCopy();
   return (
     <div className="space-y-4">
       <StaffCard tone="accent" className="text-center">
-        <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-white text-3xl shadow-[0_3px_0_#e0a800]">
+        <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-white text-3xl shadow-[0_3px_0_var(--color-foil-shadow)]">
           📱
         </div>
-        <h2 className="mt-5 text-2xl font-black">人生事件已经数字化</h2>
+        <h2 className="mt-5 text-2xl font-black">{copy.lifeEvent}已经数字化</h2>
         <p className="mt-3 text-sm font-semibold leading-7 text-ink-dim">
-          玩家完成第 3 / 5 / 7 站之后，手机上会自动弹出一段人生事件。
+          玩家完成第 3 / 5 / 7 {copy.stationUnit}之后，手机上会自动弹出一段{copy.lifeEvent}。
           先是整屏通知，点开才出现场景和两个选择；服务器随机揭晓结果并自动计分。
         </p>
       </StaffCard>
@@ -353,8 +368,8 @@ function LifeEventStation() {
         <div className="text-[15px] font-black">工作人员不用操作</div>
         <ul className="mt-2 space-y-1.5 text-xs font-semibold leading-6 text-ink-dim">
           <li>· 不需要输入编号，也不需要发实体卡</li>
-          <li>· 不要让整队停在这里等 —— 事件不阻塞队伍去下一站</li>
-          <li>· 每人一共三段，最后一段一定在七站跑完后出现</li>
+          <li>· 不要让整队停在这里等 —— 事件不阻塞队伍去下一{copy.stationUnit}</li>
+          <li>· 每人一共三段，最后一段一定在七{copy.stationUnit}跑完后出现</li>
           <li>· 玩家手机确实打不开时，请找总控在 /admin 的玩家档案里处理</li>
         </ul>
       </StaffCard>

@@ -74,16 +74,16 @@ function TopBar({ active }: { active: string }) {
     <div
       className="sticky top-0 z-30 backdrop-blur-2xl"
       style={{
-        background: "rgba(255,249,240,.88)",
-        borderBottom: "1px solid rgba(122,82,0,.16)",
-        boxShadow: "0 10px 32px rgba(122,82,0,.06)",
+        background: "rgb(from var(--color-night) r g b / .88)",
+        borderBottom: "1px solid rgb(from var(--color-accent-deep) r g b / .16)",
+        boxShadow: "0 10px 32px rgb(from var(--color-accent-deep) r g b / .06)",
       }}
     >
       <div className={COLUMN}>
         <div className="flex min-h-[3.75rem] items-center gap-3 pt-[env(safe-area-inset-top)] text-ink">
           <UpLink label="入口" to="/" variant="icon" className="!h-10 !w-10 !bg-ink/[.06] !text-ink" />
           <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <span className="grid h-8 w-8 shrink-0 grid-cols-2 gap-[3px] rounded-[9px] bg-white p-[5px] shadow-[0_2px_0_#e0a800]" aria-hidden="true">
+            <span className="grid h-8 w-8 shrink-0 grid-cols-2 gap-[3px] rounded-[9px] bg-white p-[5px] shadow-[0_2px_0_var(--color-foil-shadow)]" aria-hidden="true">
               <span className="rounded-[2px] bg-ink" />
               <span className="rounded-[2px] bg-seal-deep" />
               <span className="rounded-[2px] bg-foil" />
@@ -96,7 +96,7 @@ function TopBar({ active }: { active: string }) {
           </div>
           <Link
             to="/library"
-            className="pressable inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl bg-white px-3.5 text-[13px] font-black text-ink shadow-[inset_0_0_0_1px_#e8dcc4]"
+            className="pressable inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl bg-white px-3.5 text-[13px] font-black text-ink shadow-[inset_0_0_0_1px_var(--color-line)]"
           >
             事件库
             <span aria-hidden="true" className="text-ink-dim">↗</span>
@@ -148,13 +148,13 @@ function Hero() {
       <div className="mt-6 flex flex-wrap gap-2">
         <a
           href="#try"
-          className="pressable rounded-full bg-ink px-5 py-3 text-sm font-black text-white shadow-[0_3px_0_#0f0d0a]"
+          className="pressable rounded-full bg-ink px-5 py-3 text-sm font-black text-white shadow-[0_3px_0_var(--color-ink-shadow)]"
         >
           直接开始试玩 ↓
         </a>
         <a
           href="#sop"
-          className="pressable rounded-full bg-white px-5 py-3 text-sm font-black shadow-[0_2px_0_#e0a800]"
+          className="pressable rounded-full bg-white px-5 py-3 text-sm font-black shadow-[0_2px_0_var(--color-foil-shadow)]"
         >
           我这个岗位怎么做
         </a>
@@ -204,8 +204,8 @@ function Card({
       className={`rounded-[18px] p-5 ${className}`}
       style={
         tone === "accent"
-          ? { background: "#fffaea", border: "1px solid #e8c96a" }
-          : { background: "#fff", border: "1px solid #e8dcc4" }
+          ? { background: "var(--color-staff-accent-soft)", border: "1px solid var(--color-staff-accent-line)" }
+          : { background: "var(--color-card)", border: "1px solid var(--color-line)" }
       }
     >
       {children}
@@ -225,7 +225,7 @@ function DemoButton({ demo }: { demo: DemoLink }) {
     <Link
       to={demo.href}
       className="pressable group flex w-full items-center gap-3 rounded-[14px] px-4 py-3.5 text-left"
-      style={{ background: "#26211b", color: "#fff" }}
+      style={{ background: "var(--color-ink)", color: "var(--color-card)" }}
     >
       <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/12 text-xl">
         {demo.emoji}
@@ -326,7 +326,7 @@ function Flow() {
               <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
                 <span
                   className="tabular grid h-7 w-7 shrink-0 place-items-center rounded-lg text-[13px] font-black"
-                  style={{ background: "#ffc838", color: "#26211b" }}
+                  style={{ background: "var(--color-accent)", color: "var(--color-ink)" }}
                 >
                   {index + 1}
                 </span>
@@ -535,7 +535,7 @@ function AwardGroup({
       <div className="flex flex-wrap items-baseline gap-2">
         <span
           className="rounded-md px-2 py-0.5 text-[11px] font-black"
-          style={tone === "accent" ? { background: "#fff0bf", color: "#755200" } : { background: "#26211b", color: "#fff" }}
+          style={tone === "accent" ? { background: "var(--color-admin-warn-soft)", color: "var(--color-guide-accent-ink)" } : { background: "var(--color-ink)", color: "var(--color-card)" }}
         >
           {badge}
         </span>
@@ -546,7 +546,7 @@ function AwardGroup({
           <div
             key={award.title}
             className="flex items-center gap-3 rounded-[14px] bg-white px-4 py-3"
-            style={{ border: "1px solid #e8dcc4" }}
+            style={{ border: "1px solid var(--color-line)" }}
           >
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-night-raise text-xl">
               {award.emoji}
@@ -578,7 +578,7 @@ function Sop() {
             <div
               key={role.role}
               className="overflow-hidden rounded-[18px]"
-              style={{ background: "#fff", border: "1px solid #e8dcc4" }}
+              style={{ background: "var(--color-card)", border: "1px solid var(--color-line)" }}
             >
               <button
                 type="button"
@@ -601,7 +601,7 @@ function Sop() {
                   <SopList label="活动中" items={role.during} />
                   <div
                     className="mt-4 rounded-[12px] px-4 py-3"
-                    style={{ background: "#fff3ef", border: "1px solid #edbdb1" }}
+                    style={{ background: "var(--color-admin-danger-soft)", border: "1px solid var(--color-staff-danger-line)" }}
                   >
                     <div className="text-[11px] font-black tracking-[0.14em] text-seal">最容易出错的地方</div>
                     <p className="mt-1 text-[13px] font-bold leading-6">{role.gotcha}</p>
@@ -630,7 +630,7 @@ function SopList({ label, items }: { label: string; items: string[] }) {
           <li key={index} className="flex gap-2.5">
             <span
               className="tabular mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full text-[9px] font-black"
-              style={{ background: "#f1e7d4", color: "#7a5200" }}
+              style={{ background: "var(--color-night-raise)", color: "var(--color-accent-deep)" }}
             >
               {index + 1}
             </span>
@@ -659,15 +659,15 @@ function Faq() {
 
 function Footer() {
   return (
-    <footer className="mt-14 mb-16 rounded-[22px] px-6 py-8 text-center" style={{ background: "#26211b", color: "#fff" }}>
-      <p className="text-[11px] font-black tracking-[0.32em]" style={{ color: "#ffc838" }}>
+    <footer className="mt-14 mb-16 rounded-[22px] px-6 py-8 text-center" style={{ background: "var(--color-ink)", color: "var(--color-card)" }}>
+      <p className="text-[11px] font-black tracking-[0.32em]" style={{ color: "var(--color-accent)" }}>
         LIFE PASSPORT
       </p>
       <p className="mt-4 text-[clamp(1.25rem,5vw,1.7rem)] font-black leading-tight tracking-[-0.03em]">
         「我的恩典够你用的」
       </p>
       <p className="mt-2 text-[12px] font-semibold opacity-65">哥林多后书 12:9</p>
-      <p className="mt-5 text-[15px] font-black" style={{ color: "#ffc838" }}>
+      <p className="mt-5 text-[15px] font-black" style={{ color: "var(--color-accent)" }}>
         You don't have to do life alone
       </p>
       <div className="mt-7 flex flex-wrap justify-center gap-2">

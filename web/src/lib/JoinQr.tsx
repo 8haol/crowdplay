@@ -1,3 +1,4 @@
+import { cssVar } from "./color";
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 
@@ -9,7 +10,7 @@ export function JoinQr({ url, className = "" }: { url: string; className?: strin
     QRCode.toDataURL(url, {
       width: 720,
       margin: 2,
-      color: { dark: "#26211B", light: "#FFFFFF" },
+      color: { dark: cssVar("--color-ink"), light: cssVar("--color-card") },
       errorCorrectionLevel: "M",
     }).then((data) => { if (!cancelled) setSrc(data); });
     return () => { cancelled = true; };

@@ -187,7 +187,7 @@ export default function Join(props: {
           /* 中秋：照效果图，左对齐的海报式标题，没有几何标记和英文眉题。 */
           <div className="w-full max-w-sm self-center">
             {props.orgLabel && <p className="rise text-[12px] font-extrabold text-ink-dim">{props.orgLabel}</p>}
-            <h1 className="rise mt-5 whitespace-pre-line text-[44px] font-black leading-[1.05] tracking-[0.02em] text-ink" style={{ "--i": 1 } as React.CSSProperties}>
+            <h1 className="rise mt-5 whitespace-nowrap text-[42px] font-black leading-[1.05] tracking-[0.02em] text-ink" style={{ "--i": 1 } as React.CSSProperties}>
               {copy.joinTitleDisplay || copy.joinTitle || copy.joinHeading}
             </h1>
             <p className="rise mt-2.5 text-[18px] font-extrabold text-leaf-deep" style={{ "--i": 2 } as React.CSSProperties}>{copy.joinSubtitle}</p>

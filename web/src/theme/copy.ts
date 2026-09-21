@@ -259,7 +259,7 @@ export const MIDAUTUMN_COPY: Copy = {
   journeyComplete: "游园完成",
   joinTitle: "中秋游园会",
   joinSubtitle: "月下相遇，一路同行。",
-  joinTitleDisplay: "中秋\n游园会",
+  joinTitleDisplay: "中秋游园会",
   joinCardTitle: "领取集章卡",
   joinCardEyebrow: "STAMP CARD",
   endedSaveButton: "保存我的集章卡",

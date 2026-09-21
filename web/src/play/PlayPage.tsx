@@ -244,7 +244,7 @@ function PlayerLoading({ label, error }: { label: string; error?: string }) {
     <div className="relative min-h-dvh overflow-hidden">
       <div className="night-sky" />
       <div className="relative z-10 flex min-h-dvh flex-col items-center justify-center gap-5 p-8 text-center">
-        <BrandMark className="!w-[108px] !gap-1 !rounded-[18px] !p-2.5 !shadow-[0_3px_0_#e0a800]" />
+        <BrandMark className="!w-[108px] !gap-1 !rounded-[18px] !p-2.5 !shadow-[0_3px_0_var(--color-foil-shadow)]" />
         <div className="text-2xl font-black">{label}</div>
         <div className="dots font-semibold text-ink-dim">连接现场<span>.</span><span>.</span><span>.</span></div>
         {error && <div className="text-sm text-seal">{error}</div>}
@@ -270,7 +270,7 @@ function NoLinkGuidance({ broken = false }: { broken?: boolean }) {
         <h1 className="mt-3 text-[38px] font-black leading-[1.05] tracking-[-0.05em]">
           {broken ? "这个链接打不开任何一场" : "从现场的二维码进来"}
         </h1>
-        <div className="mt-8 rounded-[28px] bg-white px-6 py-7 text-left shadow-[0_4px_0_#e0a800]">
+        <div className="mt-8 rounded-[28px] bg-white px-6 py-7 text-left shadow-[0_4px_0_var(--color-foil-shadow)]">
           <ol className="space-y-4 text-[15px] font-bold leading-6">
             <li className="flex gap-3">
               <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-foil text-sm font-black">1</span>
@@ -304,7 +304,7 @@ function ArchivedSession({ landing }: { landing: GameLanding }) {
       <main className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-6 py-12 text-center">
         <p className="text-[11px] font-black tracking-[0.4em] text-foil-dim">SESSION ARCHIVED</p>
         <h1 className="mt-3 text-[42px] font-black leading-[1.05] tracking-[-0.05em]">这一程已收好</h1>
-        <div className="ticket-notch mt-8 rounded-[28px] bg-white px-6 py-7 text-left shadow-[0_4px_0_#e0a800]">
+        <div className="ticket-notch mt-8 rounded-[28px] bg-white px-6 py-7 text-left shadow-[0_4px_0_var(--color-foil-shadow)]">
           <div className="text-xs font-black tracking-[0.18em] text-ink-dim">往期场次</div>
           <div className="mt-2 text-2xl font-black">{landing.title ?? "这场活动"}</div>
           <div className="mt-5 flex items-end justify-between border-t-2 border-dashed border-line pt-5">
@@ -325,7 +325,7 @@ function PlayerMessage({ title, body }: { title: string; body: string }) {
   return (
     <div className="relative grid min-h-dvh place-items-center overflow-hidden p-6 text-center">
       <div className="night-sky" />
-      <div className="relative z-10 max-w-sm rounded-[28px] bg-white p-7 shadow-[0_3px_0_#f0e4ce]">
+      <div className="relative z-10 max-w-sm rounded-[28px] bg-white p-7 shadow-[0_3px_0_var(--color-shadow-line)]">
         <h1 className="text-2xl font-black">{title}</h1>
         <p className="mt-3 text-sm font-semibold leading-6 text-ink-dim">{body}</p>
         <Link to="/" className="pressable mt-6 inline-block rounded-full bg-ink px-6 py-3 font-black text-white">回到首页</Link>
@@ -342,12 +342,12 @@ const RULES: { t: string; d: string }[] = [
 ];
 
 const WAITING_COVER_COLORS = [
-  { slug: "maroon", label: "酒红", hex: colorOf("maroon")?.hex ?? "#7A1230" },
-  { slug: "coral-red", label: "珊瑚红", hex: "#D44C3E" },
-  { slug: "teal", label: "墨松", hex: colorOf("teal")?.hex ?? "#145C4A" },
-  { slug: "navy", label: "藏青", hex: colorOf("navy")?.hex ?? "#1B2E6B" },
-  { slug: "orange", label: "暖橙", hex: colorOf("orange")?.hex ?? "#FF8A3C" },
-  { slug: "mint", label: "薄荷", hex: colorOf("mint")?.hex ?? "#4ECB8D" },
+  { slug: "maroon", label: "酒红", hex: colorOf("maroon")!.hex },
+  { slug: "coral-red", label: "珊瑚红", hex: "var(--color-passport-cover-coral)" },
+  { slug: "teal", label: "墨松", hex: colorOf("teal")!.hex },
+  { slug: "navy", label: "藏青", hex: colorOf("navy")!.hex },
+  { slug: "orange", label: "暖橙", hex: colorOf("orange")!.hex },
+  { slug: "mint", label: "薄荷", hex: colorOf("mint")!.hex },
 ] as const;
 
 function WaitingRoom({ code, name, online, colorGroup = null, preview = false, orgName = null }: {
@@ -460,18 +460,18 @@ function PassportCoverCard(props: {
   onOpened: () => void;
 }) {
   const coverInk = readableOn(props.coverColor);
-  const darkCover = coverInk === "#FFFFFF";
+  const darkCover = coverInk === "var(--color-card)";
   const coverStyle = {
     "--doc-cover": props.coverColor,
     "--doc-cover-light": lighten(props.coverColor, 0.14),
     "--doc-cover-deep": darken(props.coverColor, 0.2),
     "--doc-cover-spine": darken(props.coverColor, 0.34),
-    "--doc-foil": darkCover ? "#FFE08A" : "#26211B",
+    "--doc-foil": darkCover ? "var(--color-passport-cover-foil)" : "var(--color-ink)",
     "--doc-text": coverInk,
-    "--doc-soft": darkCover ? "rgba(255,249,240,.74)" : "rgba(38,33,27,.68)",
-    "--doc-line": darkCover ? "rgba(255,224,138,.5)" : "rgba(38,33,27,.32)",
-    "--doc-action-bg": darkCover ? "#FFF9F0" : "#26211B",
-    "--doc-action-ink": darkCover ? darken(props.coverColor, 0.3) : "#FFF9F0",
+    "--doc-soft": darkCover ? "rgb(from var(--color-night) r g b / .74)" : "rgb(from var(--color-ink) r g b / .68)",
+    "--doc-line": darkCover ? "rgb(from var(--color-passport-cover-foil) r g b / .5)" : "rgb(from var(--color-ink) r g b / .32)",
+    "--doc-action-bg": darkCover ? "var(--color-night)" : "var(--color-ink)",
+    "--doc-action-ink": darkCover ? darken(props.coverColor, 0.3) : "var(--color-night)",
     "--doc-action-shadow": darken(props.coverColor, 0.42),
   } as React.CSSProperties;
 
@@ -552,7 +552,7 @@ function Briefing(props: { code: string; name: string; online: boolean; onClose:
           {RULES.map((r, i) => (
             <div key={r.t} className="relative flex gap-3 pb-3.5 last:pb-0">
               {i < RULES.length - 1 && <div className="absolute bottom-0 left-[13px] top-8 w-0.5 bg-line" />}
-              <div className="tabular flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-foil text-xs font-black text-ink shadow-[0_2px_0_#e0a800]">{i + 1}</div>
+              <div className="tabular flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-foil text-xs font-black text-ink shadow-[0_2px_0_var(--color-foil-shadow)]">{i + 1}</div>
               <div className="pt-0.5">
                 <div className="text-sm font-black">{r.t}</div>
                 <div className="mt-0.5 text-[12px] font-semibold leading-[1.55] text-ink-dim">{r.d}</div>
@@ -565,7 +565,7 @@ function Briefing(props: { code: string; name: string; online: boolean; onClose:
           <ConnDot online={props.online} />
           {props.online ? "已连接现场" : "重连中，护照编号仍保存在本机"}
         </div>
-        <button type="button" onClick={props.onClose} className="pressable mt-3 min-h-10 w-full rounded-full bg-ink text-xs font-black text-white shadow-[0_3px_0_#0f0d0a]">‹ 合上护照</button>
+        <button type="button" onClick={props.onClose} className="pressable mt-3 min-h-10 w-full rounded-full bg-ink text-xs font-black text-white shadow-[0_3px_0_var(--color-ink-shadow)]">‹ 合上护照</button>
       </div>
     </main>
   );
@@ -595,7 +595,7 @@ function Reveal({ data, onDone }: { data: PollResult; onDone: () => void }) {
     );
   }
 
-  const background = color?.hex ?? "#26211B";
+  const background = color?.hex ?? "var(--color-ink)";
   const foreground = readableOn(background);
   const actionForeground = inkOnCream(background);
   const identityEnglish = identity.toUpperCase();
@@ -640,7 +640,7 @@ function Reveal({ data, onDone }: { data: PollResult; onDone: () => void }) {
             {colorName}
           </h1>
           <div
-            className="reveal-pill mt-5 rounded-full bg-[#fff9f0] px-5 py-2 text-sm font-black"
+            className="reveal-pill mt-5 rounded-full bg-night px-5 py-2 text-sm font-black"
             style={{ color: actionForeground }}
           >
             <span className="mr-2 tracking-[0.12em]">{identityEnglish}</span>
@@ -655,7 +655,7 @@ function Reveal({ data, onDone }: { data: PollResult; onDone: () => void }) {
           <button
             type="button"
             onClick={onDone}
-            className="pressable mt-4 min-h-14 w-full rounded-full bg-[#fff9f0] px-5 py-3 text-center shadow-[0_3px_0_rgba(38,33,27,.16)]"
+            className="pressable mt-4 min-h-14 w-full rounded-full bg-night px-5 py-3 text-center shadow-[0_3px_0_rgb(from_var(--color-ink)_r_g_b_/_.16)]"
             style={{ color: actionForeground }}
           >
             <span className="block text-[15px] font-black">

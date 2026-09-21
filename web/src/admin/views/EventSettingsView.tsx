@@ -141,7 +141,7 @@ export function EventSettingsView({
                   />
                 </Field>
                 {confirmRotate ? (
-                  <div className="mt-3 rounded-xl p-4" style={{ background: T.dangerSoft, border: "1px solid #e5b5aa" }}>
+                  <div className="mt-3 rounded-xl p-4" style={{ background: T.dangerSoft, border: "1px solid var(--color-admin-alert-line)" }}>
                     <div className="text-sm font-black" style={{ color: T.danger }}>
                       确定把 {session.staff_code} 换成{custom.trim() ? ` ${custom.trim()}` : "一个新的随机码"}？旧码立即失效，正在用旧码的同工要重新输入新码。
                     </div>

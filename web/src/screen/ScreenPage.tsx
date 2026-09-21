@@ -189,7 +189,7 @@ function Header({ online, data }: { online: boolean; data?: BoardSnapshot }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-5 items-end gap-2 rounded-2xl bg-white/75 p-3 shadow-[0_2px_0_#e0a800] lg:flex lg:gap-[clamp(0.75rem,1.6vw,2rem)] lg:bg-transparent lg:p-0 lg:pb-1 lg:shadow-none">
+      <div className="grid grid-cols-5 items-end gap-2 rounded-2xl bg-white/75 p-3 shadow-[0_2px_0_var(--color-foil-shadow)] lg:flex lg:gap-[clamp(0.75rem,1.6vw,2rem)] lg:bg-transparent lg:p-0 lg:pb-1 lg:shadow-none">
         {data && (
           <>
             <Stat label="旅客" value={data.stats.players} />
@@ -276,7 +276,7 @@ function Lobby({
           <ScreenVerse className="mt-[clamp(1.25rem,2.5vw,2.75rem)] max-w-2xl" />
         </div>
 
-        <div className="flex flex-col items-center rounded-[clamp(1.25rem,2.5vw,2.5rem)] bg-white p-[clamp(1rem,2vw,2rem)] shadow-[0_7px_0_#e0a800]">
+        <div className="flex flex-col items-center rounded-[clamp(1.25rem,2.5vw,2.5rem)] bg-white p-[clamp(1rem,2vw,2rem)] shadow-[0_7px_0_var(--color-foil-shadow)]">
           {joinLink ? (
             <JoinQr url={joinLink} className="aspect-square w-full rounded-2xl" />
           ) : (
@@ -287,7 +287,7 @@ function Lobby({
             镜头对准二维码 · 自动打开本场链接
           </div>
           {!landing?.join_open && (
-            <div className="mt-3 rounded-lg bg-[#fff0eb] px-4 py-2 text-sm font-black text-seal">登记暂时关闭</div>
+            <div className="mt-3 rounded-lg bg-fail-soft px-4 py-2 text-sm font-black text-seal">登记暂时关闭</div>
           )}
         </div>
       </div>
@@ -328,7 +328,7 @@ function NameWall({ players }: { players: BoardPlayer[] }) {
         {shown.map((p, i) => (
           <span
             key={p.id}
-            className="rise rounded-full bg-white font-bold shadow-[0_2px_0_#e0a800]"
+            className="rise rounded-full bg-white font-bold shadow-[0_2px_0_var(--color-foil-shadow)]"
             style={{
               "--i": Math.min(i, 18),
               padding: dense ? "0.18rem 0.7rem" : "0.28rem 0.95rem",
@@ -503,7 +503,7 @@ function Board({
 /** Anyone who closed the tab can get back in by rescanning from the wall. */
 function RejoinCard({ url }: { url: string }) {
   return (
-    <div className="flex shrink-0 items-center gap-[clamp(0.6rem,1vw,1.1rem)] rounded-[20px] bg-white/90 p-[clamp(0.5rem,0.9vw,1rem)] shadow-[0_3px_0_#e0a800]">
+    <div className="flex shrink-0 items-center gap-[clamp(0.6rem,1vw,1.1rem)] rounded-[20px] bg-white/90 p-[clamp(0.5rem,0.9vw,1rem)] shadow-[0_3px_0_var(--color-foil-shadow)]">
       <JoinQr url={url} className="h-[clamp(4.5rem,7vw,7rem)] w-[clamp(4.5rem,7vw,7rem)] shrink-0 rounded-lg" />
       <div className="min-w-0">
         <div className="text-[clamp(0.55rem,0.75vw,0.8rem)] font-black tracking-[0.28em] text-foil-dim">REJOIN</div>
@@ -563,7 +563,7 @@ function Ticker({ feed }: { feed: FeedItem[] }) {
       {/* The rail holds more lines than fit; a bottom fade makes the cut read
           as "more below" instead of a half-clipped row. */}
       <div
-        className="screen-feed-rail min-h-0 flex-1 overflow-hidden rounded-[24px] bg-white/90 p-3 shadow-[0_3px_0_#e0a800] lg:p-[clamp(0.5rem,0.9vw,1.1rem)]"
+        className="screen-feed-rail min-h-0 flex-1 overflow-hidden rounded-[24px] bg-white/90 p-3 shadow-[0_3px_0_var(--color-foil-shadow)] lg:p-[clamp(0.5rem,0.9vw,1.1rem)]"
         style={{
           maskImage: "linear-gradient(to bottom, black 88%, transparent 100%)",
           WebkitMaskImage: "linear-gradient(to bottom, black 88%, transparent 100%)",
@@ -671,10 +671,10 @@ function describe(item: FeedItem): Line {
 }
 
 const TONE_CLASS: Record<Tone, { rail: string; icon: string; chip: string }> = {
-  foil: { rail: "#e0a800", icon: "#7a5200", chip: "#7a5200" },
-  leaf: { rail: "#2f9e63", icon: "#1e7a34", chip: "#1e7a34" },
-  seal: { rail: "#c4402a", icon: "#c4402a", chip: "#c4402a" },
-  plain: { rail: "#c9bda6", icon: "#7d7261", chip: "#7d7261" },
+  foil: { rail: "var(--color-foil-shadow)", icon: "var(--color-accent-deep)", chip: "var(--color-accent-deep)" },
+  leaf: { rail: "var(--color-pass)", icon: "var(--color-leaf-deep)", chip: "var(--color-leaf-deep)" },
+  seal: { rail: "var(--color-fail)", icon: "var(--color-fail)", chip: "var(--color-fail)" },
+  plain: { rail: "var(--color-feed-line)", icon: "var(--color-ink-dim)", chip: "var(--color-ink-dim)" },
 };
 
 /** Hand-drawn glyph set. Emoji rendered inconsistently across the venue

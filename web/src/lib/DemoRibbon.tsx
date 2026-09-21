@@ -46,15 +46,15 @@ export function DemoRibbon({ label = "演示预览 · 数据为示例" }: { labe
       /* Pages paint a fixed decorative layer at z-0; without a stacking
          context of its own this strip renders underneath it. */
       className="relative flex min-h-11 items-center justify-between gap-3 px-3 text-[12px] font-black text-white sm:justify-center"
-      style={{ background: "#26211b", paddingTop: "max(0.375rem, env(safe-area-inset-top))" }}
+      style={{ background: "var(--color-ink)", paddingTop: "max(0.375rem, env(safe-area-inset-top))" }}
     >
       <span className="flex items-center gap-1.5">
-        <span className="h-1.5 w-1.5 rounded-full bg-[#ffc838]" />
+        <span className="h-1.5 w-1.5 rounded-full bg-accent" />
         {label}
       </span>
       <Link
         to="/guide"
-        className="pressable inline-flex min-h-8 shrink-0 items-center rounded-full bg-white px-3 font-black text-[#26211b]"
+        className="pressable inline-flex min-h-8 shrink-0 items-center rounded-full bg-white px-3 font-black text-ink"
       >
         ← 返回说明页
       </Link>

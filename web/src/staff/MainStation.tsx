@@ -115,8 +115,8 @@ export default function MainStation({
                 className="rounded-xl px-4 py-3 text-right text-[15px] font-black"
                 style={
                   result.status === "failed"
-                    ? { background: "rgba(196,64,42,.1)", color: "#c4402a" }
-                    : { background: "rgba(47,158,99,.12)", color: "#1e7a34" }
+                    ? { background: "rgb(from var(--color-fail) r g b / .1)", color: "var(--color-fail)" }
+                    : { background: "rgb(from var(--color-pass) r g b / .12)", color: "var(--color-leaf-deep)" }
                 }
               >
                 {result.status === "failed" ? "本队本次未得分" : `每位队员 +${result.awarded} 分`}
@@ -136,7 +136,7 @@ export default function MainStation({
 
           {triggered.length > 0 && (
             <StaffCard tone="accent">
-              <div className="text-[10px] font-black tracking-[0.2em] text-[#7a5200]">LIFE EVENT</div>
+              <div className="text-[10px] font-black tracking-[0.2em] text-accent-deep">LIFE EVENT</div>
               <div className="mt-1.5 text-[15px] font-black">
                 {triggered.map((member) => member.name).join("、")} 触发了人生事件
               </div>
@@ -190,7 +190,7 @@ export default function MainStation({
             )}
 
             {retry && !blocked && (
-              <div className="mt-3 rounded-xl bg-foil/20 px-3 py-2.5 text-xs font-black text-[#7a5200]">
+              <div className="mt-3 rounded-xl bg-foil/20 px-3 py-2.5 text-xs font-black text-accent-deep">
                 ✨ 本次使用整队 Second Chance，会替换掉之前那次失败记录
               </div>
             )}
@@ -291,12 +291,12 @@ function ScorePad({ value, onChange }: { value: number | null; onChange: (score:
     <div className="mt-4">
       <div
         className="tabular flex min-h-[5.5rem] items-end justify-center gap-2 rounded-[20px] px-4 py-4"
-        style={{ background: "#fff", border: "2px solid #e8dcc4" }}
+        style={{ background: "var(--color-card)", border: "2px solid var(--color-line)" }}
         aria-live="polite"
       >
         <span
           className="text-[3.25rem] font-black leading-none"
-          style={{ color: value == null ? "#c9bca1" : "#26211b" }}
+          style={{ color: value == null ? "var(--color-ink-placeholder)" : "var(--color-ink)" }}
         >
           {value ?? "—"}
         </span>
@@ -311,7 +311,7 @@ function ScorePad({ value, onChange }: { value: number | null; onChange: (score:
           type="button"
           onClick={() => onChange(null)}
           className="pressable rounded-[16px] py-4 text-sm font-black"
-          style={{ background: "#fff", border: "1px solid #e8dcc4", color: "#26211b" }}
+          style={{ background: "var(--color-card)", border: "1px solid var(--color-line)", color: "var(--color-ink)" }}
         >
           清空
         </button>
@@ -332,8 +332,8 @@ function ScoreKey({ score, active, onClick }: { score: number; active: boolean; 
       className="pressable tabular rounded-[16px] py-4 text-2xl font-black"
       style={
         active
-          ? { background: "#26211b", border: "1px solid #26211b", color: "#fff" }
-          : { background: "#fff", border: "1px solid #e8dcc4", color: "#26211b" }
+          ? { background: "var(--color-ink)", border: "1px solid var(--color-ink)", color: "var(--color-card)" }
+          : { background: "var(--color-card)", border: "1px solid var(--color-line)", color: "var(--color-ink)" }
       }
     >
       {score}
@@ -362,9 +362,9 @@ function ScoreBtn({
       style={
         active
           ? danger
-            ? { background: "#c4402a", color: "#fff", border: "2px solid #c4402a" }
-            : { background: "#26211b", color: "#fff", border: "2px solid #26211b" }
-          : { background: "#fff", color: "#26211b", border: "2px solid #e8dcc4" }
+            ? { background: "var(--color-fail)", color: "var(--color-card)", border: "2px solid var(--color-fail)" }
+            : { background: "var(--color-ink)", color: "var(--color-card)", border: "2px solid var(--color-ink)" }
+          : { background: "var(--color-card)", color: "var(--color-ink)", border: "2px solid var(--color-line)" }
       }
     >
       <span className="tabular block text-[2rem] font-black leading-none">{big}</span>

@@ -43,7 +43,7 @@ export function NewGameModal(props: {
       {current && livePlaying && (
         <div
           className="mt-4 rounded-xl p-4 text-sm font-bold leading-6"
-          style={{ background: T.dangerSoft, border: "1px solid #efc5bb", color: T.danger }}
+          style={{ background: T.dangerSoft, border: "1px solid var(--color-admin-danger-line)", color: T.danger }}
         >
           「{current.title}」还在进行中。同一机构同时只能有一场在跑 —— 请先在现场总控结束它，再开新场。
         </div>
@@ -104,7 +104,7 @@ export function PlayerDrawer(props: {
     <Drawer onClose={props.onClose}>
       <div
         className="sticky top-0 z-10 p-6 backdrop-blur"
-        style={{ background: "rgba(252,250,246,.95)", borderBottom: `1px solid ${T.line}` }}
+        style={{ background: "rgb(from var(--color-admin-table-footer) r g b / .95)", borderBottom: `1px solid ${T.line}` }}
       >
         <DialogHead eyebrow={`玩家档案 · ${player.code}`} title={player.name} onClose={props.onClose} />
       </div>
@@ -187,7 +187,7 @@ export function PlayerDrawer(props: {
 
         {!player.is_removed && (
           <section className="pt-6" style={{ borderTop: `1px solid ${T.line}` }}>
-            <h3 className="text-lg font-black" style={{ color: "#9d3728" }}>移除玩家</h3>
+            <h3 className="text-lg font-black" style={{ color: "var(--color-outcome-bad-ink)" }}>移除玩家</h3>
             <p className="mt-1 text-sm font-semibold" style={{ color: T.inkSoft }}>
               用于处理测试或垃圾登记。数据会保留，可随时恢复。
             </p>
@@ -232,10 +232,10 @@ function StateToggle({
       className="flex items-center gap-3 rounded-xl p-3 text-sm font-bold"
       style={
         disabled
-          ? { border: "1px solid #e8e0d4", background: "#f3efe8", color: "#aaa090" }
+          ? { border: "1px solid var(--color-admin-skeleton)", background: "var(--color-admin-disabled)", color: "var(--color-admin-disabled-ink)" }
           : active
-            ? { border: `1px solid ${T.accent}`, background: "#fff7d8" }
-            : { border: "1px solid #ded4c3", background: "#fff" }
+            ? { border: `1px solid ${T.accent}`, background: "var(--color-admin-accent-soft)" }
+            : { border: "1px solid var(--color-admin-line-strong)", background: "var(--color-card)" }
       }
     >
       <input
@@ -243,7 +243,7 @@ function StateToggle({
         checked={active}
         disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}
-        className="h-5 w-5 accent-[#26211b]"
+        className="h-5 w-5 accent-ink"
       />
       {label}
     </label>
@@ -451,7 +451,7 @@ export function DeleteEventDialog(props: {
       <DialogHead eyebrow="删除活动" title={`删除「${props.event.title}」`} onClose={props.onClose} />
       <div
         className="mt-4 rounded-xl p-4 text-sm font-bold leading-6"
-        style={{ background: T.dangerSoft, border: "1px solid #efc5bb", color: T.danger }}
+        style={{ background: T.dangerSoft, border: "1px solid var(--color-admin-danger-line)", color: T.danger }}
       >
         {trivial
           ? "这场还没开始、也没有人报名，删掉不会丢任何记录。"

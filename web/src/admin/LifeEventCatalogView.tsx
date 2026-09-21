@@ -28,7 +28,7 @@ export function LifeEventCatalogView({ adminKey, preview }: { adminKey: string; 
   const selected = scenes.find((scene) => scene.key === selectedKey) ?? scenes[0] ?? null;
   const activeChoice = selected?.choices.some((choice) => choice.key === selectedChoice) ? selectedChoice : selected?.choices[0]?.key ?? null;
 
-  if (!catalog) return <div className="grid min-h-[55dvh] place-items-center"><div className="max-w-md text-center">{poll.error ? <><div className="text-3xl font-black">事件库读取失败</div><p className="mt-3 text-sm font-semibold leading-6 text-[#827766]">{errorText(poll.error)}</p><button className="mt-5 rounded-xl bg-[#26211b] px-5 py-3 text-sm font-black text-white" onClick={poll.refresh}>重新读取</button></> : <div className="dots text-xl font-black">正在整理全部人生事件<span>.</span><span>.</span><span>.</span></div>}</div></div>;
+  if (!catalog) return <div className="grid min-h-[55dvh] place-items-center"><div className="max-w-md text-center">{poll.error ? <><div className="text-3xl font-black">事件库读取失败</div><p className="mt-3 text-sm font-semibold leading-6 text-catalog-label">{errorText(poll.error)}</p><button className="mt-5 rounded-xl bg-ink px-5 py-3 text-sm font-black text-white" onClick={poll.refresh}>重新读取</button></> : <div className="dots text-xl font-black">正在整理全部人生事件<span>.</span><span>.</span><span>.</span></div>}</div></div>;
 
   return <div className="space-y-7">
     <PageTitle
@@ -43,7 +43,7 @@ export function LifeEventCatalogView({ adminKey, preview }: { adminKey: string; 
           target="_blank"
           rel="noreferrer"
           className="rounded-lg px-3 py-2 text-xs font-black"
-          style={{ background: "#fff", border: "1px solid #d9cebc" }}
+          style={{ background: "var(--color-card)", border: "1px solid var(--color-admin-panel-line)" }}
         >
           打开可分享的审核页 /library ↗
         </a>
@@ -57,12 +57,12 @@ export function LifeEventCatalogView({ adminKey, preview }: { adminKey: string; 
       {(["all", "solo", "duo"] as const).map((key) => <CatalogMetric key={key} label={AUDIENCE[key].short} value={catalog.stats.by_audience[key] ?? 0} muted />)}
     </section>
 
-    {preview && <div className="rounded-xl border border-[#e0be57] bg-[#fff6d5] px-4 py-3 text-sm font-bold text-[#765600]">开发预览仅放入代表性样本；管理员登录后的正式页面会读取数据库中的全部场景。</div>}
+    {preview && <div className="rounded-xl border border-catalog-preview-line bg-catalog-preview-soft px-4 py-3 text-sm font-bold text-catalog-preview-ink">开发预览仅放入代表性样本；管理员登录后的正式页面会读取数据库中的全部场景。</div>}
 
     <Panel className="overflow-hidden">
-      <div className="grid border-b border-[#e4dac8] bg-[#fbf8f2] lg:grid-cols-[20rem_minmax(0,1fr)]">
-        <div className="border-b border-[#e4dac8] p-4 lg:border-r lg:border-b-0">
-          <input className="w-full rounded-xl border border-[#ddd2bf] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#c28a00]" placeholder="搜索场景、行动或结果" value={search} onChange={(event) => setSearch(event.target.value)} />
+      <div className="grid border-b border-admin-line bg-admin-panel-alt lg:grid-cols-[20rem_minmax(0,1fr)]">
+        <div className="border-b border-admin-line p-4 lg:border-r lg:border-b-0">
+          <input className="w-full rounded-xl border border-admin-input-line bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-catalog-input-focus" placeholder="搜索场景、行动或结果" value={search} onChange={(event) => setSearch(event.target.value)} />
         </div>
         <div className="flex gap-1 overflow-x-auto p-3">
           <FilterButton active={audience === "any"} onClick={() => setAudience("any")}>全部 {catalog.stats.scenes}</FilterButton>
@@ -71,33 +71,33 @@ export function LifeEventCatalogView({ adminKey, preview }: { adminKey: string; 
       </div>
 
       <div className="grid min-h-[44rem] lg:grid-cols-[20rem_minmax(0,1fr)]">
-        <aside className="max-h-[70dvh] overflow-y-auto border-b border-[#e4dac8] bg-white lg:border-r lg:border-b-0">
-          {scenes.map((scene, index) => <button key={scene.key} className={`flex w-full items-start gap-3 border-b border-[#eee7dc] px-4 py-4 text-left transition-colors ${selected?.key === scene.key ? "bg-[#fff4ce]" : "hover:bg-[#faf6ef]"}`} onClick={() => setSelectedKey(scene.key)}>
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#f1ece3] text-xl">{scene.emoji}</span>
-            <span className="min-w-0 flex-1"><span className="flex items-center gap-2"><b className="truncate text-sm">{scene.title}</b><small className="shrink-0 rounded-md bg-white px-1.5 py-0.5 text-[10px] font-black text-[#7f7464]">{AUDIENCE[scene.audience].short}</small></span><span className="mt-1 block text-xs font-semibold text-[#8b806f]">{scene.choices.length} 个行动 · {scene.choices.reduce((sum, choice) => sum + choice.outcomes.length, 0)} 个结果</span></span>
-            <span className="tabular mt-1 text-[10px] font-bold text-[#a49988]">{String(index + 1).padStart(2, "0")}</span>
+        <aside className="max-h-[70dvh] overflow-y-auto border-b border-admin-line bg-white lg:border-r lg:border-b-0">
+          {scenes.map((scene, index) => <button key={scene.key} className={`flex w-full items-start gap-3 border-b border-admin-line-soft px-4 py-4 text-left transition-colors ${selected?.key === scene.key ? "bg-catalog-selected" : "hover:bg-catalog-hover"}`} onClick={() => setSelectedKey(scene.key)}>
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-catalog-icon text-xl">{scene.emoji}</span>
+            <span className="min-w-0 flex-1"><span className="flex items-center gap-2"><b className="truncate text-sm">{scene.title}</b><small className="shrink-0 rounded-md bg-white px-1.5 py-0.5 text-[10px] font-black text-catalog-audience-ink">{AUDIENCE[scene.audience].short}</small></span><span className="mt-1 block text-xs font-semibold text-catalog-meta-ink">{scene.choices.length} 个行动 · {scene.choices.reduce((sum, choice) => sum + choice.outcomes.length, 0)} 个结果</span></span>
+            <span className="tabular mt-1 text-[10px] font-bold text-catalog-number-ink">{String(index + 1).padStart(2, "0")}</span>
           </button>)}
-          {scenes.length === 0 && <div className="p-10 text-center text-sm font-bold text-[#8b806f]">没有匹配的场景</div>}
+          {scenes.length === 0 && <div className="p-10 text-center text-sm font-bold text-catalog-meta-ink">没有匹配的场景</div>}
         </aside>
 
-        {selected && <main className="min-w-0 bg-[#f7f3ec] p-4 sm:p-6 xl:p-8">
+        {selected && <main className="min-w-0 bg-admin-bg p-4 sm:p-6 xl:p-8">
           <div className="flex flex-col gap-6 xl:grid xl:grid-cols-[18rem_minmax(0,1fr)] xl:items-start">
             <section className="xl:sticky xl:top-32">
-              <div className="overflow-hidden rounded-[28px] border border-[#ded4c3] bg-[#efe4d3] shadow-[0_4px_0_#dbad32]">
-                <div className="bg-[#26211b] px-5 py-3 text-[10px] font-black tracking-[0.2em] text-white">玩家手机预览</div>
+              <div className="overflow-hidden rounded-[28px] border border-admin-line-strong bg-event-paper shadow-[0_4px_0_var(--color-catalog-preview-shadow)]">
+                <div className="bg-ink px-5 py-3 text-[10px] font-black tracking-[0.2em] text-white">玩家手机预览</div>
                 <div className="p-5">
-                  <div className="mx-auto grid h-16 w-16 place-items-center rounded-[20px] bg-[#f1bb2c] text-3xl shadow-[0_3px_0_#c7920d]">{selected.emoji}</div>
-                  <div className="mt-5 text-center text-[10px] font-black tracking-[0.18em] text-[#887d6d]">LIFE EVENT · {AUDIENCE[selected.audience].label}</div>
+                  <div className="mx-auto grid h-16 w-16 place-items-center rounded-[20px] bg-catalog-accent text-3xl shadow-[0_3px_0_var(--color-catalog-accent-shadow)]">{selected.emoji}</div>
+                  <div className="mt-5 text-center text-[10px] font-black tracking-[0.18em] text-catalog-eyebrow-ink">LIFE EVENT · {AUDIENCE[selected.audience].label}</div>
                   <h2 className="mt-1 text-center text-2xl font-black tracking-[-0.04em]">{selected.title}</h2>
-                  <p className="mt-4 text-sm font-bold leading-6 text-[#5f564a]">{selected.prompt}</p>
-                  <div className="mt-5 space-y-2">{selected.choices.map((choice, index) => <button key={choice.key} className={`flex w-full items-center gap-3 rounded-xl border-2 px-3 py-3 text-left text-sm font-black ${activeChoice === choice.key ? "border-[#26211b] bg-[#26211b] text-white" : "border-[#ddd2bf] bg-white"}`} onClick={() => setSelectedChoice(choice.key)}><span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#f1bb2c]/25 text-xs">{index + 1}</span>{choice.label}</button>)}</div>
-                  <p className="mt-4 text-center text-[11px] font-semibold leading-5 text-[#8b806f]">同一个行动每次可能出现不同结果</p>
+                  <p className="mt-4 text-sm font-bold leading-6 text-catalog-prompt-ink">{selected.prompt}</p>
+                  <div className="mt-5 space-y-2">{selected.choices.map((choice, index) => <button key={choice.key} className={`flex w-full items-center gap-3 rounded-xl border-2 px-3 py-3 text-left text-sm font-black ${activeChoice === choice.key ? "border-ink bg-ink text-white" : "border-admin-input-line bg-white"}`} onClick={() => setSelectedChoice(choice.key)}><span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-catalog-accent/25 text-xs">{index + 1}</span>{choice.label}</button>)}</div>
+                  <p className="mt-4 text-center text-[11px] font-semibold leading-5 text-catalog-meta-ink">同一个行动每次可能出现不同结果</p>
                 </div>
               </div>
             </section>
 
             <section className="min-w-0">
-              <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#ded4c3] pb-5"><div><div className="text-xs font-black tracking-[0.14em] text-[#8b806f]">{AUDIENCE[selected.audience].label} · {selected.key}</div><h2 className="mt-1 text-3xl font-black tracking-[-0.04em]">全部随机结果</h2></div><span className={`rounded-lg px-3 py-2 text-xs font-black ${selected.active ? "bg-[#e3f4e9] text-[#247246]" : "bg-[#eee8de] text-[#756b5e]"}`}>{selected.active ? "启用中" : "已停用"}</span></div>
+              <div className="flex flex-wrap items-start justify-between gap-3 border-b border-admin-line-strong pb-5"><div><div className="text-xs font-black tracking-[0.14em] text-catalog-meta-ink">{AUDIENCE[selected.audience].label} · {selected.key}</div><h2 className="mt-1 text-3xl font-black tracking-[-0.04em]">全部随机结果</h2></div><span className={`rounded-lg px-3 py-2 text-xs font-black ${selected.active ? "bg-catalog-enabled-soft text-catalog-enabled-ink" : "bg-admin-neutral text-catalog-inactive-ink"}`}>{selected.active ? "启用中" : "已停用"}</span></div>
               <div className="mt-5 space-y-5">{selected.choices.map((choice, index) => <ChoiceAudit key={choice.key} choice={choice} index={index} active={activeChoice === choice.key} onSelect={() => setSelectedChoice(choice.key)} />)}</div>
             </section>
           </div>
@@ -108,27 +108,27 @@ export function LifeEventCatalogView({ adminKey, preview }: { adminKey: string; 
 }
 
 function CatalogMetric({ label, value, muted = false }: { label: string; value: number; muted?: boolean }) {
-  return <div className={`rounded-[16px] border border-[#e4dac8] p-4 ${muted ? "bg-[#f1ece3]" : "bg-white"}`}><div className="text-[10px] font-black tracking-[0.12em] text-[#827766]">{label}</div><div className="tabular mt-2 text-3xl font-black tracking-[-0.05em]">{value}</div></div>;
+  return <div className={`rounded-[16px] border border-admin-line p-4 ${muted ? "bg-catalog-icon" : "bg-white"}`}><div className="text-[10px] font-black tracking-[0.12em] text-catalog-label">{label}</div><div className="tabular mt-2 text-3xl font-black tracking-[-0.05em]">{value}</div></div>;
 }
 
 function FilterButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return <button className={`shrink-0 rounded-lg px-3 py-2 text-xs font-black ${active ? "bg-[#26211b] text-white" : "bg-white text-[#756b5e] hover:bg-[#eee8de]"}`} onClick={onClick}>{children}</button>;
+  return <button className={`shrink-0 rounded-lg px-3 py-2 text-xs font-black ${active ? "bg-ink text-white" : "bg-white text-catalog-inactive-ink hover:bg-admin-neutral"}`} onClick={onClick}>{children}</button>;
 }
 
 function ChoiceAudit({ choice, index, active, onSelect }: { choice: LifeEventChoiceDefinition; index: number; active: boolean; onSelect: () => void }) {
   const total = choice.outcomes.reduce((sum, outcome) => sum + outcome.weight, 0);
-  return <section className={`overflow-hidden rounded-[18px] border bg-white ${active ? "border-[#c7920d] ring-3 ring-[#f1bb2c]/18" : "border-[#e4dac8]"}`}>
-    <button className="flex w-full items-center gap-3 border-b border-[#eee7dc] px-4 py-3.5 text-left" onClick={onSelect}><span className="grid h-8 w-8 place-items-center rounded-full bg-[#f1bb2c]/25 text-sm font-black">{index + 1}</span><span className="font-black">行动：{choice.label}</span><span className="ml-auto text-xs font-bold text-[#8b806f]">{choice.outcomes.length} 种结果</span></button>
+  return <section className={`overflow-hidden rounded-[18px] border bg-white ${active ? "border-catalog-accent-shadow ring-3 ring-catalog-accent/18" : "border-admin-line"}`}>
+    <button className="flex w-full items-center gap-3 border-b border-admin-line-soft px-4 py-3.5 text-left" onClick={onSelect}><span className="grid h-8 w-8 place-items-center rounded-full bg-catalog-accent/25 text-sm font-black">{index + 1}</span><span className="font-black">行动：{choice.label}</span><span className="ml-auto text-xs font-bold text-catalog-meta-ink">{choice.outcomes.length} 种结果</span></button>
     <div>{choice.outcomes.map((outcome) => <OutcomeRow key={outcome.key} outcome={outcome} probability={total > 0 ? outcome.weight / total : 0} />)}</div>
   </section>;
 }
 
 function OutcomeRow({ outcome, probability }: { outcome: LifeEventOutcomeDefinition; probability: number }) {
-  const tone = { good: ["好结果", "bg-[#dff3e7] text-[#236c43]"], bad: ["坏结果", "bg-[#ffe4de] text-[#9d3728]"], neutral: ["中性", "bg-[#eee8de] text-[#6e6559]"] }[outcome.tone];
-  return <div className="grid gap-3 border-b border-[#eee7dc] px-4 py-4 last:border-0 sm:grid-cols-[minmax(0,1fr)_6rem_7.5rem] sm:items-center">
-    <div><div className="flex flex-wrap items-center gap-2"><b className="text-sm">{outcome.label}</b><span className={`rounded-md px-2 py-0.5 text-[10px] font-black ${tone[1]}`}>{tone[0]}</span></div><p className="mt-1 text-xs font-semibold leading-5 text-[#7d7364]">{outcome.detail}</p></div>
-    <div className="sm:text-right"><div className="text-[10px] font-black text-[#9a8f7e]">随机概率</div><div className="tabular mt-0.5 font-black">{Math.round(probability * 100)}%</div></div>
-    <div className="sm:text-right"><div className="text-[10px] font-black text-[#9a8f7e]">分数结果</div><div className="tabular mt-0.5 font-black">{effectOf(outcome)}</div></div>
+  const tone = { good: ["好结果", "bg-outcome-good-soft text-outcome-good-ink"], bad: ["坏结果", "bg-outcome-bad-soft text-outcome-bad-ink"], neutral: ["中性", "bg-admin-neutral text-outcome-neutral-ink"] }[outcome.tone];
+  return <div className="grid gap-3 border-b border-admin-line-soft px-4 py-4 last:border-0 sm:grid-cols-[minmax(0,1fr)_6rem_7.5rem] sm:items-center">
+    <div><div className="flex flex-wrap items-center gap-2"><b className="text-sm">{outcome.label}</b><span className={`rounded-md px-2 py-0.5 text-[10px] font-black ${tone[1]}`}>{tone[0]}</span></div><p className="mt-1 text-xs font-semibold leading-5 text-catalog-detail-ink">{outcome.detail}</p></div>
+    <div className="sm:text-right"><div className="text-[10px] font-black text-catalog-stat-ink">随机概率</div><div className="tabular mt-0.5 font-black">{Math.round(probability * 100)}%</div></div>
+    <div className="sm:text-right"><div className="text-[10px] font-black text-catalog-stat-ink">分数结果</div><div className="tabular mt-0.5 font-black">{effectOf(outcome)}</div></div>
   </div>;
 }
 

@@ -68,7 +68,7 @@ export default function LibraryPage() {
       <div className="relative z-10">
         <div
           className="sticky top-0 z-30 backdrop-blur-xl"
-          style={{ background: "rgba(255,249,240,.94)", borderBottom: "1px solid #e8dcc4" }}
+          style={{ background: "rgb(from var(--color-night) r g b / .94)", borderBottom: "1px solid var(--color-line)" }}
         >
           <div className={COLUMN}>
             <div className="flex items-center gap-2.5 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 text-ink">
@@ -82,8 +82,8 @@ export default function LibraryPage() {
             </div>
             <div className="flex flex-wrap items-center gap-2 pb-2.5">
               <input
-                className="min-h-11 min-w-[10rem] flex-1 rounded-full bg-white px-4 text-[14px] font-semibold outline-none focus:shadow-[0_0_0_3px_#ffc838]"
-                style={{ border: "1px solid #e8dcc4" }}
+                className="min-h-11 min-w-[10rem] flex-1 rounded-full bg-white px-4 text-[14px] font-semibold outline-none focus:shadow-[0_0_0_3px_var(--color-accent)]"
+                style={{ border: "1px solid var(--color-line)" }}
                 placeholder="搜索场景 / 行动 / 结果"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
@@ -97,8 +97,8 @@ export default function LibraryPage() {
                     className="inline-flex min-h-10 shrink-0 items-center rounded-full px-3.5 text-[13.5px] font-black transition-colors"
                     style={
                       filter === key
-                        ? { background: "#26211b", color: "#fff" }
-                        : { background: "#fff", color: "#6b6255", border: "1px solid #e8dcc4" }
+                        ? { background: "var(--color-ink)", color: "var(--color-card)" }
+                        : { background: "var(--color-card)", color: "var(--color-guide-tab-ink)", border: "1px solid var(--color-line)" }
                     }
                   >
                     {key === "any" ? "全部" : AUDIENCE[key].short}
@@ -122,7 +122,7 @@ export default function LibraryPage() {
           </p>
           <div
             className="mt-5 rounded-[16px] px-4 py-3.5"
-            style={{ background: "#fff3ef", border: "1px solid #edbdb1" }}
+            style={{ background: "var(--color-admin-danger-soft)", border: "1px solid var(--color-staff-danger-line)" }}
           >
             <div className="text-[11px] font-black tracking-[0.14em] text-seal">仅供同工审核</div>
             <p className="mt-1 text-[13px] font-bold leading-6">
@@ -141,7 +141,7 @@ export default function LibraryPage() {
 
         <main className={`${COLUMN} pt-8 pb-16`}>
           {error && (
-            <div className="rounded-[18px] bg-white p-6 text-center" style={{ border: "1px solid #e8dcc4" }}>
+            <div className="rounded-[18px] bg-white p-6 text-center" style={{ border: "1px solid var(--color-line)" }}>
               <div className="text-[17px] font-black">读不到事件库</div>
               <p className="mt-2 text-[13px] font-semibold leading-6 text-ink-dim">{error}</p>
               <button
@@ -173,13 +173,13 @@ export default function LibraryPage() {
           <div className="mt-12 flex flex-wrap gap-2">
             <Link
               to="/guide"
-              className="pressable rounded-full bg-ink px-5 py-3 text-sm font-black text-white shadow-[0_3px_0_#0f0d0a]"
+              className="pressable rounded-full bg-ink px-5 py-3 text-sm font-black text-white shadow-[0_3px_0_var(--color-ink-shadow)]"
             >
               ← 回到同工说明页
             </Link>
             <Link
               to="/play?preview=lock"
-              className="pressable rounded-full bg-white px-5 py-3 text-sm font-black shadow-[0_2px_0_#e0a800]"
+              className="pressable rounded-full bg-white px-5 py-3 text-sm font-black shadow-[0_2px_0_var(--color-foil-shadow)]"
             >
               看玩家手机上的效果 →
             </Link>
@@ -192,7 +192,7 @@ export default function LibraryPage() {
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-[14px] bg-white px-3 py-3" style={{ border: "1px solid #e8dcc4" }}>
+    <div className="rounded-[14px] bg-white px-3 py-3" style={{ border: "1px solid var(--color-line)" }}>
       <div className="text-[10px] font-black tracking-[0.12em] text-ink-dim">{label}</div>
       <div className="tabular mt-1 text-[1.6rem] font-black leading-none tracking-[-0.04em]">{value}</div>
     </div>
@@ -202,9 +202,9 @@ function Metric({ label, value }: { label: string; value: number }) {
 function Scene({ scene, index }: { scene: LifeEventSceneDefinition; index: number }) {
   const audience = AUDIENCE[scene.audience];
   return (
-    <article className="overflow-hidden rounded-[20px] bg-white" style={{ border: "1px solid #e8dcc4" }}>
-      <div className="flex items-start gap-3 px-4 py-4 sm:px-5" style={{ background: "#fffaea" }}>
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[14px] bg-white text-2xl shadow-[0_2px_0_#e0a800]">
+    <article className="overflow-hidden rounded-[20px] bg-white" style={{ border: "1px solid var(--color-line)" }}>
+      <div className="flex items-start gap-3 px-4 py-4 sm:px-5" style={{ background: "var(--color-staff-accent-soft)" }}>
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[14px] bg-white text-2xl shadow-[0_2px_0_var(--color-foil-shadow)]">
           {scene.emoji}
         </span>
         <div className="min-w-0 flex-1">
@@ -215,7 +215,7 @@ function Scene({ scene, index }: { scene: LifeEventSceneDefinition; index: numbe
             <h2 className="text-[17px] font-black leading-tight">{scene.title}</h2>
             <span
               className="rounded-md px-1.5 py-0.5 text-[10px] font-black"
-              style={{ background: "#fff", color: "#7a5200", border: "1px solid #e8dcc4" }}
+              style={{ background: "var(--color-card)", color: "var(--color-accent-deep)", border: "1px solid var(--color-line)" }}
             >
               {audience.short}
             </span>
@@ -233,7 +233,7 @@ function Scene({ scene, index }: { scene: LifeEventSceneDefinition; index: numbe
         </div>
       </div>
 
-      <div className="divide-y" style={{ borderColor: "#efe7d9" }}>
+      <div className="divide-y" style={{ borderColor: "var(--color-guide-line)" }}>
         {scene.choices.map((choice, choiceIndex) => (
           <Choice key={choice.key} choice={choice} index={choiceIndex + 1} />
         ))}
@@ -249,7 +249,7 @@ function Choice({ choice, index }: { choice: LifeEventChoiceDefinition; index: n
       <div className="flex items-center gap-2.5">
         <span
           className="tabular grid h-6 w-6 shrink-0 place-items-center rounded-full text-[11px] font-black"
-          style={{ background: "#ffc838", color: "#26211b" }}
+          style={{ background: "var(--color-accent)", color: "var(--color-ink)" }}
         >
           {index}
         </span>
@@ -270,9 +270,9 @@ function Choice({ choice, index }: { choice: LifeEventChoiceDefinition; index: n
 }
 
 const TONE: Record<LifeEventOutcomeDefinition["tone"], { label: string; bg: string; ink: string }> = {
-  good: { label: "好结果", bg: "#dff3e7", ink: "#236c43" },
-  bad: { label: "坏结果", bg: "#ffe4de", ink: "#9d3728" },
-  neutral: { label: "中性", bg: "#eee8de", ink: "#6e6559" },
+  good: { label: "好结果", bg: "var(--color-outcome-good-soft)", ink: "var(--color-outcome-good-ink)" },
+  bad: { label: "坏结果", bg: "var(--color-outcome-bad-soft)", ink: "var(--color-outcome-bad-ink)" },
+  neutral: { label: "中性", bg: "var(--color-admin-neutral)", ink: "var(--color-outcome-neutral-ink)" },
 };
 
 function Outcome({
@@ -284,7 +284,7 @@ function Outcome({
 }) {
   const tone = TONE[outcome.tone];
   return (
-    <li className="rounded-[14px] px-3.5 py-3" style={{ background: "#fbf8f2", border: "1px solid #efe7d9" }}>
+    <li className="rounded-[14px] px-3.5 py-3" style={{ background: "var(--color-admin-panel-alt)", border: "1px solid var(--color-guide-line)" }}>
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <b className="text-[13.5px]">{outcome.label}</b>
         <span

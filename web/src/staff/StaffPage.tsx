@@ -165,7 +165,7 @@ function Shell(props: {
     <div className="min-h-dvh bg-desk text-ink">
       <header
         className="sticky top-0 z-30 px-3 py-2.5"
-        style={{ background: "#ffc838", boxShadow: "0 2px 0 #e0a800" }}
+        style={{ background: "var(--color-accent)", boxShadow: "0 2px 0 var(--color-foil-shadow)" }}
       >
         <div className="mx-auto max-w-md">
           {/* One level up, and it says where that is: inside a station it goes
@@ -178,7 +178,7 @@ function Shell(props: {
             )}
             <button
               type="button"
-              className="pressable inline-flex min-h-11 shrink-0 items-center rounded-full px-3.5 text-[14px] font-bold text-[#7a5200] hover:bg-black/8"
+              className="pressable inline-flex min-h-11 shrink-0 items-center rounded-full px-3.5 text-[14px] font-bold text-accent-deep hover:bg-black/8"
               onClick={props.onLogout}
             >
               退出
@@ -193,7 +193,7 @@ function Shell(props: {
             <span className="truncate text-[17px] font-black leading-tight">{props.title}</span>
           </div>
           {props.subtitle && (
-            <div className="mt-0.5 truncate text-[11px] font-bold text-[#7a5200]">{props.subtitle}</div>
+            <div className="mt-0.5 truncate text-[11px] font-bold text-accent-deep">{props.subtitle}</div>
           )}
         </div>
       </header>
@@ -228,11 +228,11 @@ function StationPicker({ stations, onPick }: { stations: EventStation[]; onPick:
                   type="button"
                   onClick={() => onPick(station.id)}
                   className="pressable flex w-full items-center gap-3 rounded-[18px] bg-white px-4 py-4 text-left"
-                  style={{ border: "1px solid #e8dcc4" }}
+                  style={{ border: "1px solid var(--color-line)" }}
                 >
                   <span
                     className="tabular grid h-10 w-10 shrink-0 place-items-center rounded-xl text-sm font-black"
-                    style={{ background: "#f1e7d4" }}
+                    style={{ background: "var(--color-night-raise)" }}
                   >
                     {String(station.sort_order).padStart(2, "0")}
                   </span>
@@ -277,7 +277,7 @@ export function Login(props: {
         <UpLink label="入口" to="/" />
       </div>
       <div className="relative z-10 flex w-full max-w-xs flex-col items-center">
-        <BrandMark className="!w-[104px] !gap-1 !rounded-[18px] !p-2.5 !shadow-[0_3px_0_#e0a800]" />
+        <BrandMark className="!w-[104px] !gap-1 !rounded-[18px] !p-2.5 !shadow-[0_3px_0_var(--color-foil-shadow)]" />
         <p className="mt-6 font-mono text-[10px] font-black tracking-[0.4em] text-ink-dim">
           {props.eyebrow ?? `LIFE PASSPORT · ${props.admin ? "ADMIN" : "CREW"}`}
         </p>
@@ -299,7 +299,7 @@ export function Login(props: {
             autoComplete={props.admin ? "current-password" : "one-time-code"}
             autoCapitalize={props.admin ? "off" : "characters"}
             spellCheck={false}
-            className={`w-full rounded-[16px] bg-card px-4 py-3.5 text-lg font-bold outline-none transition-shadow duration-200 focus:shadow-[0_0_0_3px_#ffc838] ${props.admin ? "" : "text-center font-mono tracking-[0.3em] uppercase"}`}
+            className={`w-full rounded-[16px] bg-card px-4 py-3.5 text-lg font-bold outline-none transition-shadow duration-200 focus:shadow-[0_0_0_3px_var(--color-accent)] ${props.admin ? "" : "text-center font-mono tracking-[0.3em] uppercase"}`}
             style={{ border: "2px solid transparent" }}
             placeholder={props.admin ? "密码" : "工作人员码"}
             maxLength={props.admin ? 64 : 6}
@@ -340,7 +340,7 @@ function LifeEventStation() {
   return (
     <div className="space-y-4">
       <StaffCard tone="accent" className="text-center">
-        <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-white text-3xl shadow-[0_3px_0_#e0a800]">
+        <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-white text-3xl shadow-[0_3px_0_var(--color-foil-shadow)]">
           📱
         </div>
         <h2 className="mt-5 text-2xl font-black">人生事件已经数字化</h2>

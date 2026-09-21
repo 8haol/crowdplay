@@ -248,7 +248,7 @@ export function EventStationsPanel({
                     key={station.station_id}
                     type="button"
                     className="pressable rounded-xl px-3 py-2 text-xs font-black"
-                    style={{ background: "#fff", border: `1px solid #d9cebc` }}
+                    style={{ background: "var(--color-card)", border: `1px solid var(--color-admin-panel-line)` }}
                     onClick={() => setDraft([...rows, station])}
                   >
                     + {station.name_zh}
@@ -317,7 +317,7 @@ function MoveButton({
       disabled={disabled}
       onClick={onClick}
       className="pressable grid h-9 w-9 place-items-center rounded-lg text-sm font-black disabled:opacity-30"
-      style={{ background: "#fff", border: `1px solid #d9cebc`, color: T.ink }}
+      style={{ background: "var(--color-card)", border: `1px solid var(--color-admin-panel-line)`, color: T.ink }}
     >
       {children}
     </button>

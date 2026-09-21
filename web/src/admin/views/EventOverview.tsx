@@ -103,7 +103,7 @@ export function EventOverview({
                       {index + 1}
                     </span>
                     <div className="flex min-w-0 items-center gap-2.5">
-                      <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: color?.hex ?? "#8c8171" }} />
+                      <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: color?.hex ?? "var(--color-admin-swatch-fallback)" }} />
                       <div className="min-w-0">
                         <div className="truncate font-black">{player.name}</div>
                         <div className="text-xs font-semibold" style={{ color: T.inkSoft }}>
@@ -149,8 +149,8 @@ export function EventOverview({
           ) : (
             <div className="p-5">
               {data.activity.map((item) => (
-                <div key={item.id} className="relative pb-5 pl-5 last:pb-0" style={{ borderLeft: `2px solid #dfd5c4` }}>
-                  <span className="absolute -left-[5px] top-1 h-2 w-2 rounded-full" style={{ background: "#b68b20" }} />
+                <div key={item.id} className="relative pb-5 pl-5 last:pb-0" style={{ borderLeft: `2px solid var(--color-admin-timeline-line)` }}>
+                  <span className="absolute -left-[5px] top-1 h-2 w-2 rounded-full" style={{ background: "var(--color-admin-timeline-dot)" }} />
                   <div className="text-sm font-black">{item.player_name ?? "系统"} · {feedLabel(item.label)}</div>
                   <div className="mt-0.5 text-sm font-semibold" style={{ color: T.inkSoft }}>{item.detail}</div>
                   <div className="mt-1 text-xs" style={{ color: T.inkFaint }}>{formatDate(item.at, true)}</div>

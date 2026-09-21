@@ -150,7 +150,7 @@ function StationNumbers({ metrics }: { metrics: StationMetric[] }) {
                 <span>队伍完成进度</span>
                 <span className="tabular">{station.completion_pct}%</span>
               </div>
-              <div className="mt-2 h-2.5 overflow-hidden rounded-full" style={{ background: "#eee8de" }}>
+              <div className="mt-2 h-2.5 overflow-hidden rounded-full" style={{ background: "var(--color-admin-neutral)" }}>
                 <div
                   className="h-full rounded-full"
                   style={{ width: `${Math.min(100, station.completion_pct)}%`, background: T.accent }}

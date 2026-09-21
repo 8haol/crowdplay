@@ -35,9 +35,9 @@ export function AdminIcon({ name, className = "" }: { name: IconName; className?
 
 export function PhaseLabel({ phase }: { phase: Phase }) {
   const look = {
-    waiting: { t: "待开始", bg: T.warnSoft, fg: "#755200", live: false },
+    waiting: { t: "待开始", bg: T.warnSoft, fg: "var(--color-guide-accent-ink)", live: false },
     playing: { t: "进行中", bg: T.goodSoft, fg: T.good, live: true },
-    ended: { t: "已结束", bg: "#eeeae2", fg: "#6c6458", live: false },
+    ended: { t: "已结束", bg: "var(--color-admin-ended)", fg: "var(--color-admin-ended-ink)", live: false },
   }[phase];
   return (
     <span
@@ -103,7 +103,7 @@ export function Panel({ children, className = "", tone }: { children: React.Reac
   return (
     <section
       className={`rounded-[18px] ${className}`}
-      style={{ background: T.panel, border: `1px solid ${tone === "danger" ? "#e9c7bf" : T.line}` }}
+      style={{ background: T.panel, border: `1px solid ${tone === "danger" ? "var(--color-admin-danger-card-line)" : T.line}` }}
     >
       {children}
     </section>
@@ -174,13 +174,13 @@ export function Metric({
 /* --------------------------------------------------------------- controls */
 
 const BUTTON_LOOK = {
-  primary: { background: T.ink, color: "#fff", border: `1px solid ${T.ink}` },
-  ghost: { background: T.panel, color: T.ink, border: `1px solid #d9cebc` },
+  primary: { background: T.ink, color: "var(--color-card)", border: `1px solid ${T.ink}` },
+  ghost: { background: T.panel, color: T.ink, border: `1px solid var(--color-admin-panel-line)` },
   quiet: { background: "transparent", color: T.inkSoft, border: "1px solid transparent" },
-  danger: { background: T.panel, color: T.danger, border: `1px solid #dba99e` },
-  dangerSolid: { background: "#b83b2a", color: "#fff", border: "1px solid #b83b2a" },
+  danger: { background: T.panel, color: T.danger, border: `1px solid var(--color-admin-danger-button-line)` },
+  dangerSolid: { background: "var(--color-admin-danger-button)", color: "var(--color-card)", border: "1px solid var(--color-admin-danger-button)" },
   /** 墨色侧栏上的按钮：纸色的 quiet 在那上面等于隐形。 */
-  onRail: { background: "rgba(255,255,255,.08)", color: "#fff", border: "1px solid rgba(255,255,255,.18)" },
+  onRail: { background: "rgb(from var(--color-card) r g b / .08)", color: "var(--color-card)", border: "1px solid rgb(from var(--color-card) r g b / .18)" },
 } as const;
 
 export function Btn({
@@ -273,7 +273,7 @@ export function Toggle({
         disabled={disabled}
         onClick={onChange}
         className="relative h-8 w-14 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed"
-        style={{ background: checked ? "#33935d" : "#bdb3a4" }}
+        style={{ background: checked ? "var(--color-admin-toggle-on)" : "var(--color-admin-toggle-off)" }}
       >
         <span
           className="absolute left-1 top-1 h-6 w-6 rounded-full bg-white transition-transform"
@@ -295,7 +295,7 @@ export function Segmented<T extends string>({
   onChange: (id: T) => void;
 }) {
   return (
-    <div className="flex gap-1 overflow-x-auto rounded-xl p-1" style={{ background: "#eee8de" }}>
+    <div className="flex gap-1 overflow-x-auto rounded-xl p-1" style={{ background: "var(--color-admin-neutral)" }}>
       {options.map((option) => (
         <button
           key={option.id}
@@ -304,7 +304,7 @@ export function Segmented<T extends string>({
           className="flex shrink-0 items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-black transition-colors"
           style={
             value === option.id
-              ? { background: "#fff", color: T.ink, boxShadow: "0 1px 2px rgba(0,0,0,.06)" }
+              ? { background: "var(--color-card)", color: T.ink, boxShadow: "0 1px 2px rgb(from var(--color-contrast-dark) r g b / .06)" }
               : { background: "transparent", color: T.inkSoft }
           }
         >
@@ -335,12 +335,12 @@ export function EmptyState({ title, detail, action }: { title: string; detail?: 
 export function Modal({ children, onClose, width = "max-w-xl" }: { children: React.ReactNode; onClose: () => void; width?: string }) {
   return (
     <div
-      className="fixed inset-0 z-40 flex items-end justify-center bg-[#211d18]/55 p-0 backdrop-blur-[2px] sm:items-center sm:p-6"
+      className="fixed inset-0 z-40 flex items-end justify-center bg-admin-overlay/55 p-0 backdrop-blur-[2px] sm:items-center sm:p-6"
       onMouseDown={onClose}
     >
       <div
-        className={`toast-in tool-scroll max-h-[92dvh] w-full ${width} overflow-y-auto rounded-t-[24px] p-6 shadow-[0_24px_80px_rgba(45,35,22,.32)] sm:rounded-[24px]`}
-        style={{ background: "#fcfaf6" }}
+        className={`toast-in tool-scroll max-h-[92dvh] w-full ${width} overflow-y-auto rounded-t-[24px] p-6 shadow-[0_24px_80px_rgb(from_var(--color-admin-shadow)_r_g_b_/_.32)] sm:rounded-[24px]`}
+        style={{ background: "var(--color-admin-table-footer)" }}
         onMouseDown={(event) => event.stopPropagation()}
       >
         {children}
@@ -351,10 +351,10 @@ export function Modal({ children, onClose, width = "max-w-xl" }: { children: Rea
 
 export function Drawer({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-40 bg-[#211d18]/45 backdrop-blur-[2px]" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-40 bg-admin-overlay/45 backdrop-blur-[2px]" onMouseDown={onClose}>
       <aside
-        className="toast-in tool-scroll absolute inset-y-0 right-0 w-full max-w-3xl overflow-y-auto shadow-[-20px_0_70px_rgba(45,35,22,.18)]"
-        style={{ background: "#fcfaf6" }}
+        className="toast-in tool-scroll absolute inset-y-0 right-0 w-full max-w-3xl overflow-y-auto shadow-[-20px_0_70px_rgb(from_var(--color-admin-shadow)_r_g_b_/_.18)]"
+        style={{ background: "var(--color-admin-table-footer)" }}
         onMouseDown={(event) => event.stopPropagation()}
       >
         {children}
@@ -370,7 +370,7 @@ export function DialogHead({ eyebrow, title, onClose }: { eyebrow: string; title
         <div className="text-[11px] font-black tracking-[0.18em]" style={{ color: T.inkFaint }}>{eyebrow}</div>
         <h2 className="mt-1 text-2xl font-black tracking-[-0.03em]">{title}</h2>
       </div>
-      <button type="button" className="shrink-0 rounded-lg p-2 hover:bg-[#eee8de]" style={{ color: T.inkSoft }} onClick={onClose} aria-label="关闭">
+      <button type="button" className="shrink-0 rounded-lg p-2 hover:bg-admin-neutral" style={{ color: T.inkSoft }} onClick={onClose} aria-label="关闭">
         <AdminIcon name="close" className="h-5 w-5" />
       </button>
     </div>

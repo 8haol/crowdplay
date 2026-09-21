@@ -6,7 +6,7 @@ import { ActionButton, BrandMark, ErrorBanner, UpLink } from "../lib/ui";
    floating on the night sky. */
 
 const cardInput =
-  "mt-1.5 w-full rounded-[14px] border-2 border-transparent bg-[#fbf4e6] px-4 py-3.5 text-lg font-bold text-ink placeholder:text-[#b5a88c] outline-none transition-shadow duration-200 focus:bg-card focus:shadow-[0_0_0_3px_#ffc838]";
+  "mt-1.5 w-full rounded-[14px] border-2 border-transparent bg-join-input px-4 py-3.5 text-lg font-bold text-ink placeholder:text-ink-disabled outline-none transition-shadow duration-200 focus:bg-card focus:shadow-[0_0_0_3px_var(--color-accent)]";
 
 function admissionKey(joinToken: string): string {
   const storageKey = `lp_join_idem:${joinToken}`;
@@ -118,7 +118,7 @@ export default function Join(props: {
         <UpLink label="入口" to="/" />
       </div>
       <div className="relative z-10 flex min-h-dvh w-[100vw] max-w-[100vw] flex-col items-center px-6 pt-16 pb-10">
-        <BrandMark className="rise !w-[104px] !gap-1 !rounded-[18px] !p-2.5 !shadow-[0_3px_0_#e0a800]" />
+        <BrandMark className="rise !w-[104px] !gap-1 !rounded-[18px] !p-2.5 !shadow-[0_3px_0_var(--color-foil-shadow)]" />
         <p className="rise mt-7 text-[11px] font-black tracking-[0.45em] text-foil-dim" style={{ "--i": 0 } as React.CSSProperties}>
           LIFE PASSPORT
         </p>
@@ -131,7 +131,7 @@ export default function Join(props: {
 
         {/* arrival card */}
         <div
-          className="rise mt-8 w-full max-w-sm rounded-[28px] bg-white px-6 py-6 text-ink shadow-[0_3px_0_#f0e4ce]"
+          className="rise mt-8 w-full max-w-sm rounded-[28px] bg-white px-6 py-6 text-ink shadow-[0_3px_0_var(--color-shadow-line)]"
           style={{ "--i": 3 } as React.CSSProperties}
         >
           <div className="flex items-baseline justify-between pb-3">
@@ -192,7 +192,7 @@ export default function Join(props: {
                   pattern="[0-9]*"
                   maxLength={4}
                   autoFocus
-                  className="tabular mt-1.5 w-full rounded-[14px] border-2 border-transparent bg-[#fbf4e6] px-4 py-3.5 text-center text-3xl font-black tracking-[0.35em] text-ink outline-none focus:bg-white focus:shadow-[0_0_0_3px_#ffc838]"
+                  className="tabular mt-1.5 w-full rounded-[14px] border-2 border-transparent bg-join-input px-4 py-3.5 text-center text-3xl font-black tracking-[0.35em] text-ink outline-none focus:bg-white focus:shadow-[0_0_0_3px_var(--color-accent)]"
                   placeholder="000"
                   value={code}
                   onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 4))}
@@ -244,7 +244,7 @@ export function CodeIssued({ code, onContinue }: { code: string; onContinue: () 
           </h1>
 
           <div
-            className="rise sheen mt-8 rounded-[32px] bg-white px-6 pb-7 pt-8 shadow-[0_5px_0_#e0a800]"
+            className="rise sheen mt-8 rounded-[32px] bg-white px-6 pb-7 pt-8 shadow-[0_5px_0_var(--color-foil-shadow)]"
             style={{ "--i": 2 } as React.CSSProperties}
           >
             <div className="text-[11px] font-black tracking-[0.28em] text-ink-dim">LIFE NO. · 人生编号</div>

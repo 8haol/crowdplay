@@ -138,11 +138,11 @@ export default function Passport(props: {
     : null;
   const id = IDENTITY_ZH[player.identity ?? "solo"];
   const color = colorOf(previewColor ?? player.color_group) ?? (player.identity === "solo" ? soloColor(player.code) : null);
-  const headerBg = color?.hex ?? "#ffffff";
-  const headerInk = color ? readableOn(headerBg) : "#26211b";
-  const headerSoft = color ? (headerInk === "#FFFFFF" ? "rgba(255,255,255,.74)" : "rgba(0,0,0,.6)") : "#7d7261";
-  const headerLine = headerInk === "#FFFFFF" ? "rgba(255,255,255,.26)" : "rgba(0,0,0,.16)";
-  const chipBg = headerInk === "#FFFFFF" ? "rgba(255,255,255,.16)" : "rgba(255,255,255,.62)";
+  const headerBg = color?.hex ?? "var(--color-card)";
+  const headerInk = color ? readableOn(headerBg) : "var(--color-ink)";
+  const headerSoft = color ? (headerInk === "var(--color-card)" ? "rgb(from var(--color-card) r g b / .74)" : "rgb(from var(--color-contrast-dark) r g b / .6)") : "var(--color-ink-dim)";
+  const headerLine = headerInk === "var(--color-card)" ? "rgb(from var(--color-card) r g b / .26)" : "rgb(from var(--color-contrast-dark) r g b / .16)";
+  const chipBg = headerInk === "var(--color-card)" ? "rgb(from var(--color-card) r g b / .16)" : "rgb(from var(--color-card) r g b / .62)";
   const pages = visaPages(stations, attempts);
   const journey = journeyProgress(player);
 
@@ -188,7 +188,7 @@ export default function Passport(props: {
                         aria-label={`${label}封皮`}
                         aria-pressed={active}
                         title={label}
-                        style={{ "--swatch": swatch?.hex ?? "#888888" } as React.CSSProperties}
+                        style={{ "--swatch": swatch?.hex ?? "var(--color-swatch-fallback)" } as React.CSSProperties}
                         onClick={() => {
                           const next = new URLSearchParams(searchParams);
                           next.set("passportStyle", "cover");
@@ -224,7 +224,7 @@ export default function Passport(props: {
 
         {/* status effect notice */}
         {player.status_effect?.type === "cap_next" && (
-          <div className="rise mx-auto mt-4 w-[calc(100%-2rem)] max-w-2xl rounded-2xl bg-[#ffefc2] px-4 py-3 text-sm font-black text-[#7a5200]"
+          <div className="rise mx-auto mt-4 w-[calc(100%-2rem)] max-w-2xl rounded-2xl bg-accent-soft px-4 py-3 text-sm font-black text-accent-deep"
                style={{ "--i": 1 } as React.CSSProperties}>
             重感冒卧床中 · 下一站最多得 {player.status_effect.value} 分
           </div>
@@ -244,7 +244,7 @@ export default function Passport(props: {
             {pages.map((page, i) => (
               <div
                 key={page.key}
-                className="rise relative min-h-[108px] rounded-[20px] bg-white p-3.5 shadow-[0_2px_0_#f0e4ce]"
+                className="rise relative min-h-[108px] rounded-[20px] bg-white p-3.5 shadow-[0_2px_0_var(--color-shadow-line)]"
                 style={{ "--i": 3 + i } as React.CSSProperties}
               >
                 <div className="text-[15px] font-bold">{page.title}</div>
@@ -282,7 +282,7 @@ export default function Passport(props: {
                   "aria-haspopup": "dialog" as const, "aria-expanded": graceOpen }
               : {})}
             className={`rise flex items-center justify-between rounded-[24px] px-5 py-4 text-left ${
-              player.token_available ? "pressable cursor-pointer bg-[#ffefc2]" : "bg-night-raise"
+              player.token_available ? "pressable cursor-pointer bg-accent-soft" : "bg-night-raise"
             }`}
             style={{ "--i": 10 } as React.CSSProperties}
           >
@@ -300,7 +300,7 @@ export default function Passport(props: {
                   <div className="mt-1 text-xs text-moon-dim">
                     整队可领实体恩典卡 / 重挑已玩站点；也可随时换纪念卡
                   </div>
-                  <div className="mt-1.5 text-[11px] font-black text-[#7a5200]">点一下，看怎么用 ›</div>
+                  <div className="mt-1.5 text-[11px] font-black text-accent-deep">点一下，看怎么用 ›</div>
                 </>
               ) : (
                 /* The token is spent, so the slot is free — and this is the one
@@ -317,7 +317,7 @@ export default function Passport(props: {
                 </div>
               )}
             </div>
-            <div className={`grid h-14 w-14 shrink-0 place-items-center rounded-full text-[11px] font-black shadow-[inset_0_0_0_4px_rgba(255,255,255,.55),0_3px_0_#e0a800] ${player.token_available ? "bg-foil text-[#5c3d00]" : "bg-[#e1d5be] text-[#9f9278] line-through shadow-none"}`}>GRACE</div>
+            <div className={`grid h-14 w-14 shrink-0 place-items-center rounded-full text-[11px] font-black shadow-[inset_0_0_0_4px_rgb(from_var(--color-card)_r_g_b_/_.55),0_3px_0_var(--color-foil-shadow)] ${player.token_available ? "bg-foil text-grace-ink" : "bg-grace-disabled text-grace-disabled-ink line-through shadow-none"}`}>GRACE</div>
           </div>
         </section>
 
@@ -334,7 +334,7 @@ export default function Passport(props: {
               {life_events.map((e, i) => {
                 const delta = e.score_after - e.score_before;
                 return (
-                  <div key={i} className="rounded-2xl bg-white px-4 py-3 shadow-[0_2px_0_#f0e4ce]">
+                  <div key={i} className="rounded-2xl bg-white px-4 py-3 shadow-[0_2px_0_var(--color-shadow-line)]">
                     <div className="flex items-baseline justify-between gap-3">
                       <div className="text-[11px] font-black tracking-[0.12em] text-ink-dim">
                         {e.stage ? STAGE_ZH[e.stage] ?? "人生事件" : "人生事件"}
@@ -368,11 +368,11 @@ export default function Passport(props: {
             onClick={() => setGraceOpen(false)}
           >
             <div
-              className="bloom max-h-full w-full max-w-md overflow-y-auto rounded-[26px] bg-card p-6 shadow-[0_18px_44px_rgba(38,33,27,.34)]"
+              className="bloom max-h-full w-full max-w-md overflow-y-auto rounded-[26px] bg-card p-6 shadow-[0_18px_44px_rgb(from_var(--color-ink)_r_g_b_/_.34)]"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center gap-3">
-                <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-foil text-[10px] font-black text-[#5c3d00] shadow-[inset_0_0_0_4px_rgba(255,255,255,.55)]">
+                <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-foil text-[10px] font-black text-grace-ink shadow-[inset_0_0_0_4px_rgb(from_var(--color-card)_r_g_b_/_.55)]">
                   GRACE
                 </div>
                 <div>
@@ -384,11 +384,11 @@ export default function Passport(props: {
               </div>
               <ul className="mt-5 space-y-2.5">
                 {GRACE_USES.map((use) => (
-                  <li key={use.title} className="flex gap-3 rounded-2xl bg-[#ffefc2] px-4 py-3">
+                  <li key={use.title} className="flex gap-3 rounded-2xl bg-accent-soft px-4 py-3">
                     <span className="text-lg leading-6">{use.icon}</span>
                     <div>
                       <div className="text-sm font-black">{use.title}</div>
-                      <p className="mt-0.5 text-xs font-semibold leading-5 text-[#7a5200]">{use.detail}</p>
+                      <p className="mt-0.5 text-xs font-semibold leading-5 text-accent-deep">{use.detail}</p>
                     </div>
                   </li>
                 ))}
@@ -408,7 +408,7 @@ export default function Passport(props: {
         )}
 
         {toast && (
-          <div className="toast-in fixed inset-x-5 bottom-6 z-50 mx-auto max-w-xl rounded-2xl bg-ink px-4 py-3.5 text-center font-black text-white shadow-[0_12px_32px_rgba(38,33,27,.24)]">
+          <div className="toast-in fixed inset-x-5 bottom-6 z-50 mx-auto max-w-xl rounded-2xl bg-ink px-4 py-3.5 text-center font-black text-white shadow-[0_12px_32px_rgb(from_var(--color-ink)_r_g_b_/_.24)]">
             {toast.text}
             {toast.note && (
               <div className="mt-1 text-[10px] font-bold tracking-[0.18em] text-white/55">
@@ -555,7 +555,7 @@ function VisaPageHero(props: PassportHeroProps) {
         </div>
       </div>
 
-      <JourneyStrip player={player} inkColor="#314c52" softColor="#756b5b" lineColor="#c9bda7" />
+      <JourneyStrip player={player} inkColor="var(--color-visa-rule)" softColor="var(--color-visa-journey-ink)" lineColor="var(--color-visa-journey-line)" />
 
       <div className="passport-visa__mrz" aria-label={`人生编号 ${player.code}`}>
         <span>P&lt;LIFE&lt;{player.name.replace(/\s/g, "<")}&lt;&lt;&lt;{props.identityShort}&lt;&lt;&lt;&lt;&lt;&lt;</span>
@@ -603,7 +603,7 @@ function ElectronicPassportHero(props: PassportHeroProps) {
         </div>
       </div>
 
-      <JourneyStrip player={player} inkColor="#f5e6b8" softColor="rgba(245,230,184,.68)" lineColor="rgba(245,230,184,.22)" />
+      <JourneyStrip player={player} inkColor="var(--color-epass-foil)" softColor="rgb(from var(--color-epass-foil) r g b / .68)" lineColor="rgb(from var(--color-epass-foil) r g b / .22)" />
 
       <div className="passport-epass__footer">
         <div>
@@ -642,7 +642,7 @@ function JourneyStrip({
 }) {
   const journey = journeyProgress(player);
   const pips = useMemo(() => buildJourney(player), [player]);
-  const filledInk = inkColor === "#FFFFFF" ? "#FFFFFF" : "#26211b";
+  const filledInk = inkColor === "var(--color-card)" ? "var(--color-card)" : "var(--color-ink)";
 
   return (
     <div className="mt-4">
@@ -670,8 +670,8 @@ function JourneyStrip({
                     borderRadius: "999px",
                     fontSize: "0.6rem",
                     fontWeight: 900,
-                    background: pip.done ? "#ffc838" : pip.pending ? "#ffffff" : "transparent",
-                    color: pip.done ? "#26211b" : pip.pending ? "#c4402a" : softColor,
+                    background: pip.done ? "var(--color-accent)" : pip.pending ? "var(--color-card)" : "transparent",
+                    color: pip.done ? "var(--color-ink)" : pip.pending ? "var(--color-fail)" : softColor,
                     boxShadow: pip.done || pip.pending ? "none" : `inset 0 0 0 1.5px ${lineColor}`,
                   }
                 : {
@@ -734,11 +734,11 @@ function FinishedCard({ player }: { player: PollResult["player"] }) {
         className="rise rounded-[24px] px-5 py-5"
         style={{
           "--i": 1,
-          background: player.token_available ? "#ffefc2" : "#ffffff",
-          boxShadow: player.token_available ? "0 3px 0 #e0a800" : "0 3px 0 #f0e4ce",
+          background: player.token_available ? "var(--color-accent-soft)" : "var(--color-card)",
+          boxShadow: player.token_available ? "0 3px 0 var(--color-foil-shadow)" : "0 3px 0 var(--color-shadow-line)",
         } as React.CSSProperties}
       >
-        <div className="text-[10px] font-black tracking-[0.3em] text-[#806321]">JOURNEY COMPLETE</div>
+        <div className="text-[10px] font-black tracking-[0.3em] text-journey-complete-ink">JOURNEY COMPLETE</div>
         <h2 className="mt-1.5 text-[22px] font-black leading-tight">
           {player.stations_total} 站与 3 段人生，都走过了
         </h2>
@@ -902,12 +902,12 @@ function LifeEventExperience(props: {
   /* ---- beat 3: the result, held until the player taps away ---- */
   if (result) {
     const deltaLabel = result.delta === 0 ? "分数不变" : `${result.delta > 0 ? "+" : ""}${result.delta} 人生分`;
-    const accent = result.tone === "good" ? "#2f8a56" : result.tone === "bad" ? "#bd4332" : "#b58b24";
+    const accent = result.tone === "good" ? "var(--color-event-result-good)" : result.tone === "bad" ? "var(--color-event-result-bad)" : "var(--color-event-result-neutral)";
     return (
-      <div className="relative min-h-dvh overflow-hidden bg-[#f6efe3] text-ink">
+      <div className="relative min-h-dvh overflow-hidden bg-event-result-paper text-ink">
         <div className="night-sky" />
         <main className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5 py-10 text-center">
-          <div className="seal-slam mx-auto grid h-24 w-24 place-items-center rounded-[30px] text-5xl shadow-[0_5px_0_rgba(38,33,27,.14)]" style={{ background: accent }}>
+          <div className="seal-slam mx-auto grid h-24 w-24 place-items-center rounded-[30px] text-5xl shadow-[0_5px_0_rgb(from_var(--color-ink)_r_g_b_/_.14)]" style={{ background: accent }}>
             {result.tone === "good" ? "✨" : result.tone === "bad" ? "🌧️" : "✦"}
           </div>
           <p className="rise mt-7 text-[10px] font-black tracking-[0.35em] text-ink-dim" style={{ "--i": 1 } as React.CSSProperties}>
@@ -915,7 +915,7 @@ function LifeEventExperience(props: {
           </p>
           <h1 className="rise mt-2 text-3xl font-black leading-tight" style={{ "--i": 2 } as React.CSSProperties}>{result.outcome_label}</h1>
           <p className="rise mx-auto mt-3 max-w-sm text-sm font-semibold leading-7 text-ink-dim" style={{ "--i": 3 } as React.CSSProperties}>{result.outcome_detail}</p>
-          <section className="rise mt-7 rounded-[28px] bg-white p-6 text-left shadow-[0_4px_0_#e0a800]" style={{ "--i": 4 } as React.CSSProperties}>
+          <section className="rise mt-7 rounded-[28px] bg-white p-6 text-left shadow-[0_4px_0_var(--color-foil-shadow)]" style={{ "--i": 4 } as React.CSSProperties}>
             <div className="text-[10px] font-black tracking-[0.18em] text-ink-dim">{result.scene_title}</div>
             <div className="mt-1 text-lg font-black">你选了「{result.choice_label}」</div>
             <div className="mt-5 flex items-end justify-between border-t-2 border-dashed border-line pt-5">
@@ -927,7 +927,7 @@ function LifeEventExperience(props: {
             </div>
           </section>
           <button
-            className="rise pressable mt-6 rounded-full bg-ink px-6 py-4 font-black text-white shadow-[0_4px_0_#0f0d0a]"
+            className="rise pressable mt-6 rounded-full bg-ink px-6 py-4 font-black text-white shadow-[0_4px_0_var(--color-ink-shadow)]"
             style={{ "--i": 5 } as React.CSSProperties}
             onClick={props.onDone}
           >
@@ -947,10 +947,10 @@ function LifeEventExperience(props: {
       <div className="relative min-h-dvh overflow-hidden bg-foil text-ink">
         <div className="night-sky" />
         <main className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-6 py-10 text-center">
-          <div className="bloom mx-auto grid h-28 w-28 place-items-center rounded-[34px] bg-white text-6xl shadow-[0_6px_0_#d19c13]">
+          <div className="bloom mx-auto grid h-28 w-28 place-items-center rounded-[34px] bg-white text-6xl shadow-[0_6px_0_var(--color-ceremony-shadow)]">
             {props.event.emoji}
           </div>
-          <p className="rise mt-8 text-[11px] font-black tracking-[0.4em] text-[#7a5200]" style={{ "--i": 1 } as React.CSSProperties}>
+          <p className="rise mt-8 text-[11px] font-black tracking-[0.4em] text-accent-deep" style={{ "--i": 1 } as React.CSSProperties}>
             LIFE EVENT · 人生关口
           </p>
           <h1 className="rise mt-3 text-[40px] font-black leading-[1.06] tracking-[-0.05em]" style={{ "--i": 2 } as React.CSSProperties}>
@@ -958,7 +958,7 @@ function LifeEventExperience(props: {
             <br />
             {stageName}
           </h1>
-          <p className="rise mx-auto mt-4 max-w-xs text-sm font-semibold leading-7 text-[#5c4a24]" style={{ "--i": 3 } as React.CSSProperties}>
+          <p className="rise mx-auto mt-4 max-w-xs text-sm font-semibold leading-7 text-ceremony-ink" style={{ "--i": 3 } as React.CSSProperties}>
             {props.event.stage === 3
               ? "走到这里，人生给你留了最后一道岔路。"
               : "走到这个关口，人生递给你一件事。"}
@@ -970,23 +970,23 @@ function LifeEventExperience(props: {
               beat that earns a word about handing things over. */}
           {props.event.stage === 3 && (
             <div className="rise mt-7" style={{ "--i": 4 } as React.CSSProperties}>
-              <div className="mx-auto h-px w-10 bg-[#7a5200]/25" />
-              <p className="mt-4 text-[15px] font-black leading-relaxed text-[#5c4a24]">
+              <div className="mx-auto h-px w-10 bg-accent-deep/25" />
+              <p className="mt-4 text-[15px] font-black leading-relaxed text-ceremony-ink">
                 「{FINAL_STAGE_VERSE.text}」
               </p>
-              <p className="mt-1.5 text-[10px] font-bold tracking-[0.22em] text-[#7a5200]/75">
+              <p className="mt-1.5 text-[10px] font-bold tracking-[0.22em] text-accent-deep/75">
                 {FINAL_STAGE_VERSE.ref}
               </p>
             </div>
           )}
           <button
-            className="rise pressable mt-9 rounded-full bg-ink px-6 py-4 text-[15px] font-black text-white shadow-[0_4px_0_#0f0d0a]"
+            className="rise pressable mt-9 rounded-full bg-ink px-6 py-4 text-[15px] font-black text-white shadow-[0_4px_0_var(--color-ink-shadow)]"
             style={{ "--i": 5 } as React.CSSProperties}
             onClick={() => setStep("choose")}
           >
             打开这段人生 →
           </button>
-          <p className="rise mt-3 text-[11px] font-semibold text-[#7a5200]" style={{ "--i": 6 } as React.CSSProperties}>
+          <p className="rise mt-3 text-[11px] font-semibold text-accent-deep" style={{ "--i": 6 } as React.CSSProperties}>
             队伍不会因为你停下，可以边走边处理。
           </p>
         </main>
@@ -996,15 +996,15 @@ function LifeEventExperience(props: {
 
   /* ---- beat 2: the scene and its two actions ---- */
   return (
-    <div className="relative min-h-dvh overflow-hidden bg-[#efe4d3] text-ink">
+    <div className="relative min-h-dvh overflow-hidden bg-event-paper text-ink">
       <div className="night-sky" />
       <main className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5 py-10">
         <header className="text-center">
-          <div className="seal-slam mx-auto grid h-20 w-20 place-items-center rounded-[26px] bg-foil text-4xl shadow-[0_5px_0_#d19c13]">{props.event.emoji}</div>
+          <div className="seal-slam mx-auto grid h-20 w-20 place-items-center rounded-[26px] bg-foil text-4xl shadow-[0_5px_0_var(--color-ceremony-shadow)]">{props.event.emoji}</div>
           <p className="rise mt-6 text-[10px] font-black tracking-[0.35em] text-ink-dim" style={{ "--i": 1 } as React.CSSProperties}>{stageName} · LIFE EVENT</p>
           <h1 className="rise mt-2 text-[34px] font-black leading-tight tracking-[-0.04em]" style={{ "--i": 2 } as React.CSSProperties}>{props.event.title}</h1>
         </header>
-        <section className="rise mt-6 rounded-[28px] bg-white p-6 shadow-[0_4px_0_#e0a800]" style={{ "--i": 3 } as React.CSSProperties}>
+        <section className="rise mt-6 rounded-[28px] bg-white p-6 shadow-[0_4px_0_var(--color-foil-shadow)]" style={{ "--i": 3 } as React.CSSProperties}>
           <p className="text-[17px] font-bold leading-8">{props.event.prompt}</p>
           <div className="mt-6 space-y-3">
             {props.event.choices.map((choice, index) => (
@@ -1012,7 +1012,7 @@ function LifeEventExperience(props: {
                 key={choice.key}
                 disabled={Boolean(chosen)}
                 onClick={() => choose(choice.key)}
-                className={`pressable flex w-full items-center gap-3 rounded-2xl border-2 px-4 py-4 text-left font-black transition-all disabled:opacity-60 ${chosen === choice.key ? "border-ink bg-ink text-white" : "border-line bg-[#fbf7f0] hover:border-ink/40"}`}
+                className={`pressable flex w-full items-center gap-3 rounded-2xl border-2 px-4 py-4 text-left font-black transition-all disabled:opacity-60 ${chosen === choice.key ? "border-ink bg-ink text-white" : "border-line bg-event-choice-paper hover:border-ink/40"}`}
               >
                 <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm ${chosen === choice.key ? "bg-white/15" : "bg-foil/25"}`}>{index + 1}</span>
                 <span>{choice.label}</span>
@@ -1056,7 +1056,7 @@ function Ended({ data, joinToken }: { data: PollResult; joinToken: string }) {
         </h1>
 
         <div
-          className="rise mt-9 w-full max-w-xs rounded-[32px] bg-white px-8 py-9 shadow-[0_5px_0_#e0a800]"
+          className="rise mt-9 w-full max-w-xs rounded-[32px] bg-white px-8 py-9 shadow-[0_5px_0_var(--color-foil-shadow)]"
           style={{ "--i": 2 } as React.CSSProperties}
         >
           <div className="text-sm text-moon-dim">{player.name} 的最终人生分</div>
@@ -1068,9 +1068,9 @@ function Ended({ data, joinToken }: { data: PollResult; joinToken: string }) {
               个人第 <span className="tabular text-3xl font-black text-ink">{rank}</span> 名
             </div>
           ) : (
-            <div className="mt-4 rounded-2xl bg-[#ffefc2] px-4 py-3">
-              <div className="text-sm font-black text-[#7a5200]">名次正在大屏上公布</div>
-              <div className="mt-1 text-xs font-bold leading-5 text-[#7a5200]">
+            <div className="mt-4 rounded-2xl bg-accent-soft px-4 py-3">
+              <div className="text-sm font-black text-accent-deep">名次正在大屏上公布</div>
+              <div className="mt-1 text-xs font-bold leading-5 text-accent-deep">
                 抬头看大屏 —— 颁奖结束后，你的名次会自动出现在这里。
               </div>
             </div>
@@ -1089,7 +1089,7 @@ function Ended({ data, joinToken }: { data: PollResult; joinToken: string }) {
         </div>
 
         {player.token_available && (
-          <p className="rise mt-5 max-w-xs rounded-2xl bg-[#ffefc2] px-4 py-3 text-sm font-black text-[#7a5200]" style={{ "--i": 3 } as React.CSSProperties}>
+          <p className="rise mt-5 max-w-xs rounded-2xl bg-accent-soft px-4 py-3 text-sm font-black text-accent-deep" style={{ "--i": 3 } as React.CSSProperties}>
             🪙 你的 Grace Token 还没用 —— 去恩典站换一张纪念卡
           </p>
         )}
@@ -1102,7 +1102,7 @@ function Ended({ data, joinToken }: { data: PollResult; joinToken: string }) {
         {published ? (
           <Link
             to={joinToken === "preview" ? "/badge?preview=1" : `/badge/${joinToken}`}
-            className="rise pressable mt-7 inline-flex min-h-[52px] items-center rounded-full bg-ink px-7 py-3.5 text-[15px] font-black text-white shadow-[0_3px_0_#0f0d0a]"
+            className="rise pressable mt-7 inline-flex min-h-[52px] items-center rounded-full bg-ink px-7 py-3.5 text-[15px] font-black text-white shadow-[0_3px_0_var(--color-ink-shadow)]"
             style={{ "--i": 5 } as React.CSSProperties}
           >
             生成我的纪念徽章 →

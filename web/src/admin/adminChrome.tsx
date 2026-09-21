@@ -36,14 +36,14 @@ export function TopBar({
   return (
     <header
       className="sticky top-0 z-30 h-[62px] backdrop-blur-xl"
-      style={{ background: "rgba(247,243,236,.96)", borderBottom: `1px solid #ded4c3` }}
+      style={{ background: "rgb(from var(--color-admin-bg) r g b / .96)", borderBottom: `1px solid var(--color-admin-line-strong)` }}
     >
       <div className="mx-auto flex h-full w-full max-w-[1560px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center gap-3">
           <button
             type="button"
             className="pressable grid h-9 w-9 shrink-0 place-items-center rounded-lg lg:hidden"
-            style={{ border: `1px solid #d9cebc`, background: "#fff" }}
+            style={{ border: `1px solid var(--color-admin-panel-line)`, background: "var(--color-card)" }}
             onClick={onMenu}
             aria-label="打开导航"
           >
@@ -81,7 +81,7 @@ export function TopBar({
               target="_blank"
               rel="noreferrer"
               className="pressable hidden items-center gap-2 rounded-lg px-3 py-2 text-xs font-black sm:inline-flex"
-              style={{ background: "#fff", border: `1px solid #d9cebc` }}
+              style={{ background: "var(--color-card)", border: `1px solid var(--color-admin-panel-line)` }}
             >
               <AdminIcon name="screen" className="h-4 w-4" />
               实况大屏
@@ -134,7 +134,7 @@ export function SideNav<T extends string>({
     <>
       {open && (
         <div
-          className="fixed inset-0 z-20 bg-[#211d18]/40 lg:hidden"
+          className="fixed inset-0 z-20 bg-admin-overlay/40 lg:hidden"
           onClick={onDismiss}
           role="presentation"
         />
@@ -145,8 +145,8 @@ export function SideNav<T extends string>({
         }`}
         style={
           ink
-            ? { background: T.rail, borderRight: "1px solid #14110d" }
-            : { background: T.bg, borderRight: `1px solid #ded4c3` }
+            ? { background: T.rail, borderRight: "1px solid var(--color-admin-rail-line)" }
+            : { background: T.bg, borderRight: `1px solid var(--color-admin-line-strong)` }
         }
       >
         {header && <div className="mb-4">{header}</div>}
@@ -164,9 +164,9 @@ export function SideNav<T extends string>({
                 style={
                   active
                     ? ink
-                      ? { background: "#fff", color: T.ink }
-                      : { background: T.ink, color: "#fff" }
-                    : { background: "transparent", color: ink ? "rgba(255,255,255,.86)" : T.ink }
+                      ? { background: "var(--color-card)", color: T.ink }
+                      : { background: T.ink, color: "var(--color-card)" }
+                    : { background: "transparent", color: ink ? "rgb(from var(--color-card) r g b / .86)" : T.ink }
                 }
               >
                 <AdminIcon name={item.icon} className="h-[18px] w-[18px] shrink-0" />
@@ -176,8 +176,8 @@ export function SideNav<T extends string>({
                     className="block truncate text-[11px] font-semibold"
                     style={{
                       color: active
-                        ? ink ? T.inkFaint : "rgba(255,255,255,.62)"
-                        : ink ? "rgba(255,255,255,.58)" : T.inkFaint,
+                        ? ink ? T.inkFaint : "rgb(from var(--color-card) r g b / .62)"
+                        : ink ? "rgb(from var(--color-card) r g b / .58)" : T.inkFaint,
                     }}
                   >
                     {item.note}
@@ -190,9 +190,9 @@ export function SideNav<T extends string>({
                       active
                         ? ink
                           ? { background: T.accentSoft, color: T.warn }
-                          : { background: "rgba(255,255,255,.2)", color: "#fff" }
+                          : { background: "rgb(from var(--color-card) r g b / .2)", color: "var(--color-card)" }
                         : ink
-                          ? { background: "rgba(255,255,255,.16)", color: "#fff" }
+                          ? { background: "rgb(from var(--color-card) r g b / .16)", color: "var(--color-card)" }
                           : { background: T.accentSoft, color: T.warn }
                     }
                   >
@@ -205,7 +205,7 @@ export function SideNav<T extends string>({
         </div>
 
         {footer && (
-          <div className="mt-6 pt-5" style={{ borderTop: `1px solid ${ink ? "rgba(255,255,255,.14)" : T.line}` }}>
+          <div className="mt-6 pt-5" style={{ borderTop: `1px solid ${ink ? "rgb(from var(--color-card) r g b / .14)" : T.line}` }}>
             {footer}
           </div>
         )}
@@ -217,7 +217,7 @@ export function SideNav<T extends string>({
 export function ConsoleSkeleton() {
   return (
     <div className="mx-auto w-full max-w-[1560px] space-y-6 px-4 py-8 sm:px-6 lg:px-8">
-      <div className="h-10 w-72 animate-pulse rounded-xl bg-[#e8e0d4]" />
+      <div className="h-10 w-72 animate-pulse rounded-xl bg-admin-skeleton" />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => (
           <div key={index} className="h-32 animate-pulse rounded-[16px] bg-white" />

@@ -137,17 +137,17 @@ function OperationPanel({
         {session.phase === "playing" && (
           <div>
             <div className="flex items-center gap-3 rounded-xl p-4" style={{ background: T.goodSoft }}>
-              <span className="h-3 w-3 animate-pulse rounded-full" style={{ background: "#319a5d" }} />
+              <span className="h-3 w-3 animate-pulse rounded-full" style={{ background: "var(--color-admin-live-dot)" }} />
               <div>
-                <div className="font-black" style={{ color: "#236c43" }}>游戏正在进行</div>
-                <div className="text-sm font-semibold" style={{ color: "#4c7860" }}>
+                <div className="font-black" style={{ color: "var(--color-outcome-good-ink)" }}>游戏正在进行</div>
+                <div className="text-sm font-semibold" style={{ color: "var(--color-admin-live-ink)" }}>
                   个人总分、人生事件和站点数据每 3 秒刷新一次
                 </div>
               </div>
             </div>
             <div className="mt-4"><ErrorBanner text={err} /></div>
             {confirmEnd ? (
-              <div className="mt-4 rounded-xl p-4" style={{ background: T.dangerSoft, border: "1px solid #e5b5aa" }}>
+              <div className="mt-4 rounded-xl p-4" style={{ background: T.dangerSoft, border: "1px solid var(--color-admin-alert-line)" }}>
                 <div className="text-sm font-black" style={{ color: T.danger }}>
                   确定结束本场？登记会关闭，大屏立刻开始颁奖典礼。玩家进入结算页，但看不到名次 —— 等你颁完奖再点「公布排名」。
                 </div>
@@ -187,10 +187,10 @@ function OperationPanel({
                 一点结束就集体低头看自己的名次。 */}
             {session.ranks_published_at ? (
               <div className="mt-4 flex items-center gap-3 rounded-xl p-4" style={{ background: T.goodSoft }}>
-                <span className="h-3 w-3 rounded-full" style={{ background: "#319a5d" }} />
+                <span className="h-3 w-3 rounded-full" style={{ background: "var(--color-admin-live-dot)" }} />
                 <div>
-                  <div className="font-black" style={{ color: "#236c43" }}>排名已公布到玩家手机</div>
-                  <div className="text-sm font-semibold" style={{ color: "#4c7860" }}>
+                  <div className="font-black" style={{ color: "var(--color-outcome-good-ink)" }}>排名已公布到玩家手机</div>
+                  <div className="text-sm font-semibold" style={{ color: "var(--color-admin-live-ink)" }}>
                     {formatDate(session.ranks_published_at, true)} · 纪念徽章也已开放
                   </div>
                 </div>
@@ -260,7 +260,7 @@ function JoinPanel({ session, onDone }: { session: AdminConsoleData["current"]; 
         </div>
       </div>
 
-      <div className="grid gap-3 border-t px-5 py-4 sm:grid-cols-2" style={{ borderColor: "#ebe2d2" }}>
+      <div className="grid gap-3 border-t px-5 py-4 sm:grid-cols-2" style={{ borderColor: "var(--color-admin-section-line)" }}>
         <div className="rounded-xl p-4" style={{ background: T.panelAlt }}>
           <div className="text-[10px] font-black tracking-[0.25em]" style={{ color: T.inkFaint }}>工作人员 · 本场码</div>
           <div className="mt-1 font-mono text-2xl font-black tracking-[0.3em]">{session.staff_code}</div>
@@ -317,7 +317,7 @@ function AttentionPanel({ locked, onPlayer }: { locked: AdminPlayer[]; onPlayer:
           <button
             key={player.code}
             type="button"
-            className="flex w-full items-center justify-between px-5 py-3 text-left hover:bg-[#fff9ed]"
+            className="flex w-full items-center justify-between px-5 py-3 text-left hover:bg-admin-feed-hover"
             style={{ borderBottom: `1px solid ${T.lineSoft}` }}
             onClick={() => onPlayer(player.code)}
           >
@@ -365,7 +365,7 @@ function TeamPanel({ consoleData }: { consoleData: AdminConsoleData }) {
             <div key={team.team_id} className="px-5 py-3" style={{ borderBottom: `1px solid ${T.lineSoft}` }}>
               <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
-                  <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: color?.hex ?? "#8c8171" }} />
+                  <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: color?.hex ?? "var(--color-admin-swatch-fallback)" }} />
                   <span className="shrink-0 text-xs font-black">
                     {color?.zh ?? IDENTITY_SHORT[team.identity]}
                   </span>
@@ -389,10 +389,10 @@ function TeamPanel({ consoleData }: { consoleData: AdminConsoleData }) {
 }
 
 const KIND_LOOK: Record<string, { bg: string; fg: string; mark: string }> = {
-  attempt: { bg: T.warnSoft, fg: "#765400", mark: "分" },
-  life_event: { bg: "#ffe5df", fg: "#983b2c", mark: "事" },
-  token: { bg: "#e5f0fb", fg: "#2a6294", mark: "T" },
-  admin: { bg: "#eee8de", fg: T.inkSoft, mark: "管" },
+  attempt: { bg: T.warnSoft, fg: "var(--color-admin-attempt-ink)", mark: "分" },
+  life_event: { bg: "var(--color-admin-event-soft)", fg: "var(--color-admin-event-ink)", mark: "事" },
+  token: { bg: "var(--color-admin-token-soft)", fg: "var(--color-admin-token-ink)", mark: "T" },
+  admin: { bg: "var(--color-admin-neutral)", fg: T.inkSoft, mark: "管" },
 };
 
 function ActivityPanel({ consoleData }: { consoleData: AdminConsoleData }) {

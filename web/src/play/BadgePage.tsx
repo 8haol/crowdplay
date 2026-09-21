@@ -106,7 +106,7 @@ function BadgeUnavailable({ title, detail }: { title: string; detail: string }) 
     <main className="brand-stage relative grid min-h-dvh place-items-center overflow-hidden p-6 text-center">
       <div className="night-sky" />
       <div className="relative z-10 max-w-xs">
-        <div className="mx-auto grid h-24 w-24 place-items-center rounded-full bg-foil text-4xl font-black text-ink shadow-[0_4px_0_#e0a800]">LP</div>
+        <div className="mx-auto grid h-24 w-24 place-items-center rounded-full bg-foil text-4xl font-black text-ink shadow-[0_4px_0_var(--color-foil-shadow)]">LP</div>
         <h1 className="mt-7 text-3xl font-black tracking-[-0.04em]">{title}</h1>
         <p className="mt-3 text-sm font-semibold leading-6 text-ink-dim">{detail}</p>
         <Link to="/play" className="pressable mt-7 inline-block rounded-full bg-ink px-7 py-3.5 font-black text-white">返回玩家页</Link>

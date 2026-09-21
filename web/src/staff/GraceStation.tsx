@@ -29,14 +29,14 @@ export default function GraceStation({
   const [mode, setMode] = useState<Mode>("team");
   return (
     <div>
-      <div className="mb-4 flex gap-1 rounded-2xl p-1" style={{ background: "#f1e7d4" }}>
+      <div className="mb-4 flex gap-1 rounded-2xl p-1" style={{ background: "var(--color-night-raise)" }}>
         {([["team", "🤝 整队求助"], ["card", "🎴 换纪念卡"]] as const).map(([id, label]) => (
           <button
             key={id}
             type="button"
             onClick={() => setMode(id)}
             className="flex-1 rounded-xl px-3 py-2.5 text-sm font-black transition-colors"
-            style={mode === id ? { background: "#fff", color: "#26211b" } : { color: "#7d7261" }}
+            style={mode === id ? { background: "var(--color-card)", color: "var(--color-ink)" } : { color: "var(--color-ink-dim)" }}
           >
             {label}
           </button>
@@ -210,7 +210,7 @@ function TeamHelp({
               <div className="min-w-0 text-[1.4rem] font-black leading-tight">
                 {teamLabel(team.color_group ?? null, team.identity ?? null, identifier)}
               </div>
-              <div className="shrink-0 text-sm font-black text-[#7a5200]">🪙 Token 可用</div>
+              <div className="shrink-0 text-sm font-black text-accent-deep">🪙 Token 可用</div>
             </div>
             <div className="mt-3 divide-y divide-line border-t border-line">
               {team.members?.map((member) => (
@@ -256,8 +256,8 @@ function TeamHelp({
                     className="pressable rounded-xl py-3.5 text-sm font-black"
                     style={
                       target === id
-                        ? { background: "#26211b", color: "#fff", border: "2px solid #26211b" }
-                        : { background: "#fff", border: "2px solid #e8dcc4" }
+                        ? { background: "var(--color-ink)", color: "var(--color-card)", border: "2px solid var(--color-ink)" }
+                        : { background: "var(--color-card)", border: "2px solid var(--color-line)" }
                     }
                   >
                     <span className="block">{stationName.get(id) ?? `站点 ${id}`}</span>
@@ -488,12 +488,12 @@ function UsageBtn({
       className="pressable w-full rounded-[18px] p-4 text-left disabled:opacity-40"
       style={
         active
-          ? { background: "#26211b", color: "#fff", border: "2px solid #26211b" }
-          : { background: "#fff", color: "#26211b", border: "2px solid #e8dcc4" }
+          ? { background: "var(--color-ink)", color: "var(--color-card)", border: "2px solid var(--color-ink)" }
+          : { background: "var(--color-card)", color: "var(--color-ink)", border: "2px solid var(--color-line)" }
       }
     >
       <div className="text-[15px] font-black">{title}</div>
-      <div className="mt-0.5 text-xs font-semibold" style={{ color: active ? "rgba(255,255,255,.7)" : "#7d7261" }}>
+      <div className="mt-0.5 text-xs font-semibold" style={{ color: active ? "rgb(from var(--color-card) r g b / .7)" : "var(--color-ink-dim)" }}>
         {desc}
       </div>
     </button>

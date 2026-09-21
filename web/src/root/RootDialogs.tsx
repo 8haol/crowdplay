@@ -140,7 +140,7 @@ export function ResetKeyDialog(props: {
     <Modal onClose={props.onClose}>
       <DialogHead eyebrow="重置口令" title={`重置「${props.org.name_zh}」的管理口令`} onClose={props.onClose} />
       <div className="mt-4 rounded-xl p-4 text-sm font-bold leading-6"
-        style={{ background: T.dangerSoft, border: "1px solid #efc5bb", color: T.danger }}>
+        style={{ background: T.dangerSoft, border: "1px solid var(--color-admin-danger-line)", color: T.danger }}>
         重置后这间教会当前登录的管理员会立刻掉线，已经发出去的代入令牌不受影响。
       </div>
       <label className="mt-6 block">
@@ -185,7 +185,7 @@ export function DeleteOrgDialog(props: {
     <Modal onClose={props.onClose}>
       <DialogHead eyebrow="删除机构" title={`删除「${props.org.name_zh}」`} onClose={props.onClose} />
       <div className="mt-4 rounded-xl p-4 text-sm font-bold leading-6"
-        style={{ background: T.dangerSoft, border: "1px solid #efc5bb", color: T.danger }}>
+        style={{ background: T.dangerSoft, border: "1px solid var(--color-admin-danger-line)", color: T.danger }}>
         这会连同这间机构的 {props.org.event_count} 场活动、以及它们下面的玩家、队伍、成绩
         一起删除，<strong>不可恢复</strong>，也没有回收站。
       </div>

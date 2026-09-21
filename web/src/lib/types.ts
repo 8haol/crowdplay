@@ -1,3 +1,5 @@
+import { PASSPORT_COPY } from "../theme/copy";
+
 export type Phase = "waiting" | "playing" | "ended";
 export type Identity = "solo" | "duo" | "trio" | null;
 
@@ -10,6 +12,7 @@ export interface Organization {
 
 /** What players and the projector may know about an event. Never carries a key. */
 export interface GameSession {
+  theme?: string;
   event_id: string;
   org_id?: string;
   title: string;
@@ -46,6 +49,7 @@ export interface GameLanding extends Partial<GameSession> {
 }
 
 export interface StaffSession {
+  theme?: string;
   event_id: string;
   title: string;
   phase: Phase;
@@ -241,6 +245,7 @@ export interface LifeEventChoiceResult {
 }
 
 export interface PollResult {
+  theme?: string;
   phase: Phase;
   started_at: string | null;
   /** Event title and organisation, so the passport cover and badge can brand themselves. */
@@ -465,7 +470,9 @@ export function soloColor(seed: string): { hex: string; zh: string } {
   return { hex: SOLO_COLORS[slot - 1], zh: `独行色 ${String(slot).padStart(2, "0")}` };
 }
 
-export const IDENTITY_SHORT: Record<string, string> = { solo: "独行", duo: "二人", trio: "三人" };
+export const IDENTITY_SHORT: Record<string, string> = Object.fromEntries(
+  Object.entries(PASSPORT_COPY.identity).map(([key, { short }]) => [key, short]),
+);
 
 /**
  * How a team is named now that short team codes are gone from the product.
@@ -478,11 +485,9 @@ export function teamLabel(colorGroup: string | null, identity: Identity, seed = 
   return color ? `${color.zh} · ${size}` : size;
 }
 
-export const IDENTITY_ZH: Record<string, { name: string; desc: string }> = {
-  solo: { name: "Solo 独立同行", desc: "无需寻找队友，独立完成七个站点。" },
-  duo: { name: "Duo 二人同行", desc: "举起手机，找到另一位组队颜色相同的玩家。" },
-  trio: { name: "Trio 三人同行", desc: "举起手机，找到另外两位组队颜色相同的玩家。" },
-};
+export const IDENTITY_ZH: Record<string, { name: string; desc: string }> = Object.fromEntries(
+  Object.entries(PASSPORT_COPY.identity).map(([key, { name, desc }]) => [key, { name, desc }]),
+);
 
 // ---------------------------------------------------------------------------
 // Big-screen board (/screen). Never carries 4-digit codes: the payload is
@@ -586,6 +591,7 @@ export interface BoardAwards {
 }
 
 export interface BoardSnapshot {
+  theme?: string;
   /** One call carries everything the projector needs; there is no second poll. */
   event_id?: string;
   title?: string;

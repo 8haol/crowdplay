@@ -1,3 +1,4 @@
+import { ThemeProvider } from "../theme/ThemeProvider";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { rpc, errorText } from "../lib/api";
@@ -73,66 +74,70 @@ export default function StaffPage() {
 
   const stationsTotal = Math.max(1, stations.filter((station) => station.type === "main").length);
 
-  if (!staffKey) {
-    return (
-      <Login
-        title="工作人员"
-        onOk={(key) => {
-          sessionStorage.setItem(SESSION_KEY, key);
-          setStaffKey(key);
-        }}
-      />
-    );
-  }
+  const renderContent = () => {
+    if (!staffKey) {
+      return (
+        <Login
+          title="工作人员"
+          onOk={(key) => {
+            sessionStorage.setItem(SESSION_KEY, key);
+            setStaffKey(key);
+          }}
+        />
+      );
+    }
 
-  const station = stations.find((entry) => entry.id === stationId) ?? null;
+    const station = stations.find((entry) => entry.id === stationId) ?? null;
 
-  if (!station) {
+    if (!station) {
+      return (
+        <Shell
+          demo={preview}
+          title="选择你负责的站点"
+          subtitle={eventTitle ? `${eventTitle} · 选好之后这台手机会记住` : "选好之后这台手机会记住"}
+          onLogout={() => logout(setStaffKey)}
+        >
+          {notice && (
+            <div className="mb-4">
+              <ErrorBanner text={notice} />
+            </div>
+          )}
+          <StationPicker
+            stations={stations}
+            onPick={(id) => {
+              localStorage.setItem(LS_STATION, String(id));
+              setStationId(id);
+              setNotice(null);
+            }}
+          />
+        </Shell>
+      );
+    }
+
     return (
       <Shell
         demo={preview}
-        title="选择你负责的站点"
-        subtitle={eventTitle ? `${eventTitle} · 选好之后这台手机会记住` : "选好之后这台手机会记住"}
+        title={station.name_zh}
+        subtitle={eventTitle ? `${eventTitle} · ${stationSubtitle(station)}` : stationSubtitle(station)}
+        badge={station.type === "main" ? `第 ${station.sort_order} 站` : station.type === "grace" ? "恩典站" : "人生盲盒"}
+        onSwitch={() => {
+          localStorage.removeItem(LS_STATION);
+          setStationId(null);
+        }}
         onLogout={() => logout(setStaffKey)}
       >
-        {notice && (
-          <div className="mb-4">
-            <ErrorBanner text={notice} />
-          </div>
+        {station.type === "main" && (
+          <MainStation key={station.id} staffKey={staffKey} station={station} stationsTotal={stationsTotal} />
         )}
-        <StationPicker
-          stations={stations}
-          onPick={(id) => {
-            localStorage.setItem(LS_STATION, String(id));
-            setStationId(id);
-            setNotice(null);
-          }}
-        />
+        {station.type === "life_event" && <LifeEventStation />}
+        {station.type === "grace" && (
+          <GraceStation staffKey={staffKey} stations={stations} stationsTotal={stationsTotal} />
+        )}
       </Shell>
     );
-  }
+  };
 
-  return (
-    <Shell
-      demo={preview}
-      title={station.name_zh}
-      subtitle={eventTitle ? `${eventTitle} · ${stationSubtitle(station)}` : stationSubtitle(station)}
-      badge={station.type === "main" ? `第 ${station.sort_order} 站` : station.type === "grace" ? "恩典站" : "人生盲盒"}
-      onSwitch={() => {
-        localStorage.removeItem(LS_STATION);
-        setStationId(null);
-      }}
-      onLogout={() => logout(setStaffKey)}
-    >
-      {station.type === "main" && (
-        <MainStation key={station.id} staffKey={staffKey} station={station} stationsTotal={stationsTotal} />
-      )}
-      {station.type === "life_event" && <LifeEventStation />}
-      {station.type === "grace" && (
-        <GraceStation staffKey={staffKey} stations={stations} stationsTotal={stationsTotal} />
-      )}
-    </Shell>
-  );
+  return <ThemeProvider theme={searchParams.get("theme") ?? (staffKey ? session?.theme : undefined)}>{renderContent()}</ThemeProvider>;
 }
 
 function stationSubtitle(station: EventStation): string {

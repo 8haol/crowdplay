@@ -1,3 +1,4 @@
+import { ThemeProvider } from "../theme/ThemeProvider";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { rpc, errorText } from "../lib/api";
@@ -50,73 +51,77 @@ export default function ScreenPage() {
     endedRef.current = ended;
   }, [data?.phase]);
 
-  if (!preview && !screenToken) {
-    /* `/screen` with no token. The projector link lives in the admin console
-       for exactly one event; there is no "current game" to guess at. */
-    return (
-      <Frame online={false}>
-        <div className="flex flex-1 flex-col items-center justify-center gap-5 px-8 text-center">
-          <p className="font-mono text-[clamp(.7rem,1vw,1rem)] font-black tracking-[0.35em] text-foil-dim">PROJECTOR</p>
-          <h1 className="font-serif text-[clamp(1.8rem,4vw,4rem)] font-black leading-tight">这台投影还没有连到任何一场</h1>
-          <p className="max-w-2xl text-[clamp(.95rem,1.4vw,1.5rem)] font-semibold leading-relaxed text-moon-dim">
-            请总控打开管理端 → 进入本场活动 → 复制「大屏链接」，在这台电脑的浏览器里打开。
-            每一场都有自己的大屏链接，链接本身就是场次。
-          </p>
-          <Link to="/admin" className="pressable rounded-full bg-ink px-6 py-3 text-[clamp(.9rem,1.2vw,1.2rem)] font-black text-white">
-            去管理端
-          </Link>
-        </div>
-      </Frame>
-    );
-  }
-
-  if (!data) {
-    return (
-      <Frame online={online}>
-        <div className="flex flex-1 flex-col items-center justify-center gap-4">
-          <div className="dots font-serif text-[clamp(1.5rem,3vw,3rem)] font-black">
-            正在连接现场<span>.</span><span>.</span><span>.</span>
+  const renderContent = () => {
+    if (!preview && !screenToken) {
+      /* `/screen` with no token. The projector link lives in the admin console
+         for exactly one event; there is no "current game" to guess at. */
+      return (
+        <Frame online={false}>
+          <div className="flex flex-1 flex-col items-center justify-center gap-5 px-8 text-center">
+            <p className="font-mono text-[clamp(.7rem,1vw,1rem)] font-black tracking-[0.35em] text-foil-dim">PROJECTOR</p>
+            <h1 className="font-serif text-[clamp(1.8rem,4vw,4rem)] font-black leading-tight">这台投影还没有连到任何一场</h1>
+            <p className="max-w-2xl text-[clamp(.95rem,1.4vw,1.5rem)] font-semibold leading-relaxed text-moon-dim">
+              请总控打开管理端 → 进入本场活动 → 复制「大屏链接」，在这台电脑的浏览器里打开。
+              每一场都有自己的大屏链接，链接本身就是场次。
+            </p>
+            <Link to="/admin" className="pressable rounded-full bg-ink px-6 py-3 text-[clamp(.9rem,1.2vw,1.2rem)] font-black text-white">
+              去管理端
+            </Link>
           </div>
-          {!online && <div className="text-lg text-seal">{errorText(error)}</div>}
-        </div>
+        </Frame>
+      );
+    }
+
+    if (!data) {
+      return (
+        <Frame online={online}>
+          <div className="flex flex-1 flex-col items-center justify-center gap-4">
+            <div className="dots font-serif text-[clamp(1.5rem,3vw,3rem)] font-black">
+              正在连接现场<span>.</span><span>.</span><span>.</span>
+            </div>
+            {!online && <div className="text-lg text-seal">{errorText(error)}</div>}
+          </div>
+        </Frame>
+      );
+    }
+
+    if (data.phase === "ended" && data.awards && !ceremonyDone) {
+      return (
+        <>
+          <Ceremony
+            awards={data.awards}
+            players={data.stats.players}
+            stationsTotal={data.stations_total}
+            onFinish={() => setCeremonyDone(true)}
+          />
+          {preview && <DemoRibbon />}
+        </>
+      );
+    }
+
+    return (
+      <Frame online={online} data={data} demo={preview}>
+        {data.phase === "waiting" ? (
+          <Lobby data={data} landing={landing} joinLink={joinLink} />
+        ) : (
+          <div className="grid grid-cols-1 gap-8 px-4 pb-24 lg:min-h-0 lg:flex-1 lg:grid-cols-[1fr_clamp(340px,26vw,460px)] lg:gap-[clamp(0.75rem,1.4vw,1.75rem)] lg:px-[clamp(0.75rem,1.6vw,2rem)] lg:pb-[clamp(0.75rem,1.4vw,1.75rem)]">
+            <Board
+              players={data.players}
+              ended={data.phase === "ended"}
+              stationsTotal={data.stations_total ?? 7}
+              onReplay={data.phase === "ended" && data.awards ? () => setCeremonyDone(false) : undefined}
+            />
+            <aside className="flex min-h-0 flex-col gap-[clamp(0.5rem,1vw,1.25rem)]">
+              <Ticker feed={data.feed} />
+              {joinLink && <RejoinCard url={joinLink} />}
+            </aside>
+          </div>
+        )}
       </Frame>
     );
-  }
+  };
 
-  if (data.phase === "ended" && data.awards && !ceremonyDone) {
-    return (
-      <>
-        <Ceremony
-          awards={data.awards}
-          players={data.stats.players}
-          stationsTotal={data.stations_total}
-          onFinish={() => setCeremonyDone(true)}
-        />
-        {preview && <DemoRibbon />}
-      </>
-    );
-  }
-
-  return (
-    <Frame online={online} data={data} demo={preview}>
-      {data.phase === "waiting" ? (
-        <Lobby data={data} landing={landing} joinLink={joinLink} />
-      ) : (
-        <div className="grid grid-cols-1 gap-8 px-4 pb-24 lg:min-h-0 lg:flex-1 lg:grid-cols-[1fr_clamp(340px,26vw,460px)] lg:gap-[clamp(0.75rem,1.4vw,1.75rem)] lg:px-[clamp(0.75rem,1.6vw,2rem)] lg:pb-[clamp(0.75rem,1.4vw,1.75rem)]">
-          <Board
-            players={data.players}
-            ended={data.phase === "ended"}
-            stationsTotal={data.stations_total ?? 7}
-            onReplay={data.phase === "ended" && data.awards ? () => setCeremonyDone(false) : undefined}
-          />
-          <aside className="flex min-h-0 flex-col gap-[clamp(0.5rem,1vw,1.25rem)]">
-            <Ticker feed={data.feed} />
-            {joinLink && <RejoinCard url={joinLink} />}
-          </aside>
-        </div>
-      )}
-    </Frame>
-  );
+  return <ThemeProvider theme={searchParams.get("theme") ?? data?.theme}>{renderContent()}</ThemeProvider>;
 }
 
 function previewData(mode: string | null): BoardSnapshot | null {

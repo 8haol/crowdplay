@@ -1,3 +1,4 @@
+import { ThemeProvider } from "../theme/ThemeProvider";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { rpc, errorText, RpcError } from "../lib/api";
@@ -104,103 +105,107 @@ export default function PlayPage() {
     setIssuedCode(null);
   }, [activeToken, setIssuedCode, setRevealDone]);
 
-  if (preview === "join") {
-    return <Demo><PreviewJoinFlow /></Demo>;
-  }
-  if (preview === "code") {
-    return <Demo><CodeIssued code="327" onContinue={() => {}} /></Demo>;
-  }
-  if (preview === "waiting") {
-    return <Demo><WaitingRoom code="327" name="林沐恩" online preview /></Demo>;
-  }
-  if (["reveal", "reveal-duo", "reveal-solo"].includes(preview ?? "")) {
-    const revealData = preview === "reveal-duo"
-      ? previewState("duo")
-      : preview === "reveal-solo"
-        ? previewState("solo")
-        : PREVIEW_DATA;
-    return <Demo><Reveal data={revealData} onDone={() => {}} /></Demo>;
-  }
-  if (["passport", "solo", "sick", "lock", "ended", "ended-hold"].includes(preview ?? "")) {
-    return (
-      <Demo>
-        <Passport data={previewState(preview!)} stations={PREVIEW_STATIONS} online joinToken="preview" />
-      </Demo>
-    );
-  }
-
-  if (!routeToken) {
-    return <NoLinkGuidance />;
-  }
-
-  if (landingError) {
-    return <PlayerMessage title="暂时无法连接活动" body={errorText(landingError)} />;
-  }
-
-  if (!landing || !activeToken) {
-    return <PlayerLoading label="正在寻找本场活动" />;
-  }
-
-  if (landing.invalid) {
-    return <NoLinkGuidance broken />;
-  }
-
-  if (!landing.is_current || sessionArchived || (landing.phase === "ended" && !code)) {
-    return <ArchivedSession landing={landing} />;
-  }
-
-  if (!code) {
-    if (!landing.join_open) {
-      return <PlayerMessage title="本场登记已关闭" body="如果你已经登记过，可以联系工作人员帮你找回编号。" />;
+  const renderContent = () => {
+    if (preview === "join") {
+      return <Demo><PreviewJoinFlow /></Demo>;
     }
-    return (
-      <Join
-        onJoined={onJoined}
-        onCodeIssued={onCodeIssued}
-        notice={joinNotice}
-        joinToken={activeToken}
-        gameTitle={landing.title}
-      />
-    );
-  }
+    if (preview === "code") {
+      return <Demo><CodeIssued code="327" onContinue={() => {}} /></Demo>;
+    }
+    if (preview === "waiting") {
+      return <Demo><WaitingRoom code="327" name="林沐恩" online preview /></Demo>;
+    }
+    if (["reveal", "reveal-duo", "reveal-solo"].includes(preview ?? "")) {
+      const revealData = preview === "reveal-duo"
+        ? previewState("duo")
+        : preview === "reveal-solo"
+          ? previewState("solo")
+          : PREVIEW_DATA;
+      return <Demo><Reveal data={revealData} onDone={() => {}} /></Demo>;
+    }
+    if (["passport", "solo", "sick", "lock", "ended", "ended-hold"].includes(preview ?? "")) {
+      return (
+        <Demo>
+          <Passport data={previewState(preview!)} stations={PREVIEW_STATIONS} online joinToken="preview" />
+        </Demo>
+      );
+    }
 
-  /*
-   * The number screen stays up from the moment the code is issued — including
-   * before the first poll has landed — and clears itself when the player taps
-   * or when the host starts the game, whichever comes first.
-   */
-  if (issuedCode && (!data || data.phase === "waiting")) {
-    return <CodeIssued code={issuedCode} onContinue={() => setIssuedCode(null)} />;
-  }
+    if (!routeToken) {
+      return <NoLinkGuidance />;
+    }
 
-  if (!data) {
-    return <PlayerLoading label={recovering?.token === activeToken ? "正在找回你的护照" : "正在读取你的人生"} error={!online ? errorText(error) : undefined} />;
-  }
+    if (landingError) {
+      return <PlayerMessage title="暂时无法连接活动" body={errorText(landingError)} />;
+    }
 
-  const { phase, player } = data;
+    if (!landing || !activeToken) {
+      return <PlayerLoading label="正在寻找本场活动" />;
+    }
 
-  if (phase === "waiting") {
-    return <WaitingRoom code={player.code} name={player.name} online={online} colorGroup={player.color_group} orgName={data.org?.name_zh} />;
-  }
+    if (landing.invalid) {
+      return <NoLinkGuidance broken />;
+    }
 
-  // Identity reveal: once per stored code, when playing begins.
-  const isCurrentRecovery = recovering?.token === activeToken && recovering.code === player.code;
-  if (phase === "playing" && player.identity && revealSeen !== player.code && !isCurrentRecovery) {
-    return (
-      <Reveal
-        data={data}
-        onDone={() => {
-          localStorage.setItem(`lp_reveal:${activeToken}`, player.code);
-          setRevealDone({ token: activeToken, code: player.code });
-        }}
-      />
-    );
-  }
+    if (!landing.is_current || sessionArchived || (landing.phase === "ended" && !code)) {
+      return <ArchivedSession landing={landing} />;
+    }
 
-  /* The roster rides along with the poll: which stations an event runs is
-     per-event state, and `stations` was the one table anon could read directly
-     until phase 2 closed it. Nothing is fetched separately here. */
-  return <Passport data={data} stations={data.stations} online={online} joinToken={activeToken} />;
+    if (!code) {
+      if (!landing.join_open) {
+        return <PlayerMessage title="本场登记已关闭" body="如果你已经登记过，可以联系工作人员帮你找回编号。" />;
+      }
+      return (
+        <Join
+          onJoined={onJoined}
+          onCodeIssued={onCodeIssued}
+          notice={joinNotice}
+          joinToken={activeToken}
+          gameTitle={landing.title}
+        />
+      );
+    }
+
+    /*
+     * The number screen stays up from the moment the code is issued — including
+     * before the first poll has landed — and clears itself when the player taps
+     * or when the host starts the game, whichever comes first.
+     */
+    if (issuedCode && (!data || data.phase === "waiting")) {
+      return <CodeIssued code={issuedCode} onContinue={() => setIssuedCode(null)} />;
+    }
+
+    if (!data) {
+      return <PlayerLoading label={recovering?.token === activeToken ? "正在找回你的护照" : "正在读取你的人生"} error={!online ? errorText(error) : undefined} />;
+    }
+
+    const { phase, player } = data;
+
+    if (phase === "waiting") {
+      return <WaitingRoom code={player.code} name={player.name} online={online} colorGroup={player.color_group} orgName={data.org?.name_zh} />;
+    }
+
+    // Identity reveal: once per stored code, when playing begins.
+    const isCurrentRecovery = recovering?.token === activeToken && recovering.code === player.code;
+    if (phase === "playing" && player.identity && revealSeen !== player.code && !isCurrentRecovery) {
+      return (
+        <Reveal
+          data={data}
+          onDone={() => {
+            localStorage.setItem(`lp_reveal:${activeToken}`, player.code);
+            setRevealDone({ token: activeToken, code: player.code });
+          }}
+        />
+      );
+    }
+
+    /* The roster rides along with the poll: which stations an event runs is
+       per-event state, and `stations` was the one table anon could read directly
+       until phase 2 closed it. Nothing is fetched separately here. */
+    return <Passport data={data} stations={data.stations} online={online} joinToken={activeToken} />;
+  };
+
+  return <ThemeProvider theme={searchParams.get("theme") ?? landing?.theme ?? data?.theme}>{renderContent()}</ThemeProvider>;
 }
 
 /** Demo wrapper: fixture screens always carry the ribbon. */

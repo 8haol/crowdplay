@@ -1,5 +1,6 @@
 import type { Copy } from "../theme/copy";
-import { ThemeProvider, useCopy } from "../theme/ThemeProvider";
+import { ThemeProvider, useCopy, useTheme } from "../theme/ThemeProvider";
+import { boothName, mainStationIndex, resolveTheme } from "../theme/themes";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { rpc, errorText } from "../lib/api";
@@ -72,8 +73,12 @@ export default function StaffPage() {
      for two nights can tell at a glance that they are in tonight's. */
   const eventTitle = preview ? "演示场次" : (session?.title ?? null);
 
+  // renderContent 跑在 ThemeProvider 外面，主题按同一条优先级自己算一次。
+  const theme = resolveTheme(searchParams.get("theme") ?? (staffKey ? session?.theme : undefined));
+
   const renderContent = (copy: Copy) => {
     const stations = preview ? previewStations(copy) : (session?.stations ?? []);
+    const alias = (st: EventStation) => boothName(theme, mainStationIndex(stations, st.id), st.name_zh);
     const stationsTotal = Math.max(1, stations.filter((station) => station.type === "main").length);
     if (!staffKey) {
       return (
@@ -117,8 +122,8 @@ export default function StaffPage() {
     return (
       <Shell
         demo={preview}
-        title={station.name_zh}
-        subtitle={eventTitle ? `${eventTitle} · ${stationSubtitle(station)}` : stationSubtitle(station)}
+        title={alias(station)}
+        subtitle={[eventTitle, alias(station) !== station.name_zh ? station.name_zh : null, stationSubtitle(station)].filter(Boolean).join(" · ")}
         badge={station.type === "main" ? `第 ${station.sort_order} ${copy.stationUnit}` : station.type === "grace" ? copy.graceStation : copy.lifeEventBox}
         onSwitch={() => {
           localStorage.removeItem(LS_STATION);
@@ -216,6 +221,7 @@ function Shell(props: {
 }
 
 function StationPicker({ stations, onPick }: { stations: EventStation[]; onPick: (id: number) => void }) {
+  const theme = useTheme();
   const copy = useCopy();
   if (stations.length === 0) {
     return <StaffCard><div className="dots text-sm font-black text-ink-dim">加载{copy.station}<span>.</span><span>.</span><span>.</span></div></StaffCard>;
@@ -250,9 +256,9 @@ function StationPicker({ stations, onPick }: { stations: EventStation[]; onPick:
                     {String(station.sort_order).padStart(2, "0")}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[17px] font-black">{station.name_zh}</span>
+                    <span className="block truncate text-[17px] font-black">{boothName(theme, mainStationIndex(stations, station.id), station.name_zh)}</span>
                     <span className="block truncate text-[11px] font-semibold text-ink-dim">
-                      {stationSubtitle(station)}
+                      {boothName(theme, mainStationIndex(stations, station.id), station.name_zh) !== station.name_zh ? `${station.name_zh} · ` : ""}{stationSubtitle(station)}
                     </span>
                   </span>
                   <span className="shrink-0 text-lg text-ink-dim">→</span>

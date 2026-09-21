@@ -1,10 +1,11 @@
 import type { Copy } from "../theme/copy";
-import { ThemeProvider, useCopy } from "../theme/ThemeProvider";
+import { ThemeProvider, useCopy, useTheme } from "../theme/ThemeProvider";
+import { boothName, type Theme } from "../theme/themes";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { rpc, errorText } from "../lib/api";
 import { usePoll } from "../lib/usePoll";
-import type { BoardPlayer, BoardSnapshot, FeedItem, GameLanding, SecretFeedFlag } from "../lib/types";
+import type { BoardPlayer, BoardSnapshot, BoardStation, FeedItem, GameLanding, SecretFeedFlag } from "../lib/types";
 import { colorOf, soloColor } from "../lib/types";
 import { ConnDot, UpLink } from "../lib/ui";
 import { JoinQr } from "../lib/JoinQr";
@@ -113,7 +114,7 @@ export default function ScreenPage() {
               onReplay={data.phase === "ended" && data.awards ? () => setCeremonyDone(false) : undefined}
             />
             <aside className="flex min-h-0 flex-col gap-[clamp(0.5rem,1vw,1.25rem)]">
-              <Ticker feed={data.feed} />
+              <Ticker feed={data.feed} stations={data.stations ?? []} />
               {joinLink && <RejoinCard url={joinLink} />}
             </aside>
           </div>
@@ -557,7 +558,7 @@ function ScreenVerse({ className = "" }: { className?: string }) {
 
 /* ------------------------------------------------------------------ ticker */
 
-function Ticker({ feed }: { feed: FeedItem[] }) {
+function Ticker({ feed, stations }: { feed: FeedItem[]; stations: BoardStation[] }) {
   const copy = useCopy();
   const fresh = useFreshIds(feed);
   const shown = feed.slice(0, FEED_SHOWN);
@@ -588,7 +589,7 @@ function Ticker({ feed }: { feed: FeedItem[] }) {
         ) : (
           <ul className="flex flex-col gap-[clamp(0.3rem,0.55vw,0.7rem)]">
             {shown.map((item) => (
-              <FeedLine key={item.id} item={item} fresh={fresh.has(item.id)} />
+              <FeedLine stations={stations} key={item.id} item={item} fresh={fresh.has(item.id)} />
             ))}
           </ul>
         )}
@@ -621,7 +622,15 @@ interface Line {
  * nonsense: the scene is where the player *was*, the outcome is what *happened*.
  * They are now separate clauses.
  */
-function describe(item: FeedItem, copy: Copy): Line {
+/** 主题层的摊位别名：按本场主摊位顺序表换名，查不到就用 SQL 给的原名。 */
+function boothOf(theme: Theme, stations: BoardStation[], id: number | null | undefined, fallback: string | null): string | null {
+  if (id == null || fallback == null) return fallback;
+  return boothName(theme, stations.findIndex((s) => s.station_id === id), fallback);
+}
+
+type Booth = (id: number | null | undefined, fallback: string | null) => string | null;
+
+function describe(item: FeedItem, copy: Copy, booth: Booth): Line {
   if (item.kind === "life_event") {
     const delta = item.after - item.before;
     const good = delta > 0;
@@ -661,7 +670,7 @@ function describe(item: FeedItem, copy: Copy): Line {
         tone: "seal",
         who,
         dot: colorOf(item.color_group ?? null)?.hex ?? null,
-        what: `在「${item.station}」失手了`,
+        what: `在「${booth(item.station_id, item.station)}」失手了`,
         detail: null,
         chip: "本次未得分",
       };
@@ -672,7 +681,7 @@ function describe(item: FeedItem, copy: Copy): Line {
       tone: perfect ? "foil" : "leaf",
       who,
       dot: colorOf(item.color_group ?? null)?.hex ?? null,
-      what: `在「${item.station}」${perfect ? "拿下满分" : "通过挑战"}`,
+      what: `在「${booth(item.station_id, item.station)}」${perfect ? "拿下满分" : "通过挑战"}`,
       detail: null,
       chip: `每人 +${item.score} 分`,
     };
@@ -680,7 +689,7 @@ function describe(item: FeedItem, copy: Copy): Line {
 
   const usage = {
     hint: "换了一个提示",
-    second_chance: `换到一次重来机会${item.station ? `（${item.station}）` : ""}`,
+    second_chance: `换到一次重来机会${item.station ? `（${booth(item.station_id, item.station)}）` : ""}`,
     grace_card: "领了一张纪念卡",
   }[item.usage];
   return {
@@ -728,9 +737,10 @@ function FeedGlyph({ glyph, color }: { glyph: Glyph; color: string }) {
   );
 }
 
-function FeedLine({ item, fresh }: { item: FeedItem; fresh: boolean }) {
+function FeedLine({ item, fresh, stations }: { item: FeedItem; fresh: boolean; stations: BoardStation[] }) {
   const copy = useCopy();
-  const line = describe(item, copy);
+  const theme = useTheme();
+  const line = describe(item, copy, (id, fallback) => boothOf(theme, stations, id, fallback));
   const tone = TONE_CLASS[line.tone];
   return (
     <li

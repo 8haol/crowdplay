@@ -1,5 +1,5 @@
 import type { Copy } from "../theme/copy";
-import { ThemeProvider, useCopy } from "../theme/ThemeProvider";
+import { ThemeProvider, useCopy, useTheme } from "../theme/ThemeProvider";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { rpc, errorText, RpcError } from "../lib/api";
@@ -11,6 +11,7 @@ import { darken, inkOnCream, lighten, readableOn } from "../lib/color";
 import { DemoRibbon } from "../lib/DemoRibbon";
 import Join, { CodeIssued } from "./Join";
 import Passport, { PassportGlobe } from "./Passport";
+import { MoonWaitingCard } from "./MoonStampCard";
 import { PREVIEW_DATA, PREVIEW_STATIONS, previewState } from "./previewData";
 import { useAmbientVerse } from "../lib/scripture";
 
@@ -367,6 +368,7 @@ function WaitingRoom({ code, name, online, colorGroup = null, preview = false, o
   orgName?: string | null;
 }) {
   const copy = useCopy();
+  const midautumn = useTheme().id === "midautumn";
   const [open, setOpen] = useState(false);
   const [opening, setOpening] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -376,6 +378,40 @@ function WaitingRoom({ code, name, online, colorGroup = null, preview = false, o
   const coverColor = preview
     ? previewCover
     : { slug: colorGroup ?? "coral-red", label: assignedColor?.zh ?? "珊瑚红", hex: assignedColor?.hex ?? WAITING_COVER_COLORS[0].hex };
+
+  if (midautumn) {
+    /* 中秋主题没有护照封皮：候场就是一张还没盖章的集章卡，开场后原地长出印章。 */
+    return (
+      <div className="brand-stage min-h-dvh overflow-hidden text-ink">
+        <div className="night-sky" />
+        <div className="relative z-10 flex min-h-dvh flex-col justify-center gap-4 py-10">
+          <p className="text-center font-mono text-[10px] font-black tracking-[0.36em] text-foil-dim">
+            {open ? "BRIEFING · 入场说明" : "ISSUED · 已领取"}
+          </p>
+          {open ? (
+            <div className="passport-reader">
+              <Briefing code={code} name={name} online={online} onClose={() => setOpen(false)} interactive />
+            </div>
+          ) : (
+            <MoonWaitingCard name={name} code={code} online={online} />
+          )}
+          {!open && (
+            <button
+              type="button"
+              className="pressable mx-auto inline-flex min-h-11 items-center rounded-full bg-card px-5 text-[14px] font-black text-ink shadow-[0_3px_0_var(--color-shadow-line)]"
+              onClick={() => setOpen(true)}
+            >
+              看看今晚怎么玩 ›
+            </button>
+          )}
+          <p className="text-center text-xs font-bold leading-5 text-ink-dim">
+            {open ? "玩法看完随时可以合上" : `等待主持人${copy.startGame} · 同行颜色会自动出现`}
+          </p>
+          <WaitingVerse />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="brand-stage passport-stage min-h-dvh overflow-hidden text-ink">

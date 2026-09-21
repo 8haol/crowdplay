@@ -1,5 +1,6 @@
 import { GRACE_VERSE } from "../lib/scripture";
-import { useCopy } from "../theme/ThemeProvider";
+import { useCopy, useTheme } from "../theme/ThemeProvider";
+import { boothName, mainStationIndex } from "../theme/themes";
 import { useMemo, useState } from "react";
 import { rpc, errorText, newIdemKey } from "../lib/api";
 import type { StaffTeamLookup, EventStation } from "../lib/types";
@@ -73,7 +74,11 @@ function TeamHelp({
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
 
-  const stationName = useMemo(() => new Map(stations.map((s) => [s.id, s.name_zh])), [stations]);
+  const theme = useTheme();
+  const stationName = useMemo(
+    () => new Map(stations.map((s) => [s.id, boothName(theme, mainStationIndex(stations, s.id), s.name_zh)])),
+    [stations, theme],
+  );
 
   const lookup = async () => {
     setErr(null);

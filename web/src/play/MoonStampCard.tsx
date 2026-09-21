@@ -10,7 +10,7 @@ import type { PassportHeroProps, VisaPage } from "./Passport";
  */
 const RING_W = 320;
 const RING_H = 330;
-const RING_R = 135;
+const RING_R = 132;
 
 type SlotState = VisaPage["state"];
 
@@ -80,7 +80,7 @@ export function MoonStampCard(props: PassportHeroProps) {
         <div className="relative mx-auto mt-3.5 w-full max-w-[320px]" style={{ aspectRatio: `${RING_W} / ${RING_H}` }}>
           {/* 圆月：奶油黄，白边一圈，再套一圈队伍色。 */}
           <div
-            className="absolute left-1/2 top-1/2 grid h-[150px] w-[150px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full px-3 text-center"
+            className="absolute left-1/2 top-1/2 grid aspect-square w-[44%] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full px-3 text-center"
             style={{
               background:
                 "radial-gradient(circle at 42% 40%, var(--color-stage-orb-light) 0 30%, var(--color-foil) 60%, var(--color-stage-orb-deep) 100%)",
@@ -88,7 +88,7 @@ export function MoonStampCard(props: PassportHeroProps) {
             }}
           >
             <div>
-              <div className="break-words text-[24px] font-black leading-[1.1] text-moon">{player.name}</div>
+              <div className="break-words text-[clamp(18px,6.4vw,24px)] font-black leading-[1.1] text-moon">{player.name}</div>
               <div className="mt-[5px] text-[11px] font-black tracking-[0.16em] text-foil-dim">{copy.teamName[identity]}</div>
               <div className="tabular mt-1.5 text-[13px] font-black text-moon">
                 已集 {player.stations_done} / {player.stations_total}
@@ -108,12 +108,12 @@ export function MoonStampCard(props: PassportHeroProps) {
             return (
               <div
                 key={page.key}
-                className={`absolute grid h-14 w-14 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-[2.5px] ${tone.ring}`}
+                className={`absolute grid aspect-square w-[17.5%] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-[2.5px] ${tone.ring}`}
                 style={{ left: `${x}%`, top: `${y}%` }}
                 role="img"
                 aria-label={`${page.title}：${pill ?? "未挑战"}`}
               >
-                {Icon && <Icon className="h-[30px] w-[30px]" />}
+                {Icon && <Icon className="h-[54%] w-[54%]" />}
                 {pill && (
                   <span className={`tabular absolute -right-[9px] -top-[7px] min-w-[26px] rounded-full px-1.5 py-px text-center text-[10.5px] font-black leading-[1.4] ${tone.pill}`}>
                     {pill}
@@ -157,5 +157,70 @@ export function MoonStampCard(props: PassportHeroProps) {
         <div className="h-3" />
       </section>
     </>
+  );
+}
+
+/**
+ * 候场页的集章卡：还没有一枚章，环上是本主题的摊位别名空位。
+ * 和 MoonStampCard 同一套几何，只是没有分数、没有队伍色（颜色开场才揭晓）。
+ */
+export function MoonWaitingCard({ name, code, online }: { name: string; code: string; online: boolean }) {
+  const copy = useCopy();
+  const { stampIcons, boothNames } = useTheme();
+  const slots = boothNames.length ? boothNames : Array.from({ length: 7 }, (_, i) => `${copy.station} ${i + 1}`);
+  const n = slots.length;
+  const tone = SLOT_TONE.blank;
+  return (
+    <section
+      className="wave-edge rise mx-auto w-[calc(100%-2rem)] max-w-md rounded-[28px] bg-card px-[18px] pt-[18px] shadow-[0_3px_0_var(--color-shadow-line)]"
+      aria-label={`${copy.card} ${copy.lifeNoEn} ${code}`}
+    >
+      <div className="flex items-baseline justify-between">
+        <b className="text-[17px] font-black text-ink">{copy.card}</b>
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-black text-leaf-deep">
+          <ConnDot online={online} />
+          {online ? "已连接" : "重连中"}
+        </span>
+      </div>
+      <div className="relative mx-auto mt-3.5 w-full max-w-[320px]" style={{ aspectRatio: `${RING_W} / ${RING_H}` }}>
+        <div
+          className="absolute left-1/2 top-1/2 grid aspect-square w-[44%] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full px-3 text-center"
+          style={{
+            background:
+              "radial-gradient(circle at 42% 40%, var(--color-stage-orb-light) 0 30%, var(--color-foil) 60%, var(--color-stage-orb-deep) 100%)",
+            boxShadow: "0 0 0 6px var(--color-card), 0 0 0 11px var(--color-line), 0 12px 30px rgb(from var(--color-ink) r g b / .15)",
+          }}
+        >
+          <div>
+            <div className="break-words text-[clamp(18px,6.4vw,24px)] font-black leading-[1.1] text-moon">{name}</div>
+            <div className="mt-[5px] text-[11px] font-black tracking-[0.16em] text-foil-dim">{copy.lifeNoEn}</div>
+            <div className="tabular mt-1 text-[clamp(20px,7vw,26px)] font-black leading-none text-moon">{code}</div>
+          </div>
+        </div>
+        {slots.map((label, i) => {
+          const angle = -Math.PI / 2 + (i * 2 * Math.PI) / n;
+          const x = 50 + ((Math.cos(angle) * RING_R) / RING_W) * 100;
+          const y = 50 + ((Math.sin(angle) * RING_R) / RING_H) * 100;
+          const Icon = stampIcons[i % Math.max(stampIcons.length, 1)];
+          return (
+            <div
+              key={label + i}
+              className={`absolute grid aspect-square w-[17.5%] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-[2.5px] ${tone.ring}`}
+              style={{ left: `${x}%`, top: `${y}%` }}
+              role="img"
+              aria-label={`${label}：未挑战`}
+            >
+              {Icon && <Icon className="h-[54%] w-[54%]" />}
+              <span className={`absolute left-1/2 top-[calc(100%+3px)] -translate-x-1/2 whitespace-nowrap rounded-full bg-card px-2 py-0.5 font-black ${label.length > 4 ? "text-[9.5px]" : "text-[11px]"} ${tone.name}`}>
+                {label}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <p className="mt-2 text-center text-[13px] font-bold text-ink-dim">请截图保存编号 · 现场报分和找回都只用它</p>
+      {copy.cardTagline && <p className="mt-1 text-center text-[12px] font-bold text-ink-dim/80">{copy.cardTagline}</p>}
+      <div className="h-3" />
+    </section>
   );
 }

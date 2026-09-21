@@ -531,6 +531,8 @@ export type FeedItem =
       kind: "attempt";
       /** Team member names joined with " / ", or one name for a Solo. */
       name: string;
+      /** Which station; null for the hidden one. Themes map it to a booth alias. */
+      station_id?: number | null;
       color_group?: string | null;
       identity?: Identity;
       station: string;
@@ -545,6 +547,7 @@ export type FeedItem =
       name: string;
       usage: "hint" | "second_chance" | "grace_card";
       station: string | null;
+      station_id?: number | null;
       at: string;
     };
 
@@ -601,6 +604,8 @@ export interface BoardSnapshot {
   phase: Phase;
   started_at: string | null;
   stations_total: number;
+  /** Visible main stations in order, so the projector can apply the theme's booth aliases. */
+  stations?: BoardStation[];
   players: BoardPlayer[];
   stats: {
     players: number;
@@ -737,4 +742,11 @@ export interface PollResult {
 /** An attempt feed row at the hidden station: the board says 「找到了神秘嘉宾」 and hides the station name. */
 export interface SecretFeedFlag {
   secret?: boolean;
+}
+
+/** One visible main station as `board_snapshot.stations` lists it. */
+export interface BoardStation {
+  station_id: number;
+  name_zh: string;
+  sort_order: number;
 }

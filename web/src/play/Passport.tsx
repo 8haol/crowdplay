@@ -1,5 +1,6 @@
 import type { Copy } from "../theme/copy";
 import { useCopy, useTheme } from "../theme/ThemeProvider";
+import { boothName, type Theme } from "../theme/themes";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { errorText, newIdemKey, rpc } from "../lib/api";
@@ -40,6 +41,7 @@ export default function Passport(props: {
   online: boolean;
   joinToken: string;
 }) {
+  const theme = useTheme();
   const copy = useCopy();
   const midautumn = useTheme().id === "midautumn";
   const { data, stations, online } = props;
@@ -151,7 +153,7 @@ export default function Passport(props: {
   const chipBg = headerInk === "var(--color-card)" ? "rgb(from var(--color-card) r g b / .16)" : "rgb(from var(--color-card) r g b / .62)";
   const fullMoon = data.full_moon ?? null;
   const secretDone = fullMoon?.secret_done ?? false;
-  const pages = visaPages(stations, attempts);
+  const pages = visaPages(stations, attempts, theme);
   /* The hidden station never counts toward the total, so it is not in
      `stations`; once stamped it earns its own page at the end of the grid. */
   const gridPages: VisaPage[] = secretDone
@@ -816,7 +818,7 @@ export interface VisaPage {
   score: number;
 }
 
-function visaPages(stations: EventStation[], attempts: AttemptInfo[]): VisaPage[] {
+function visaPages(stations: EventStation[], attempts: AttemptInfo[], theme: Theme): VisaPage[] {
   /* A granted Second Chance outranks the failure it replaces: the station is
      open again, so a red stamp would be a lie. */
   const stateOf = (stationId: number): Pick<VisaPage, "state" | "score"> => {
@@ -832,7 +834,7 @@ function visaPages(stations: EventStation[], attempts: AttemptInfo[]): VisaPage[
     .filter((station) => station.type === "main")
     .map((station, index) => ({
       key: String(station.id),
-      title: station.name_zh,
+      title: boothName(theme, index, station.name_zh),
       note: `NO.${String(index + 1).padStart(2, "0")}`,
       ...stateOf(station.id),
     }));

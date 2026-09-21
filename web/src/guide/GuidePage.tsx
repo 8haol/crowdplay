@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { BrandMark, UpLink } from "../lib/ui";
 import { useScrollMemory } from "../lib/useScrollMemory";
 import {
@@ -145,6 +145,7 @@ function Hero() {
         <b className="text-ink">下面所有深色按钮都可以直接点开真实界面</b>，
         用的是示例数据，不会影响任何真实活动。建议用手机打开。
       </p>
+      <PreviewThemePicker />
       <div className="mt-6 flex flex-wrap gap-2">
         <a
           href="#try"
@@ -220,10 +221,55 @@ function Body({ children, className = "" }: { children: React.ReactNode; classNa
 }
 
 /** The one interactive affordance on this page: opens a real screen in demo mode. */
+/** 手册里的演示按钮跟着页面上的「预览主题」走：选了中秋，所有演示都以中秋皮肤打开。 */
+function usePreviewTheme(): [string, (next: string) => void] {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const current = searchParams.get("theme") === "midautumn" ? "midautumn" : "passport";
+  const set = (next: string) => {
+    const params = new URLSearchParams(searchParams);
+    if (next === "passport") params.delete("theme"); else params.set("theme", next);
+    setSearchParams(params, { replace: true });
+  };
+  return [current, set];
+}
+
+function withTheme(href: string, theme: string): string {
+  if (theme === "passport") return href;
+  return `${href}${href.includes("?") ? "&" : "?"}theme=${theme}`;
+}
+
+function PreviewThemePicker() {
+  const [theme, setTheme] = usePreviewTheme();
+  const options: Array<[string, string, string]> = [
+    ["passport", "人生护照", "Glasgow 迎新会那套"],
+    ["midautumn", "中秋游园会", "Soho 中秋派对那套"],
+  ];
+  return (
+    <div className="mt-6 rounded-[18px] bg-white p-3 shadow-[0_2px_0_var(--color-foil-shadow)]" role="group" aria-label="演示用哪个主题">
+      <p className="px-1 text-[11px] font-black tracking-[0.2em] text-ink-dim">预览主题 · 下面所有演示按钮都按它打开</p>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        {options.map(([id, label, note]) => (
+          <button
+            key={id}
+            type="button"
+            aria-pressed={theme === id}
+            onClick={() => setTheme(id)}
+            className={`pressable rounded-[14px] px-3 py-2.5 text-left ${theme === id ? "bg-ink text-white" : "bg-night-raise text-ink"}`}
+          >
+            <span className="block text-[13px] font-black">{label}</span>
+            <span className={`block text-[11px] font-semibold ${theme === id ? "opacity-70" : "text-ink-dim"}`}>{note}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function DemoButton({ demo }: { demo: DemoLink }) {
+  const [theme] = usePreviewTheme();
   return (
     <Link
-      to={demo.href}
+      to={withTheme(demo.href, theme)}
       className="pressable group flex w-full items-center gap-3 rounded-[14px] px-4 py-3.5 text-left"
       style={{ background: "var(--color-ink)", color: "var(--color-card)" }}
     >

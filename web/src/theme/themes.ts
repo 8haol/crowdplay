@@ -26,7 +26,7 @@ export const THEMES: Record<ThemeId, Theme> = {
     copy: MIDAUTUMN_COPY,
     documentTitle: "中秋游园会 · 集章卡",
     stampIcons: MIDAUTUMN_STAMPS,
-    boothNames: ["广寒宫", "月饼坊", "玉兔站", "桂花巷", "灯笼铺", "茶话亭", "星桥"],
+    boothNames: ["月下音乐会", "异乡百事通", "月下即兴剧场", "今夜留影", "月下寻踪", "月宫连连看", "静默拼月"],
   },
 };
 

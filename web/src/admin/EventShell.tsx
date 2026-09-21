@@ -160,11 +160,13 @@ export function EventShell({
 
       {selectedPlayer && (
         <PlayerDrawer
+          key={selectedPlayer.code}
           adminKey={adminKey}
           eventId={eventId}
           player={selectedPlayer}
           onClose={() => setPlayerCode(null)}
           onDone={(message) => { setPlayerCode(null); done(message); }}
+          onChanged={done}
         />
       )}
     </div>

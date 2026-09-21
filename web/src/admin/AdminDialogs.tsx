@@ -1,10 +1,21 @@
-import { useState } from "react";
-import { rpc, errorText } from "../lib/api";
-import type { AdminPlayer, EventStation, GameSession, ScoringMode, Station, StationType } from "../lib/types";
+import { useMemo, useState } from "react";
+import { RpcError, rpc, errorText } from "../lib/api";
+import { usePoll } from "../lib/usePoll";
+import type {
+  AdminPlayer,
+  EventStation,
+  GameSession,
+  PlayerAttemptRow,
+  PlayerState,
+  ScoringMode,
+  Station,
+  StationHiddenFields,
+  StationType,
+} from "../lib/types";
 import { ActionButton, ErrorBanner } from "../lib/ui";
-import { Btn, DialogHead, Drawer, Modal } from "./adminUi";
+import { Btn, DialogHead, Drawer, Modal, ThemeRadio, Toggle } from "./adminUi";
 import { T, inputClass, inputStyle } from "./adminTokens";
-import { TYPE_ZH } from "./adminUtils";
+import { TYPE_ZH, themeLabel, type ThemeId } from "./adminUtils";
 
 export function NewGameModal(props: {
   adminKey: string;
@@ -15,6 +26,7 @@ export function NewGameModal(props: {
   onDone: (message: string, eventId?: string) => void;
 }) {
   const [title, setTitle] = useState("");
+  const [theme, setTheme] = useState<ThemeId>("passport");
   const [err, setErr] = useState<string | null>(null);
   const current = props.current;
   const livePlaying = current?.phase === "playing";
@@ -40,6 +52,13 @@ export function NewGameModal(props: {
           onChange={(event) => setTitle(event.target.value)}
         />
       </label>
+      <div className="mt-5">
+        <span className="text-sm font-black">主题</span>
+        <p className="mb-2 mt-0.5 text-xs font-semibold" style={{ color: T.inkFaint }}>
+          决定玩家手机、大屏和义工页的样子；建好之后在「本场设置」里随时能换。
+        </p>
+        <ThemeRadio value={theme} onChange={setTheme} />
+      </div>
       {current && livePlaying && (
         <div
           className="mt-4 rounded-xl p-4 text-sm font-bold leading-6"
@@ -60,8 +79,9 @@ export function NewGameModal(props: {
               const created = await rpc<{ event_id: string }>("admin_create_event", {
                 p_admin_key: props.adminKey,
                 p_title: title.trim(),
+                p_theme: theme,
               });
-              props.onDone(`已创建「${title.trim()}」`, created.event_id);
+              props.onDone(`已创建「${title.trim()}」· ${themeLabel(theme)}`, created.event_id);
             } catch (error) { setErr(errorText(error)); }
           }}
         >
@@ -78,8 +98,14 @@ export function PlayerDrawer(props: {
   player: AdminPlayer;
   onClose: () => void;
   onDone: (message: string) => void;
+  /** Something changed but the drawer should stay open (per-station edits). */
+  onChanged?: (message: string) => void;
 }) {
   const player = props.player;
+  /* admin_set_attempt returns the player as it now stands; show that total at
+     once instead of waiting for the shell's next poll to catch up. */
+  const [liveScore, setLiveScore] = useState<number | null>(null);
+  const total = liveScore ?? player.score;
   const [score, setScore] = useState("");
   const [reason, setReason] = useState("");
   const [unlock, setUnlock] = useState(false);
@@ -94,7 +120,7 @@ export function PlayerDrawer(props: {
     ["联系方式", player.contact || "未填写"],
     ["同行", player.teammates.length > 0 ? player.teammates.join(" / ") : "独自同行"],
     ["身份", player.identity ?? "待分配"],
-    ["个人总分", player.score],
+    ["个人总分", total],
     ["站点", `${player.stations_done}/${player.stations_total}`],
     ["人生事件", `${player.life_events_done}/${player.life_events_total}`],
     ["下一段", player.next_event_stage ? `第 ${player.next_event_stage} 段（第 ${player.next_event_after_station} 站后）` : "已全部经历"],
@@ -131,14 +157,26 @@ export function PlayerDrawer(props: {
 
         <section>
           <h3 className="text-lg font-black">手动修正个人护照</h3>
-          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+
+          <StationAdjust
+            adminKey={props.adminKey}
+            eventId={props.eventId}
+            player={player}
+            reason={reason}
+            onChanged={(message, updated) => {
+              setLiveScore(updated.score);
+              props.onChanged?.(message);
+            }}
+          />
+
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <label className="block">
               <span className="text-sm font-black">个人总分</span>
               <input
                 inputMode="numeric"
                 className={`${inputClass} tabular`}
                 style={inputStyle}
-                placeholder={String(player.score)}
+                placeholder={String(total)}
                 value={score}
                 onChange={(event) => setScore(event.target.value.replace(/\D/g, ""))}
               />
@@ -216,6 +254,241 @@ export function PlayerDrawer(props: {
   );
 }
 
+/* ------------------------------------------------------------ per-station */
+
+/*
+ * 按站改分。总分那个输入框改的是一个数字，印章和奖项统计却是从 attempts 算
+ * 的——两边一改就对不上。这里改的是某一站的那条记录，总分跟着差值走。
+ *
+ * 「未通过」在这个游戏里永远是 0 分（和 award_team_score 一致），所以切到未通
+ * 过就收起分数选择器、送 0。
+ */
+const SCORE_LABEL: Record<Exclude<ScoringMode, null>, string> = {
+  graded: "3 / 6 / 9",
+  free: "0–10",
+  fixed: "固定 6 分",
+};
+
+function attemptErrorText(error: unknown): string {
+  if (error instanceof RpcError) {
+    if (error.code === "BAD_SCORE") return "这一站不允许这个分数";
+    if (error.code === "BAD_STATION") return "不是本场的主站";
+  }
+  return errorText(error);
+}
+
+function StationAdjust({
+  adminKey,
+  eventId,
+  player,
+  reason,
+  onChanged,
+}: {
+  adminKey: string;
+  eventId: string;
+  player: AdminPlayer;
+  /** Shared with the total-score form: whatever is typed there is audited here too. */
+  reason: string;
+  onChanged: (message: string, updated: PlayerState) => void;
+}) {
+  const [wholeTeam, setWholeTeam] = useState(false);
+  const hasTeam = player.teammates.length > 0;
+
+  /* 15 s 一轮：义工那边可能正在给这名玩家盖章，行里的「当前」不该是打开那一刻的旧账。 */
+  const pollFn = useMemo(
+    () => () => rpc<PlayerAttemptRow[]>("admin_player_attempts", {
+      p_admin_key: adminKey,
+      p_event_id: eventId,
+      p_player_code: player.code,
+    }),
+    [adminKey, eventId, player.code],
+  );
+  const poll = usePoll<PlayerAttemptRow[]>(pollFn, 15_000);
+  const rows = poll.data;
+  const loadErr = rows === null && poll.error ? errorText(poll.error) : null;
+
+  return (
+    <div className="mt-3 rounded-2xl" style={{ background: T.panelAlt, border: `1px solid ${T.lineSoft}` }}>
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3" style={{ borderBottom: `1px solid ${T.lineSoft}` }}>
+        <div>
+          <div className="text-sm font-black">按站改分</div>
+          <div className="mt-0.5 text-[11px] font-semibold" style={{ color: T.inkFaint }}>
+            改某一站的成绩，总分按差值跟着走，印章和奖项统计不会对不上。
+          </div>
+        </div>
+        {hasTeam && (
+          <label className="flex items-center gap-2 text-xs font-black">
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-ink"
+              checked={wholeTeam}
+              onChange={(event) => setWholeTeam(event.target.checked)}
+            />
+            整队一起改
+            <span className="font-semibold" style={{ color: T.inkFaint }}>（{player.teammates.join(" / ")}）</span>
+          </label>
+        )}
+      </div>
+
+      {loadErr ? (
+        <div className="px-4 py-3">
+          <ErrorBanner text={loadErr} />
+          <div className="mt-2"><Btn onClick={poll.refresh}>重试</Btn></div>
+        </div>
+      ) : rows === null ? (
+        <div className="dots px-4 py-4 text-xs font-black" style={{ color: T.inkSoft }}>
+          正在读取各站成绩<span>.</span><span>.</span><span>.</span>
+        </div>
+      ) : rows.length === 0 ? (
+        <p className="px-4 py-4 text-xs font-bold" style={{ color: T.inkFaint }}>这一场没有启用中的主站。</p>
+      ) : (
+        <ul className="divide-y px-4" style={{ borderColor: T.lineSoft }}>
+          {rows.map((row) => (
+            <AttemptRow
+              key={row.station_id}
+              row={row}
+              onSubmit={async (score, status) => {
+                const updated = await rpc<PlayerState>("admin_set_attempt", {
+                  p_admin_key: adminKey,
+                  p_event_id: eventId,
+                  p_player_code: player.code,
+                  p_station_id: row.station_id,
+                  p_score: score,
+                  p_status: status,
+                  p_whole_team: hasTeam && wholeTeam,
+                  p_reason: reason.trim() || null,
+                });
+                poll.refresh();
+                onChanged(
+                  `已把${hasTeam && wholeTeam ? "整队" : ` ${player.name} `}在「${row.name_zh}」的成绩改为${
+                    status === "passed" ? ` ${score} 分` : "未通过"
+                  }`,
+                  updated,
+                );
+              }}
+            />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function AttemptRow({
+  row,
+  onSubmit,
+}: {
+  row: PlayerAttemptRow;
+  onSubmit: (score: number, status: "passed" | "failed") => Promise<void>;
+}) {
+  const mode = row.scoring_mode ?? "graded";
+  const startScore =
+    mode === "fixed" ? 6
+    : mode === "graded" ? (row.score !== null && [3, 6, 9].includes(row.score) ? row.score : 6)
+    : Math.min(10, Math.max(0, row.score ?? 0));
+  const [status, setStatus] = useState<"passed" | "failed">(row.status ?? "passed");
+  const [score, setScore] = useState<number>(startScore);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const sending = status === "failed" ? 0 : score;
+  const dirty = status !== row.status || (status === "passed" && sending !== row.score);
+
+  return (
+    <li className="py-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="min-w-[8rem] flex-1">
+          <div className="font-black">{row.name_zh}</div>
+          <div className="tabular text-[11px] font-bold" style={{ color: T.inkFaint }}>
+            {row.status === null
+              ? "还没打过"
+              : row.status === "passed" ? `通过 · ${row.score} 分` : "未通过 · 0 分"}
+            {" · "}{SCORE_LABEL[mode]}
+          </div>
+        </div>
+
+        <div className="flex rounded-lg p-0.5" style={{ background: "var(--color-admin-neutral)" }} role="group" aria-label={`${row.name_zh} 结果`}>
+          {(["passed", "failed"] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              aria-pressed={status === option}
+              disabled={busy}
+              onClick={() => setStatus(option)}
+              className="rounded-md px-2.5 py-1.5 text-xs font-black"
+              style={
+                status === option
+                  ? { background: "var(--color-card)", color: option === "passed" ? T.good : T.danger }
+                  : { background: "transparent", color: T.inkSoft }
+              }
+            >
+              {option === "passed" ? "通过" : "未通过"}
+            </button>
+          ))}
+        </div>
+
+        {status === "passed" && (
+          mode === "graded" ? (
+            <div className="flex gap-1" role="group" aria-label={`${row.name_zh} 分数`}>
+              {[3, 6, 9].map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  aria-pressed={score === option}
+                  disabled={busy}
+                  onClick={() => setScore(option)}
+                  className="tabular h-9 w-9 rounded-lg text-sm font-black"
+                  style={
+                    score === option
+                      ? { background: T.ink, color: "var(--color-card)", border: `1px solid ${T.ink}` }
+                      : { background: "var(--color-card)", color: T.ink, border: "1px solid var(--color-admin-panel-line)" }
+                  }
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          ) : mode === "free" ? (
+            <select
+              className={`${inputClass} tabular !mt-0 !w-auto shrink-0`}
+              style={inputStyle}
+              value={score}
+              disabled={busy}
+              aria-label={`${row.name_zh} 分数`}
+              onChange={(event) => setScore(Number(event.target.value))}
+            >
+              {Array.from({ length: 11 }, (_, i) => i).map((option) => (
+                <option key={option} value={option}>{option} 分</option>
+              ))}
+            </select>
+          ) : (
+            <span className="tabular shrink-0 text-sm font-black" style={{ color: T.inkSoft }}>6 分</span>
+          )
+        )}
+
+        <Btn
+          variant="primary"
+          disabled={!dirty || busy}
+          onClick={async () => {
+            setErr(null);
+            setBusy(true);
+            try {
+              await onSubmit(sending, status);
+            } catch (error) {
+              setErr(attemptErrorText(error));
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          {busy ? "改…" : "改"}
+        </Btn>
+      </div>
+      {err && <div className="mt-2"><ErrorBanner text={err} /></div>}
+    </li>
+  );
+}
+
 function StateToggle({
   label,
   active,
@@ -256,11 +529,14 @@ function StateToggle({
  * and never to a running event: events carry their own copy of the name and
  * scoring mode, and renaming a template must not rewrite past scorecards.
  * Builtin rows are read-only — the library view offers "copy" instead.
+ *
+ * 隐藏摊位（神秘嘉宾）：后端强制 type = main、scoring_mode = fixed，所以开关一开
+ * 这两项就锁死，只剩「集齐印章后给玩家的提示」可填。
  */
 export function LibraryStationModal(props: {
   adminKey: string;
   /** null = create a new station. */
-  station: Station | null;
+  station: (Station & StationHiddenFields) | null;
   onClose: () => void;
   onDone: (message: string) => void;
 }) {
@@ -268,7 +544,11 @@ export function LibraryStationModal(props: {
   const [name, setName] = useState(editing?.name_zh ?? "");
   const [type, setType] = useState<StationType>(editing?.type ?? "main");
   const [mode, setMode] = useState<Exclude<ScoringMode, null>>(editing?.scoring_mode ?? "graded");
+  const [hidden, setHidden] = useState(editing?.hidden ?? false);
+  const [hint, setHint] = useState(editing?.hint ?? "");
   const [err, setErr] = useState<string | null>(null);
+  const effectiveType: StationType = hidden ? "main" : (editing?.type ?? type);
+  const effectiveMode: ScoringMode = effectiveType !== "main" ? null : hidden ? "fixed" : mode;
   /* A second tap while the first request is still out would create a second
      station with the same name — the create RPC carries no idempotency key. */
   const [busy, setBusy] = useState(false);
@@ -307,7 +587,8 @@ export function LibraryStationModal(props: {
           <select
             className={inputClass}
             style={inputStyle}
-            value={type}
+            value={effectiveType}
+            disabled={hidden}
             onChange={(event) => setType(event.target.value as StationType)}
           >
             <option value="main">主线挑战（工作人员整队记分）</option>
@@ -316,20 +597,52 @@ export function LibraryStationModal(props: {
           </select>
         </label>
       )}
-      {(editing?.type ?? type) === "main" && (
+      {effectiveType === "main" && (
         <label className="mt-4 block">
           <span className="text-sm font-black">计分方式</span>
-          <select
-            className={inputClass}
-            style={inputStyle}
-            value={mode}
-            onChange={(event) => setMode(event.target.value as Exclude<ScoringMode, null>)}
-          >
-            <option value="graded">分级计分（3 / 6 / 9）</option>
-            <option value="free">自由计分（0–10 整数）</option>
-            <option value="fixed">固定计分（6 分）</option>
-          </select>
+          {hidden ? (
+            <div className={`${inputClass} cursor-not-allowed`} style={{ ...inputStyle, background: "var(--color-admin-disabled)", color: "var(--color-admin-disabled-ink)" }}>
+              固定计分（6 分）· 隐藏摊位不可改
+            </div>
+          ) : (
+            <select
+              className={inputClass}
+              style={inputStyle}
+              value={mode}
+              onChange={(event) => setMode(event.target.value as Exclude<ScoringMode, null>)}
+            >
+              <option value="graded">分级计分（3 / 6 / 9）</option>
+              <option value="free">自由计分（0–10 整数）</option>
+              <option value="fixed">固定计分（6 分）</option>
+            </select>
+          )}
         </label>
+      )}
+      {(effectiveType === "main" || hidden) && (
+        <div className="mt-4">
+          <Toggle
+            checked={hidden}
+            label="隐藏摊位（神秘嘉宾）"
+            note="玩家护照和大屏都不列出这一站，也不计入「共几站」；集齐可见印章后玩家才收到提示去找。固定 +6 分。"
+            onChange={() => setHidden((value) => !value)}
+          />
+          {hidden && (
+            <label className="mt-3 block">
+              <span className="text-sm font-black">集齐印章后给玩家的提示</span>
+              <textarea
+                className={`${inputClass} min-h-[5.5rem] resize-y`}
+                style={inputStyle}
+                value={hint}
+                maxLength={200}
+                placeholder="例如：场地里有一位系着红丝带的人，去找他。"
+                onChange={(event) => setHint(event.target.value)}
+              />
+              <span className="mt-1.5 block text-[11px] font-semibold" style={{ color: T.inkFaint }}>
+                写清楚去哪儿、找谁。留空的话玩家只会看到「月圆时刻」，不知道去哪找神秘嘉宾。
+              </span>
+            </label>
+          )}
+        </div>
       )}
       <div className="mt-4"><ErrorBanner text={err} /></div>
       <div className="mt-6 flex justify-end gap-2">
@@ -347,15 +660,19 @@ export function LibraryStationModal(props: {
                   p_admin_key: props.adminKey,
                   p_station_id: editing.id,
                   p_name_zh: clean,
-                  p_scoring_mode: editing.type === "main" ? mode : null,
+                  p_scoring_mode: effectiveMode,
+                  p_hidden: hidden,
+                  p_hint: hidden ? hint.trim() || null : null,
                 });
                 props.onDone(`站点「${clean}」已更新`);
               } else {
                 await rpc("admin_library_create", {
                   p_admin_key: props.adminKey,
                   p_name_zh: clean,
-                  p_type: type,
-                  p_scoring_mode: type === "main" ? mode : null,
+                  p_type: effectiveType,
+                  p_scoring_mode: effectiveMode,
+                  p_hidden: hidden,
+                  p_hint: hidden ? hint.trim() || null : null,
                 });
                 props.onDone(`已新增站点「${clean}」`);
               }

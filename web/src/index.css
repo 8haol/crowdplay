@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./theme/midautumn.css";
 
 /* Life Passport · 色块游园会
    无边框大色块、圆几何、重字重数字、系统中文字体、零外部请求。 */
@@ -29,6 +30,7 @@
   --color-pass: #2f9e63;
   --color-fail: #c4402a;
   --color-foil-shadow: #e0a800;
+  --color-accent-shadow: #e0a800;
   --color-contrast-dark: #000000;
   --color-ink-shadow: #0f0d0a;
   --color-seal-shadow: #8f2e1f;
@@ -199,6 +201,7 @@
   --ease-out-expo: cubic-bezier(0.2, 0.8, 0.2, 1);
   --ease-out-quart: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+
 
 :root { color: var(--color-ink); background: var(--color-night); font-synthesis: none; }
 * { box-sizing: border-box; }

@@ -8,6 +8,7 @@ find web/src -type f \( -name '*.tsx' -o -name '*.ts' -o -name '*.css' \) -exec 
   FILENAME == "web/src/index.css" && /^@theme([[:space:]]|$)/ { theme = 1 }
   theme && /^}/ { theme = 0 }
   FILENAME == "web/src/lib/types.ts" { next }
+  FILENAME == "web/src/theme/midautumn.css" && /^[[:space:]]+--color-[a-z0-9-]+:[[:space:]]*#[[:xdigit:]]+;[[:space:]]*$/ { next }
   theme && /^[[:space:]]+--color-[a-z0-9-]+:[[:space:]]*#[[:xdigit:]]+;[[:space:]]*$/ { next }
   /#[[:xdigit:]]{3,8}([^[:xdigit:]]|$)|rgba?\([[:space:]]*[0-9]/ {
     print FILENAME ":" FNR ":" $0

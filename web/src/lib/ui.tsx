@@ -6,7 +6,7 @@ import { Link } from "react-router-dom";
    night world (player) uses foil/night variants, tool world uses ink. */
 
 const BTN_VARIANTS = {
-  foil: "bg-foil text-ink font-black shadow-[0_3px_0_var(--color-foil-shadow)]",
+  foil: "bg-accent text-accent-ink font-black shadow-[0_3px_0_var(--color-accent-shadow)]",
   "night-ghost": "bg-card text-ink font-black shadow-[0_2px_0_var(--color-shadow-line)]",
   ink: "bg-ink text-card font-black shadow-[0_3px_0_var(--color-ink-shadow)]",
   "tool-ghost": "bg-night-raise text-ink font-black",

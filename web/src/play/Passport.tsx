@@ -9,6 +9,8 @@ import { ConnDot } from "../lib/ui";
 import { darken, readableOn } from "../lib/color";
 import { useCountUp } from "../lib/useCountUp";
 import { FINAL_STAGE_VERSE, GRACE_VERSE, SETBACK_VERSES, pickVerse } from "../lib/scripture";
+import { MoonStampCard } from "./MoonStampCard";
+import { FullMoonMoment } from "./FullMoonMoment";
 
 /*
  * The three things a help token buys. These are the rules the guide already
@@ -39,6 +41,7 @@ export default function Passport(props: {
   joinToken: string;
 }) {
   const copy = useCopy();
+  const midautumn = useTheme().id === "midautumn";
   const { data, stations, online } = props;
   const { player, attempts, life_events } = data;
   const [searchParams, setSearchParams] = useSearchParams();
@@ -133,7 +136,8 @@ export default function Passport(props: {
   const passportStyle: PassportStyle = PASSPORT_STYLES.includes(requestedStyle as PassportStyle)
     ? requestedStyle as PassportStyle
     : "cover";
-  const showStylePicker = searchParams.get("preview") === "passport";
+  // 中秋主题只有一种集章卡版式，三方案与封皮色的预览控件不再出现。
+  const showStylePicker = searchParams.get("preview") === "passport" && !midautumn;
   const requestedColor = searchParams.get("passportColor");
   const previewColor = showStylePicker && PASSPORT_PREVIEW_COLORS.some(({ slug }) => slug === requestedColor)
     ? requestedColor
@@ -145,7 +149,14 @@ export default function Passport(props: {
   const headerSoft = color ? (headerInk === "var(--color-card)" ? "rgb(from var(--color-card) r g b / .74)" : "rgb(from var(--color-contrast-dark) r g b / .6)") : "var(--color-ink-dim)";
   const headerLine = headerInk === "var(--color-card)" ? "rgb(from var(--color-card) r g b / .26)" : "rgb(from var(--color-contrast-dark) r g b / .16)";
   const chipBg = headerInk === "var(--color-card)" ? "rgb(from var(--color-card) r g b / .16)" : "rgb(from var(--color-card) r g b / .62)";
+  const fullMoon = data.full_moon ?? null;
+  const secretDone = fullMoon?.secret_done ?? false;
   const pages = visaPages(stations, attempts);
+  /* The hidden station never counts toward the total, so it is not in
+     `stations`; once stamped it earns its own page at the end of the grid. */
+  const gridPages: VisaPage[] = secretDone
+    ? [...pages, { key: "secret", title: copy.secretTeaser, note: "SECRET", state: "passed", score: 6 }]
+    : pages;
   const journey = journeyProgress(player);
 
   return (
@@ -222,7 +233,13 @@ export default function Passport(props: {
           teamSoft={headerSoft}
           teamLine={headerLine}
           teamChip={chipBg}
+          pages={pages}
+          secretDone={secretDone}
         />
+
+        {fullMoon && (
+          <FullMoonMoment reached={fullMoon.reached} hint={fullMoon.hint} secretDone={secretDone} playerCode={player.code} />
+        )}
 
         {/* status effect notice */}
         {player.status_effect?.type === "cap_next" && (
@@ -243,7 +260,7 @@ export default function Passport(props: {
             </span>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-3">
-            {pages.map((page, i) => (
+            {gridPages.map((page, i) => (
               <div
                 key={page.key}
                 className="rise relative min-h-[108px] rounded-[20px] bg-white p-3.5 shadow-[0_2px_0_var(--color-shadow-line)]"
@@ -427,7 +444,7 @@ export default function Passport(props: {
 
 /* ---------------------------------------------------------- passport hero */
 
-type PassportHeroProps = {
+export type PassportHeroProps = {
   styleName: PassportStyle;
   player: PollResult["player"];
   online: boolean;
@@ -440,9 +457,15 @@ type PassportHeroProps = {
   teamSoft: string;
   teamLine: string;
   teamChip: string;
+  /** This event's main stations with the stamp each has earned; the moon card draws its ring from them. */
+  pages: VisaPage[];
+  /** The hidden station is stamped: the moon card adds its extra slot. */
+  secretDone?: boolean;
 };
 
 function PassportHero(props: PassportHeroProps) {
+  const midautumn = useTheme().id === "midautumn";
+  if (midautumn) return <MoonStampCard {...props} />;
   if (props.styleName === "visa") return <VisaPageHero {...props} />;
   if (props.styleName === "epass") return <ElectronicPassportHero {...props} />;
   return <ClassicCoverHero {...props} />;
@@ -750,7 +773,7 @@ function FinishedCard({ player }: { player: PollResult["player"] }) {
       >
         <div className="text-[10px] font-black tracking-[0.3em] text-journey-complete-ink">{copy.journeyComplete}</div>
         <h2 className="mt-1.5 text-[22px] font-black leading-tight">
-          {player.stations_total} {copy.stationUnit}与 3 {copy.stageUnit}，都走过了
+          {player.stations_total} {copy.stationCountUnit}与 3 {copy.stageUnit}，都走过了
         </h2>
         {midautumn && player.token_available && <p className="mt-2 text-sm font-semibold leading-6 text-ink-dim">{copy.endedBody}</p>}
         {player.token_available ? (
@@ -785,7 +808,7 @@ function FinishedCard({ player }: { player: PollResult["player"] }) {
  * renamed for tonight reads tonight's name, and one withdrawn mid-event stops
  * taking up a page — which is the same set `player.stations_total` counts.
  */
-interface VisaPage {
+export interface VisaPage {
   key: string;
   title: string;
   note: string;
@@ -1091,7 +1114,7 @@ function Ended({ data, joinToken }: { data: PollResult; joinToken: string }) {
             </div>
           )}
           <div className="tabular mt-4 border-t border-line pt-4 text-xs font-bold text-ink-dim">
-            {player.stations_done}/{player.stations_total} {copy.stationUnit} · {player.life_events_done}/{player.life_events_total} {copy.stageUnit}
+            {player.stations_done}/{player.stations_total} {copy.stationCountUnit} · {player.life_events_done}/{player.life_events_total} {copy.stageUnit}
           </div>
           {team && team.members.length > 1 && (
             <div className="mt-4 border-t border-line pt-4">

@@ -152,3 +152,14 @@
 :root[data-theme="midautumn"] .geometry-mark > span:nth-child(2) { background: var(--wave-b); }
 :root[data-theme="midautumn"] .geometry-mark > span:nth-child(3) { background: var(--color-accent); box-shadow: none; }
 :root[data-theme="midautumn"] .geometry-mark > span:nth-child(4) { background: var(--wave-a); }
+
+/* 月圆时刻：卡片从 92% 亮到满亮，外圈放一圈月光。两个主题共用，不带主题前缀。 */
+.moon-fill { animation: moon-fill 600ms var(--ease-out-expo, ease-out) both; }
+@keyframes moon-fill {
+  from { filter: brightness(0.92); box-shadow: 0 3px 0 var(--color-shadow-line), 0 0 0 0 rgb(from var(--color-foil) r g b / 0.7); }
+  60% { filter: brightness(1.02); box-shadow: 0 3px 0 var(--color-shadow-line), 0 0 0 16px rgb(from var(--color-foil) r g b / 0.35); }
+  to { filter: brightness(1); box-shadow: 0 3px 0 var(--color-shadow-line), 0 0 0 28px rgb(from var(--color-foil) r g b / 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .moon-fill { animation: none; }
+}

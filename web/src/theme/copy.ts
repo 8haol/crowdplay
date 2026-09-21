@@ -1,4 +1,19 @@
-export type AwardKey = "lucky" | "unlucky" | "rollercoaster" | "steady_heart" | "fastest";
+/*
+ * 20260921000300_award_pool 之后 specials 只发 lucky / unlucky / comeback /
+ * solo_star / grace_witness / median，队伍奖是 fastest / full_moon。旧 key
+ * （rollercoaster / steady_heart）留着，已结束场次的旧 payload 还要能渲染。
+ */
+export type AwardKey =
+  | "fastest"
+  | "full_moon"
+  | "lucky"
+  | "unlucky"
+  | "comeback"
+  | "solo_star"
+  | "grace_witness"
+  | "median"
+  | "rollercoaster"
+  | "steady_heart";
 
 export interface Copy {
   stageNames: [string, string, string];
@@ -37,6 +52,8 @@ export interface Copy {
   station: string;
   stationList: string;
   stationUnit: string;
+  /** 结束页统计行的量词：「7/7 站」/「7/7 摊位」。 */
+  stationCountUnit: string;
   lifeEvent: string;
   lifeEventEyebrow: string;
   graceToken: string;
@@ -59,6 +76,23 @@ export interface Copy {
   graceLine: string;
   shareTitle: string;
   awards: Record<AwardKey, { title: string; subtitle: string }>;
+  /* Join.tsx: the two entry pills, the duplicate-name card, and the contact-based recovery tab. */
+  joinEntryNew: string;
+  joinEntryReturn: string;
+  /** {name} / {hint} are filled in by the page. */
+  duplicateAsk: string;
+  duplicateYes: string;
+  duplicateNo: string;
+  recoverHaveCode: string;
+  recoverForgotCode: string;
+  recoverContactNote: string;
+  recoverContactMiss: string;
+  /* FullMoonMoment / MoonStampCard / ScreenPage feed: the hidden-station easter egg. */
+  fullMoonTitle: string;
+  fullMoonBody: string;
+  secretTeaser: string;
+  /** {team} is filled in by the board. */
+  secretFeed: string;
 }
 
 export const PASSPORT_COPY: Copy = {
@@ -99,6 +133,7 @@ export const PASSPORT_COPY: Copy = {
   station: "站点",
   stationList: "挑战", // `${n} ${stationUnit}${stationList}` = 「N 站挑战」.
   stationUnit: "站",
+  stationCountUnit: "站",
   lifeEvent: "人生事件",
   lifeEventEyebrow: "LIFE EVENT",
   graceToken: "Grace Token",
@@ -135,7 +170,25 @@ export const PASSPORT_COPY: Copy = {
     rollercoaster: { title: "人生过山车", subtitle: "同时经历了最高的加分和最重的扣分" },
     steady_heart: { title: "波澜不惊", subtitle: "经历过人生，却最稳得住" },
     fastest: { title: "最快通关", subtitle: "全场最先走完所有站点" },
+    full_moon: { title: "满月收集", subtitle: "拿下最多个满分" },
+    comeback: { title: "月下逆袭", subtitle: "从最低谷追回来最多分" },
+    solo_star: { title: "独行明星", subtitle: "独自走完，也走得漂亮" },
+    grace_witness: { title: "恩典见证", subtitle: "用了 Grace Token，再挑战时拿下高分" },
+    median: { title: "不偏不倚", subtitle: "分数正好落在全场正中间" },
   },
+  joinEntryNew: "第一次来 · 现场登记",
+  joinEntryReturn: "已经登记过 · 找回",
+  duplicateAsk: "今晚已经有一位「{name}」领过护照（人生编号 {hint}）。是你吗？",
+  duplicateYes: "是我，找回",
+  duplicateNo: "不是我，新登记",
+  recoverHaveCode: "我有编号",
+  recoverForgotCode: "忘了编号",
+  recoverContactNote: "没填过联系方式？找工作人员报名字，义工能查到你的人生编号。",
+  recoverContactMiss: "没找到匹配的登记，检查名字和联系方式的写法",
+  fullMoonTitle: "七站走完",
+  fullMoonBody: "你的护照盖满了。还有一件事没有写在护照上。",
+  secretTeaser: "神秘惊喜",
+  secretFeed: "{team} 遇见了神秘人物",
 };
 
 export const MIDAUTUMN_COPY: Copy = {
@@ -175,6 +228,7 @@ export const MIDAUTUMN_COPY: Copy = {
   station: "游园摊位",
   stationUnit: "个",
   stationList: "摊位", // With stationUnit, renders 「N 个摊位」.
+  stationCountUnit: "摊位",
   lifeEvent: "月下际遇",
   lifeEventEyebrow: "ENCOUNTER",
   graceToken: "同行求助券",
@@ -206,5 +260,23 @@ export const MIDAUTUMN_COPY: Copy = {
     rollercoaster: { title: "潮起潮落", subtitle: "同时经历了最高的加分和最重的扣分" },
     steady_heart: { title: "波澜不惊", subtitle: "经历过际遇，却最稳得住" },
     fastest: { title: "最快逛完", subtitle: "全场最先走完所有摊位" },
+    full_moon: { title: "满月收集", subtitle: "收集了最多枚满分印章" },
+    comeback: { title: "月下逆袭", subtitle: "从最低谷追回来最多分" },
+    solo_star: { title: "独行明星", subtitle: "独自逛完，也逛得精彩" },
+    grace_witness: { title: "恩典见证", subtitle: "用了同行求助券，再挑战时拿下高分" },
+    median: { title: "不偏不倚", subtitle: "分数正好落在全场正中间" },
   },
+  joinEntryNew: "第一次来 · 现场登记",
+  joinEntryReturn: "已经登记过 · 找回",
+  duplicateAsk: "今晚已经有一位「{name}」领过集章卡（集章卡编号 {hint}）。是你吗？",
+  duplicateYes: "是我，找回",
+  duplicateNo: "不是我，新登记",
+  recoverHaveCode: "我有编号",
+  recoverForgotCode: "忘了编号",
+  recoverContactNote: "没填过联系方式？找工作人员报名字，义工能查到你的集章卡编号。",
+  recoverContactMiss: "没找到匹配的登记，检查名字和联系方式的写法",
+  fullMoonTitle: "月圆了",
+  fullMoonBody: "七枚印章都亮了。今晚还有一件事，没有写在集章卡上。",
+  secretTeaser: "神秘惊喜",
+  secretFeed: "{team} 找到了神秘嘉宾",
 };

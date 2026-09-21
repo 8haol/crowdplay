@@ -1,5 +1,6 @@
 import type { FC } from "react";
 import { MIDAUTUMN_COPY, PASSPORT_COPY, type Copy } from "./copy";
+import { MIDAUTUMN_STAMPS } from "./StampIcons";
 
 export type ThemeId = "passport" | "midautumn";
 
@@ -21,7 +22,7 @@ export const THEMES: Record<ThemeId, Theme> = {
     id: "midautumn",
     copy: MIDAUTUMN_COPY,
     documentTitle: "中秋游园会 · 集章卡",
-    stampIcons: [],
+    stampIcons: MIDAUTUMN_STAMPS,
   },
 };
 

@@ -104,7 +104,6 @@ export function MoonStampCard(props: PassportHeroProps) {
             const Icon = page.state === "retry" ? RetryIcon : stampIcons[i % Math.max(stampIcons.length, 1)];
             const tone = SLOT_TONE[page.state];
             const pill = slotPill(page);
-            const longName = page.title.length > 4;
             return (
               <div
                 key={page.key}
@@ -119,11 +118,6 @@ export function MoonStampCard(props: PassportHeroProps) {
                     {pill}
                   </span>
                 )}
-                <span
-                  className={`absolute left-1/2 top-[calc(100%+3px)] -translate-x-1/2 whitespace-nowrap rounded-full bg-card px-2 py-0.5 font-black ${longName ? "text-[9.5px]" : "text-[11px]"} ${tone.name}`}
-                >
-                  {page.title}
-                </span>
               </div>
             );
           })}
@@ -211,9 +205,6 @@ export function MoonWaitingCard({ name, code, online }: { name: string; code: st
               aria-label={`${label}：未挑战`}
             >
               {Icon && <Icon className="h-[54%] w-[54%]" />}
-              <span className={`absolute left-1/2 top-[calc(100%+3px)] -translate-x-1/2 whitespace-nowrap rounded-full bg-card px-2 py-0.5 font-black ${label.length > 4 ? "text-[9.5px]" : "text-[11px]"} ${tone.name}`}>
-                {label}
-              </span>
             </div>
           );
         })}

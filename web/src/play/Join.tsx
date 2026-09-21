@@ -1,4 +1,4 @@
-import { useCopy } from "../theme/ThemeProvider";
+import { useCopy, useTheme } from "../theme/ThemeProvider";
 import { useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { rpc, errorText, newIdemKey, RpcError } from "../lib/api";
@@ -34,9 +34,12 @@ export default function Join(props: {
   notice: string | null;
   joinToken: string;
   gameTitle?: string;
+  /** 主办方一行小字（中秋主题的加入页顶部）。 */
+  orgLabel?: string | null;
   preview?: boolean;
 }) {
   const copy = useCopy();
+  const midautumn = useTheme().id === "midautumn";
   const [searchParams] = useSearchParams();
   const [mode, setMode] = useState<"join" | "recover">("join");
   /* 找回有两条路：报编号，或报登记时留的联系方式。 */
@@ -179,24 +182,37 @@ export default function Join(props: {
       <div className="absolute inset-x-0 top-0 z-20 flex p-4 text-ink">
         <UpLink label="入口" to="/" />
       </div>
-      <div className="relative z-10 flex min-h-dvh w-[100vw] max-w-[100vw] flex-col items-center px-6 pt-16 pb-10">
-        <BrandMark className="rise !w-[104px] !gap-1 !rounded-[18px] !p-2.5 !shadow-[0_3px_0_var(--color-foil-shadow)]" />
-        <p className="rise mt-7 text-[11px] font-black tracking-[0.45em] text-foil-dim" style={{ "--i": 0 } as React.CSSProperties}>
-          {copy.cardEn}
-        </p>
-        <h1 className="rise mt-2 text-[42px] font-black leading-tight tracking-[-0.05em] text-ink" style={{ "--i": 1 } as React.CSSProperties}>
-          {copy.joinTitle || copy.joinHeading}
-        </h1>
-        <p className="rise mt-2 max-w-xs text-center text-sm font-semibold text-ink-dim" style={{ "--i": 2 } as React.CSSProperties}>
-          {!copy.joinTitle && <>{props.gameTitle ?? "本场活动"} · </>}{copy.joinSubtitle}
-        </p>
-
-        {copy.joinIntro && <p className="rise mt-4 max-w-sm text-center text-sm font-semibold leading-6 text-ink-dim">{copy.joinIntro}</p>}
+      <div className={`relative z-10 flex min-h-dvh w-[100vw] max-w-[100vw] flex-col px-6 pt-16 pb-10 ${midautumn ? "items-start" : "items-center"}`}>
+        {midautumn ? (
+          /* 中秋：照效果图，左对齐的海报式标题，没有几何标记和英文眉题。 */
+          <div className="w-full max-w-sm self-center">
+            {props.orgLabel && <p className="rise text-[12px] font-extrabold text-ink-dim">{props.orgLabel}</p>}
+            <h1 className="rise mt-5 whitespace-pre-line text-[44px] font-black leading-[1.05] tracking-[0.02em] text-ink" style={{ "--i": 1 } as React.CSSProperties}>
+              {copy.joinTitleDisplay || copy.joinTitle || copy.joinHeading}
+            </h1>
+            <p className="rise mt-2.5 text-[18px] font-extrabold text-leaf-deep" style={{ "--i": 2 } as React.CSSProperties}>{copy.joinSubtitle}</p>
+            {copy.joinIntro && <p className="rise mt-3.5 max-w-[32ch] text-[13.5px] font-semibold leading-7 text-ink/85">{copy.joinIntro}</p>}
+          </div>
+        ) : (
+          <>
+            <BrandMark className="rise !w-[104px] !gap-1 !rounded-[18px] !p-2.5 !shadow-[0_3px_0_var(--color-foil-shadow)]" />
+            <p className="rise mt-7 text-[11px] font-black tracking-[0.45em] text-foil-dim" style={{ "--i": 0 } as React.CSSProperties}>
+              {copy.cardEn}
+            </p>
+            <h1 className="rise mt-2 text-[42px] font-black leading-tight tracking-[-0.05em] text-ink" style={{ "--i": 1 } as React.CSSProperties}>
+              {copy.joinTitle || copy.joinHeading}
+            </h1>
+            <p className="rise mt-2 max-w-xs text-center text-sm font-semibold text-ink-dim" style={{ "--i": 2 } as React.CSSProperties}>
+              {!copy.joinTitle && <>{props.gameTitle ?? "本场活动"} · </>}{copy.joinSubtitle}
+            </p>
+            {copy.joinIntro && <p className="rise mt-4 max-w-sm text-center text-sm font-semibold leading-6 text-ink-dim">{copy.joinIntro}</p>}
+          </>
+        )}
 
         {/* Two doors, equal weight: most people are new, but the ones who are
             not used to hunt for a small grey link under the form. */}
         <div
-          className="rise mt-8 flex w-full max-w-sm gap-2 rounded-full bg-card/50 p-1"
+          className="rise mt-8 flex w-full max-w-sm gap-2 self-center rounded-full bg-card/50 p-1"
           style={{ "--i": 3 } as React.CSSProperties}
           role="tablist"
           aria-label="登记或找回"
@@ -211,13 +227,13 @@ export default function Join(props: {
 
         {/* arrival card */}
         <div
-          className="rise mt-3 w-full max-w-sm rounded-[28px] bg-white px-6 py-6 text-ink shadow-[0_3px_0_var(--color-shadow-line)]"
+          className="rise mt-3 w-full max-w-sm self-center rounded-[28px] bg-white px-6 py-6 text-ink shadow-[0_3px_0_var(--color-shadow-line)]"
           style={{ "--i": 4 } as React.CSSProperties}
         >
           <div className="flex items-baseline justify-between pb-3">
-            <span className="text-lg font-black">{mode === "join" ? "现场登记" : copy.recoverTitle}</span>
+            <span className="text-lg font-black">{mode === "join" ? copy.joinCardTitle : copy.recoverTitle}</span>
             <span className="font-mono text-[10px] tracking-[0.25em] text-ink-dim">
-              {mode === "join" ? "ARRIVAL CARD" : "RE-ENTRY"}
+              {mode === "join" ? copy.joinCardEyebrow : "RE-ENTRY"}
             </span>
           </div>
 

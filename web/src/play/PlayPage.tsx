@@ -164,6 +164,7 @@ export default function PlayPage() {
           notice={joinNotice}
           joinToken={activeToken}
           gameTitle={landing.title}
+          orgLabel={landing.org?.name_en ?? landing.org?.name_zh ?? null}
         />
       );
     }
@@ -239,6 +240,7 @@ function PreviewJoinFlow() {
       preview
       joinToken="preview"
       gameTitle="Glasgow 新生迎新会"
+      orgLabel="Chinese Church in London · Soho"
       notice={null}
       onCodeIssued={(issued, entered) => { setCode(issued); setName(entered); setStep("code"); }}
       onJoined={(recovered) => { setCode(recovered); setName("找回的玩家"); setStep("passport"); }}

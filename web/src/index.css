@@ -31,6 +31,10 @@
   --color-fail: #c4402a;
   --color-foil-shadow: #e0a800;
   --color-accent-shadow: #e0a800;
+  /* 背景专用；passport 下等于既有取值，midautumn.css 覆盖。 */
+  --color-sky-top: #fff9f0;
+  --color-wave-a: #ffdd7a;
+  --color-wave-b: #f6b21b;
   --color-contrast-dark: #000000;
   --color-ink-shadow: #0f0d0a;
   --color-seal-shadow: #8f2e1f;

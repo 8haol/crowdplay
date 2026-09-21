@@ -11,6 +11,7 @@ import { darken, readableOn } from "../lib/color";
 import { useCountUp } from "../lib/useCountUp";
 import { FINAL_STAGE_VERSE, GRACE_VERSE, SETBACK_VERSES, pickVerse } from "../lib/scripture";
 import { MoonStampCard } from "./MoonStampCard";
+import { MIDAUTUMN_STAMPS } from "../theme/StampIcons";
 import { FullMoonMoment } from "./FullMoonMoment";
 
 /*
@@ -239,6 +240,34 @@ export default function Passport(props: {
           secretDone={secretDone}
         />
 
+        {midautumn && (
+          /* 效果图里集章卡下面的两张小卡：求助券余量、下一次际遇还差多少。 */
+          <div className="rise mx-auto mt-3 grid w-[calc(100%-2rem)] max-w-md grid-cols-2 gap-2.5" style={{ "--i": 1 } as React.CSSProperties}>
+            <button
+              type="button"
+              disabled={!player.token_available}
+              onClick={() => setGraceOpen(true)}
+              className={`pressable flex items-center gap-2.5 rounded-[24px] px-3.5 py-3.5 text-left disabled:cursor-default ${player.token_available ? "bg-accent-soft" : "bg-night-raise"}`}
+            >
+              <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full text-[10px] font-black shadow-[inset_0_0_0_4px_rgb(from_var(--color-card)_r_g_b_/_.5)] ${player.token_available ? "bg-accent text-accent-ink" : "bg-grace-disabled text-grace-disabled-ink"}`}>求助</span>
+              <span className="min-w-0">
+                <span className="block truncate text-[11px] font-black tracking-[0.12em] text-accent-deep/80">{copy.graceToken}</span>
+                <span className="block text-[15px] font-black text-accent-deep">{player.token_available ? "还有 1 张" : "已用掉"}</span>
+              </span>
+            </button>
+            <div className="rounded-[24px] bg-card px-3.5 py-3.5 shadow-[0_3px_0_var(--color-shadow-line)]">
+              <span className="block text-[11px] font-black tracking-[0.12em] text-ink-dim">{copy.nextStage}</span>
+              <span className="mt-1 block text-[15px] font-black text-ink">
+                {journey.complete
+                  ? "都遇见了"
+                  : (player.next_event_score ?? 0) - player.score > 0
+                    ? `再 ${(player.next_event_score ?? 0) - player.score} 分 · 或第 ${stageUnlockLabel(player.life_events_done + 1, player.stations_total)} ${copy.stationCountUnit}`
+                    : `下一${copy.stationCountUnit}就到`}
+              </span>
+            </div>
+          </div>
+        )}
+
         {fullMoon && (
           <FullMoonMoment reached={fullMoon.reached} hint={fullMoon.hint} secretDone={secretDone} playerCode={player.code} />
         )}
@@ -290,7 +319,7 @@ export default function Passport(props: {
         </section>
 
         {/* grace token */}
-        <section className="mx-auto mt-6 max-w-2xl px-4">
+        <section className={`mx-auto mt-6 max-w-2xl px-4 ${midautumn && player.token_available ? "hidden" : ""}`}>
           {/* Spendable, so it is a button: the rules for spending it are one tap
               away instead of back in the guide. Spent, it is a keepsake and
               nothing to press. */}
@@ -906,6 +935,7 @@ function LifeEventExperience(props: {
   onDone: () => void;
 }) {
   const copy = useCopy();
+  const midautumn = useTheme().id === "midautumn";
   const [step, setStep] = useState<"announce" | "choose">("announce");
   const [chosen, setChosen] = useState<string | null>(null);
   const [result, setResult] = useState<LifeEventChoiceResult | null>(null);
@@ -978,7 +1008,41 @@ function LifeEventExperience(props: {
     );
   }
 
+  const sheetHead = (
+    <div className="flex items-center justify-between">
+      <b className="text-[12px] font-black tracking-[0.2em] text-leaf-deep">{copy.lifeEvent}</b>
+      <span className="text-[11px] font-extrabold text-ink-dim">第 {props.event.stage} 段 · 三段里的一段</span>
+    </div>
+  );
+  const sheetEmoji = (
+    <div className="bloom mx-auto mt-[18px] grid h-[84px] w-[84px] place-items-center rounded-[26px] bg-foil text-[42px] shadow-[0_5px_0_var(--color-stage-orb-deep)]">
+      {props.event.emoji}
+    </div>
+  );
+
   /* ---- beat 1: the announcement, full screen, needs a tap ---- */
+  if (step === "announce" && midautumn) {
+    return (
+      <MoonSheet>
+        {sheetHead}
+        {sheetEmoji}
+        <h3 className="mt-4 text-center text-[24px] font-black text-ink">你走到了{stageName}</h3>
+        <p className="mx-auto mt-2.5 max-w-[28ch] text-center text-sm font-semibold leading-7 text-ink/85">
+          {props.event.stage === 3 ? copy.stageIntroFinal : copy.stageIntro} 准备好了再打开，打开后需要做一个选择。
+        </p>
+        {props.event.stage === 3 && (
+          <p className="mt-3 text-center text-[13px] font-black leading-relaxed text-ink/80">「{FINAL_STAGE_VERSE.text}」<span className="ml-1 text-[10px] font-bold tracking-[0.2em] text-ink-dim">{FINAL_STAGE_VERSE.ref}</span></p>
+        )}
+        <button
+          className="pressable mt-5 w-full rounded-full bg-accent py-4 text-[16px] font-black text-accent-ink shadow-[0_4px_0_var(--color-accent-shadow)]"
+          onClick={() => setStep("choose")}
+        >
+          {copy.openStage} ›
+        </button>
+        <p className="mt-3.5 text-center text-[11.5px] font-bold text-ink-dim">队伍不会因为你停下，可以边走边处理。</p>
+      </MoonSheet>
+    );
+  }
   if (step === "announce") {
     return (
       <div className="relative min-h-dvh overflow-hidden bg-foil text-ink">
@@ -1032,6 +1096,33 @@ function LifeEventExperience(props: {
   }
 
   /* ---- beat 2: the scene and its two actions ---- */
+  if (midautumn) {
+    return (
+      <MoonSheet>
+        {sheetHead}
+        {sheetEmoji}
+        <h3 className="mt-4 text-center text-[24px] font-black text-ink">{props.event.title}</h3>
+        <p className="mx-auto mt-2.5 max-w-[28ch] text-center text-sm font-semibold leading-7 text-ink/85">{props.event.prompt}</p>
+        <div className="mt-3 space-y-3">
+          {props.event.choices.map((choice, index) => (
+            <button
+              key={choice.key}
+              disabled={Boolean(chosen)}
+              onClick={() => choose(choice.key)}
+              className={`pressable flex w-full items-center justify-between gap-3 rounded-[18px] px-[18px] py-4 text-left text-[15px] font-black transition-all disabled:opacity-60 ${
+                chosen === choice.key ? "bg-ink text-white" : index === 0 ? "bg-accent-soft text-accent-deep" : "bg-join-input text-ink"
+              }`}
+            >
+              <span>{choice.label}</span>
+              {chosen === choice.key && <span className="dots shrink-0 text-[12px]">揭晓<span>.</span><span>.</span><span>.</span></span>}
+            </button>
+          ))}
+        </div>
+        {err && <div className="mt-4 rounded-xl bg-seal/10 px-3 py-2.5 text-sm font-bold text-seal">{err}</div>}
+        <p className="mt-3.5 text-center text-[11.5px] font-bold text-ink-dim">选完之后结果才会揭晓，同一个选择也可能走向不同的结局。</p>
+      </MoonSheet>
+    );
+  }
   return (
     <div className="relative min-h-dvh overflow-hidden bg-event-paper text-ink">
       <div className="night-sky" />
@@ -1065,6 +1156,20 @@ function LifeEventExperience(props: {
   );
 }
 
+/** 中秋主题的际遇弹窗：夜色压暗、底部一张白色圆角卡，照效果图第三张手机。 */
+function MoonSheet({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="relative min-h-dvh overflow-hidden text-ink">
+      <div className="night-sky" />
+      <div className="fixed inset-0 z-20 flex items-end bg-[rgb(from_var(--color-ink-dim)_r_g_b_/_.55)] p-4 backdrop-blur-[6px]">
+        <div className="seal-slam mx-auto w-full max-w-md rounded-[30px_30px_26px_26px] bg-card px-[22px] pb-6 pt-[22px] shadow-[0_-10px_40px_rgb(from_var(--color-ink)_r_g_b_/_.18)]">
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** Mirror of the SQL `_stage_unlock_at`: stations completed before a stage opens. */
 function stageUnlockLabel(stage: number, total: number): number {
   const safeTotal = Math.max(1, total);
@@ -1077,12 +1182,87 @@ function stageUnlockLabel(stage: number, total: number): number {
 
 function Ended({ data, joinToken }: { data: PollResult; joinToken: string }) {
   const copy = useCopy();
-  const midautumn = useTheme().id === "midautumn";
+  const theme = useTheme();
+  const midautumn = theme.id === "midautumn";
   const { player, rank, team } = data;
   /* The room is supposed to be watching the stage right now. Until the host
      publishes, this phone knows its score but not its place — and the server
      has not sent the place either, so there is nothing here to leak. */
   const published = data.ranks_published && rank !== null;
+
+  if (midautumn) {
+    /* 效果图第四张手机：月亮里是积分，下面一排今晚的印章，再是标题、感言和两个按钮。 */
+    const identity = player.identity ?? "solo";
+    const swatch = colorOf(player.color_group) ?? (identity === "solo" ? soloColor(player.code) : null);
+    const ring = swatch?.hex ?? "var(--color-line)";
+    const pages = visaPages(data.stations ?? [], data.attempts ?? [], theme);
+    const icons = MIDAUTUMN_STAMPS;
+    return (
+      <div className="brand-stage relative min-h-dvh overflow-hidden">
+        <div className="night-sky" />
+        <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col items-center justify-center px-6 py-10 text-center">
+          <p className="rise text-[11px] font-black tracking-[0.22em] text-ink-dim" style={{ "--i": 0 } as React.CSSProperties}>
+            {player.name} · {swatch?.zh ? `${swatch.zh} · ` : ""}{copy.teamName[identity]}
+          </p>
+          <div
+            className="rise mt-6 grid h-[190px] w-[190px] place-items-center rounded-full"
+            style={{
+              "--i": 1,
+              background: "radial-gradient(circle at 42% 40%, var(--color-stage-orb-light) 0 30%, var(--color-foil) 60%, var(--color-stage-orb-deep) 100%)",
+              boxShadow: `0 0 0 10px var(--color-card), 0 0 0 16px ${ring}, 0 0 80px 20px rgb(from var(--color-foil) r g b / .6)`,
+            } as React.CSSProperties}
+          >
+            <div>
+              <div className="text-[11px] font-black tracking-[0.2em] text-foil-dim">{copy.score}</div>
+              <b className="tabular mt-1 block text-[64px] font-black leading-none text-moon">{player.score}</b>
+            </div>
+          </div>
+          {pages.length > 0 && (
+            <div className="rise mt-5 flex flex-wrap justify-center gap-2" style={{ "--i": 2 } as React.CSSProperties} aria-label="今晚的印章">
+              {pages.map((page, i) => {
+                const Icon = icons[i % icons.length];
+                const tone = page.state === "passed" ? "border-pass bg-pass-soft text-pass" : page.state === "failed" ? "border-fail bg-fail-soft text-fail" : "border-line bg-card text-line";
+                return (
+                  <i key={page.key} className={`grid h-[34px] w-[34px] place-items-center rounded-full border-2 ${tone}`} title={page.title}>
+                    <Icon className="h-[18px] w-[18px]" />
+                  </i>
+                );
+              })}
+            </div>
+          )}
+          {published ? (
+            <p className="rise mt-3 text-sm font-black text-ink-dim" style={{ "--i": 3 } as React.CSSProperties}>
+              个人第 <span className="tabular text-2xl text-ink">{rank}</span> 名
+            </p>
+          ) : (
+            <p className="rise mt-3 rounded-full bg-accent-soft px-4 py-2 text-xs font-black text-accent-deep" style={{ "--i": 3 } as React.CSSProperties}>
+              名次正在大屏上公布，颁奖结束后会出现在这里
+            </p>
+          )}
+          <h1 className="rise mt-5 text-[30px] font-black text-ink" style={{ "--i": 4 } as React.CSSProperties}>{copy.endedTitle}</h1>
+          <p className="rise mt-3 max-w-[30ch] text-sm font-semibold leading-7 text-ink/85" style={{ "--i": 5 } as React.CSSProperties}>{copy.endedBody}</p>
+          {published ? (
+            <Link
+              to={joinToken === "preview" ? "/badge?preview=1" : `/badge/${joinToken}`}
+              className="rise pressable mt-6 inline-flex min-h-[54px] w-full max-w-sm items-center justify-center rounded-full bg-accent text-[17px] font-black text-accent-ink shadow-[0_4px_0_var(--color-accent-shadow)]"
+              style={{ "--i": 6 } as React.CSSProperties}
+            >
+              {copy.endedSaveButton}
+            </Link>
+          ) : (
+            <p className="rise mt-6 text-sm font-black text-ink-dim" style={{ "--i": 6 } as React.CSSProperties}>纪念徽章会在名次公布之后开放</p>
+          )}
+          {player.token_available && (
+            <p className="rise mt-2.5 inline-flex min-h-12 w-full max-w-sm items-center justify-center rounded-full bg-card/80 text-[15px] font-black text-ink shadow-[0_3px_0_var(--color-shadow-line)]" style={{ "--i": 7 } as React.CSSProperties}>
+              {copy.endedGraceButton}
+            </p>
+          )}
+          <p className="rise mt-7 text-xs leading-6 text-ink-dim" style={{ "--i": 8 } as React.CSSProperties}>「我的恩典够你用的」 · 哥林多后书 12:9</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="brand-stage relative min-h-dvh overflow-hidden">
       <div className="night-sky" />

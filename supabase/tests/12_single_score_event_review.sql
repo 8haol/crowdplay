@@ -20,10 +20,12 @@ begin
   assert rejected, 'event catalog rejects a wrong admin key';
 
   catalog := admin_life_event_catalog('test-admin');
-  assert (catalog -> 'stats' ->> 'scenes')::int = 30, 'all 30 scenes are available for review';
-  assert (catalog -> 'stats' ->> 'choices')::int = 60, 'every scene exposes both actions';
-  assert (catalog -> 'stats' ->> 'outcomes')::int = 180, 'all three random outcomes per action are visible';
-  assert catalog -> 'stats' -> 'by_audience' = '{"all":12,"solo":6,"duo":6,"trio":6}'::jsonb, 'audience counts are complete';
+  -- 30 shared scenes + 15 midautumn ones (20260922000100_theme_scenes.sql)
+  assert (catalog -> 'stats' ->> 'scenes')::int = 45, 'all 45 scenes are available for review';
+  assert (catalog -> 'stats' ->> 'choices')::int = 90, 'every scene exposes both actions';
+  assert (catalog -> 'stats' ->> 'outcomes')::int = 270, 'all three random outcomes per action are visible';
+  assert catalog -> 'stats' -> 'by_audience' = '{"all":21,"solo":8,"duo":8,"trio":8}'::jsonb, 'audience counts are complete';
+  assert catalog -> 'stats' -> 'by_theme' = '{"shared":30,"midautumn":15}'::jsonb, 'theme counts are complete';
   assert not has_table_privilege('anon', 'life_event_scenes', 'select'), 'players cannot read the hidden result table directly';
   assert life_event_library() = catalog, 'the public library and the admin audit return one identical payload';
   assert has_function_privilege('anon', 'life_event_library()', 'execute'), 'volunteers can open the library without a password';

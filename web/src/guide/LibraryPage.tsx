@@ -18,8 +18,10 @@ import { useScrollMemory } from "../lib/useScrollMemory";
  * /guide and /admin only, never from a player screen.
  *
  * Unlike the admin view (master-detail, one scene at a time) this is a linear
- * document: 30 scenes in order, everything expanded, because the job here is to
- * read all of it rather than look one thing up.
+ * document: every scene in order, everything expanded, because the job here is to
+ * read all of it rather than look one thing up. Theme-specific scenes (中秋) sit
+ * after the shared ones and carry a dark tag, so a volunteer proof-reading for one
+ * event can filter down to what that event will actually draw.
  */
 
 const COLUMN = "mx-auto w-full max-w-[52rem] px-5 sm:px-7";
@@ -33,11 +35,15 @@ const AUDIENCE: Record<LifeEventAudience, { short: string; long: string }> = {
 };
 
 type Filter = LifeEventAudience | "any";
+/** `shared` = 各主题通用的场景；其余是主题 id。 */
+type ThemeFilter = "any" | "shared" | "midautumn";
+const THEME_LABEL: Record<string, string> = { midautumn: "中秋" };
 
 export default function LibraryPage() {
   const [catalog, setCatalog] = useState<LifeEventCatalog | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("any");
+  const [themeFilter, setThemeFilter] = useState<ThemeFilter>("any");
   const [search, setSearch] = useState("");
 
   useEffect(() => {
@@ -53,8 +59,9 @@ export default function LibraryPage() {
     const needle = search.trim().toLowerCase();
     return all
       .filter((scene) => filter === "any" || scene.audience === filter)
+      .filter((scene) => themeFilter === "any" || (themeFilter === "shared" ? !scene.theme : scene.theme === themeFilter))
       .filter((scene) => !needle || haystack(scene).includes(needle));
-  }, [catalog, filter, search]);
+  }, [catalog, filter, themeFilter, search]);
 
   useScrollMemory(SCROLL_KEY, Boolean(catalog));
 
@@ -88,7 +95,7 @@ export default function LibraryPage() {
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
-              <div className="tool-scroll flex shrink-0 gap-1.5 overflow-x-auto">
+              <div className="tool-scroll flex max-w-full shrink-0 gap-1.5 overflow-x-auto">
                 {(["any", "all", "solo", "duo", "trio"] as Filter[]).map((key) => (
                   <button
                     key={key}
@@ -104,6 +111,26 @@ export default function LibraryPage() {
                     {key === "any" ? "全部" : AUDIENCE[key].short}
                   </button>
                 ))}
+                <span aria-hidden="true" className="mx-0.5 w-px shrink-0 self-stretch" style={{ background: "var(--color-line)" }} />
+                {(["shared", "midautumn"] as const).map((key) => {
+                  const count = catalog?.stats.by_theme?.[key];
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setThemeFilter(themeFilter === key ? "any" : key)}
+                      className="inline-flex min-h-10 shrink-0 items-center rounded-full px-3.5 text-[13.5px] font-black transition-colors"
+                      style={
+                        themeFilter === key
+                          ? { background: "var(--color-ink)", color: "var(--color-card)" }
+                          : { background: "var(--color-card)", color: "var(--color-guide-tab-ink)", border: "1px solid var(--color-line)" }
+                      }
+                    >
+                      {key === "shared" ? "通用" : THEME_LABEL[key]}
+                      {count !== undefined && <span className="tabular ml-1 opacity-70">{count}</span>}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -219,6 +246,14 @@ function Scene({ scene, index }: { scene: LifeEventSceneDefinition; index: numbe
             >
               {audience.short}
             </span>
+            {scene.theme && (
+              <span
+                className="rounded-md px-1.5 py-0.5 text-[10px] font-black"
+                style={{ background: "var(--color-ink)", color: "var(--color-card)" }}
+              >
+                {THEME_LABEL[scene.theme] ?? scene.theme}
+              </span>
+            )}
             {!scene.active && (
               <span className="rounded-md bg-night-raise px-1.5 py-0.5 text-[10px] font-black text-ink-dim">
                 已停用
@@ -227,6 +262,7 @@ function Scene({ scene, index }: { scene: LifeEventSceneDefinition; index: numbe
           </div>
           <p className="mt-1.5 text-[13.5px] font-semibold leading-6">{scene.prompt}</p>
           <p className="mt-1 text-[11px] font-bold text-ink-dim">
+            {scene.theme ? `只在${THEME_LABEL[scene.theme] ?? scene.theme}主题的场次出现 · ` : ""}
             {audience.long} · {scene.choices.length} 个行动 ·{" "}
             {scene.choices.reduce((sum, choice) => sum + choice.outcomes.length, 0)} 个随机结果
           </p>

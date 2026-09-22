@@ -11,19 +11,24 @@ const AUDIENCE: Record<LifeEventAudience, { label: string; short: string }> = {
   trio: { label: "Trio 三人", short: "Trio" },
 };
 
+/** `shared` = 各主题通用的场景；其余是主题 id。 */
+type ThemeFilter = "any" | "shared" | "midautumn";
+const THEME_LABEL: Record<string, string> = { midautumn: "中秋" };
+
 export function LifeEventCatalogView({ adminKey, preview }: { adminKey: string; preview?: boolean }) {
   const pollFn = useMemo(() => () => rpc<LifeEventCatalog>("admin_life_event_catalog", { p_admin_key: adminKey }), [adminKey]);
   const poll = usePoll<LifeEventCatalog>(preview ? null : pollFn, 60_000);
   const catalog = preview ? PREVIEW_CATALOG : poll.data;
   const [audience, setAudience] = useState<LifeEventAudience | "any">("any");
+  const [theme, setTheme] = useState<ThemeFilter>("any");
   const [search, setSearch] = useState("");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [selectedChoice, setSelectedChoice] = useState<string | null>(null);
 
-  const scenes = useMemo(() => (catalog?.scenes ?? []).filter((scene) => audience === "any" || scene.audience === audience).filter((scene) => {
+  const scenes = useMemo(() => (catalog?.scenes ?? []).filter((scene) => audience === "any" || scene.audience === audience).filter((scene) => theme === "any" || (theme === "shared" ? !scene.theme : scene.theme === theme)).filter((scene) => {
     const haystack = [scene.title, scene.prompt, ...scene.choices.flatMap((choice) => [choice.label, ...choice.outcomes.flatMap((outcome) => [outcome.label, outcome.detail])])].join(" ").toLowerCase();
     return !search.trim() || haystack.includes(search.trim().toLowerCase());
-  }), [audience, catalog, search]);
+  }), [audience, catalog, search, theme]);
 
   const selected = scenes.find((scene) => scene.key === selectedKey) ?? scenes[0] ?? null;
   const activeChoice = selected?.choices.some((choice) => choice.key === selectedChoice) ? selectedChoice : selected?.choices[0]?.key ?? null;
@@ -67,6 +72,8 @@ export function LifeEventCatalogView({ adminKey, preview }: { adminKey: string; 
         <div className="flex gap-1 overflow-x-auto p-3">
           <FilterButton active={audience === "any"} onClick={() => setAudience("any")}>全部 {catalog.stats.scenes}</FilterButton>
           {(Object.keys(AUDIENCE) as LifeEventAudience[]).map((key) => <FilterButton key={key} active={audience === key} onClick={() => setAudience(key)}>{AUDIENCE[key].short} {catalog.stats.by_audience[key] ?? 0}</FilterButton>)}
+          <span aria-hidden="true" className="mx-1 w-px shrink-0 self-stretch bg-admin-line" />
+          {(["shared", "midautumn"] as const).map((key) => <FilterButton key={key} active={theme === key} onClick={() => setTheme(theme === key ? "any" : key)}>{key === "shared" ? "通用" : THEME_LABEL[key]} {catalog.stats.by_theme?.[key] ?? "–"}</FilterButton>)}
         </div>
       </div>
 
@@ -74,7 +81,7 @@ export function LifeEventCatalogView({ adminKey, preview }: { adminKey: string; 
         <aside className="max-h-[70dvh] overflow-y-auto border-b border-admin-line bg-white lg:border-r lg:border-b-0">
           {scenes.map((scene, index) => <button key={scene.key} className={`flex w-full items-start gap-3 border-b border-admin-line-soft px-4 py-4 text-left transition-colors ${selected?.key === scene.key ? "bg-catalog-selected" : "hover:bg-catalog-hover"}`} onClick={() => setSelectedKey(scene.key)}>
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-catalog-icon text-xl">{scene.emoji}</span>
-            <span className="min-w-0 flex-1"><span className="flex items-center gap-2"><b className="truncate text-sm">{scene.title}</b><small className="shrink-0 rounded-md bg-white px-1.5 py-0.5 text-[10px] font-black text-catalog-audience-ink">{AUDIENCE[scene.audience].short}</small></span><span className="mt-1 block text-xs font-semibold text-catalog-meta-ink">{scene.choices.length} 个行动 · {scene.choices.reduce((sum, choice) => sum + choice.outcomes.length, 0)} 个结果</span></span>
+            <span className="min-w-0 flex-1"><span className="flex items-center gap-2"><b className="truncate text-sm">{scene.title}</b><small className="shrink-0 rounded-md bg-white px-1.5 py-0.5 text-[10px] font-black text-catalog-audience-ink">{AUDIENCE[scene.audience].short}</small>{scene.theme && <small className="shrink-0 rounded-md bg-ink px-1.5 py-0.5 text-[10px] font-black text-white">{THEME_LABEL[scene.theme] ?? scene.theme}</small>}</span><span className="mt-1 block text-xs font-semibold text-catalog-meta-ink">{scene.choices.length} 个行动 · {scene.choices.reduce((sum, choice) => sum + choice.outcomes.length, 0)} 个结果</span></span>
             <span className="tabular mt-1 text-[10px] font-bold text-catalog-number-ink">{String(index + 1).padStart(2, "0")}</span>
           </button>)}
           {scenes.length === 0 && <div className="p-10 text-center text-sm font-bold text-catalog-meta-ink">没有匹配的场景</div>}
@@ -97,7 +104,7 @@ export function LifeEventCatalogView({ adminKey, preview }: { adminKey: string; 
             </section>
 
             <section className="min-w-0">
-              <div className="flex flex-wrap items-start justify-between gap-3 border-b border-admin-line-strong pb-5"><div><div className="text-xs font-black tracking-[0.14em] text-catalog-meta-ink">{AUDIENCE[selected.audience].label} · {selected.key}</div><h2 className="mt-1 text-3xl font-black tracking-[-0.04em]">全部随机结果</h2></div><span className={`rounded-lg px-3 py-2 text-xs font-black ${selected.active ? "bg-catalog-enabled-soft text-catalog-enabled-ink" : "bg-admin-neutral text-catalog-inactive-ink"}`}>{selected.active ? "启用中" : "已停用"}</span></div>
+              <div className="flex flex-wrap items-start justify-between gap-3 border-b border-admin-line-strong pb-5"><div><div className="text-xs font-black tracking-[0.14em] text-catalog-meta-ink">{selected.theme ? `${THEME_LABEL[selected.theme] ?? selected.theme}主题专属 · ` : ""}{AUDIENCE[selected.audience].label} · {selected.key}</div><h2 className="mt-1 text-3xl font-black tracking-[-0.04em]">全部随机结果</h2></div><span className={`rounded-lg px-3 py-2 text-xs font-black ${selected.active ? "bg-catalog-enabled-soft text-catalog-enabled-ink" : "bg-admin-neutral text-catalog-inactive-ink"}`}>{selected.active ? "启用中" : "已停用"}</span></div>
               <div className="mt-5 space-y-5">{selected.choices.map((choice, index) => <ChoiceAudit key={choice.key} choice={choice} index={index} active={activeChoice === choice.key} onSelect={() => setSelectedChoice(choice.key)} />)}</div>
             </section>
           </div>

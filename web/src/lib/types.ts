@@ -644,6 +644,8 @@ export interface LifeEventChoiceDefinition {
 export interface LifeEventSceneDefinition {
   key: string;
   audience: LifeEventAudience;
+  /** null / missing = 各主题通用；否则只在 events.theme 相同的场次里抽到。 */
+  theme?: string | null;
   title: string;
   prompt: string;
   emoji: string;
@@ -658,6 +660,8 @@ export interface LifeEventCatalog {
     choices: number;
     outcomes: number;
     by_audience: Record<LifeEventAudience, number>;
+    /** `shared` = 通用场景数；其余键是主题 id。迁移落地前可能缺失。 */
+    by_theme?: Record<string, number>;
   };
   scenes: LifeEventSceneDefinition[];
 }

@@ -1,4 +1,5 @@
-import type { BoardPlayer, BoardSnapshot, FeedItem, SecretFeedFlag } from "../lib/types";
+import type { BoardPlayer, BoardSnapshot, BoardStation, FeedItem, SecretFeedFlag } from "../lib/types";
+import { PREVIEW_STATIONS } from "../play/previewData";
 
 const NAMES = [
   "林沐恩", "陈子谦", "黄恩慈", "张乐言", "王心怡", "李俊熙", "周以诺", "吴佳音",
@@ -28,13 +29,23 @@ const players: BoardPlayer[] = NAMES.map((name, index) => ({
 /** Minutes ago, so the feed clock agrees with the elapsed timer above it. */
 const ago = (minutes: number) => new Date(Date.now() - minutes * 60 * 1000).toISOString();
 
+/*
+ * 大屏的 feed 要能改名：主题层按主摊位顺序把「音乐之声」换成「月下音乐会」，
+ * 靠的是 station_id 在这张顺序表里的位置（`boothOf` 里的 findIndex）。
+ * 少了 stations，演示大屏就只会念原名，中秋主题的摊位别名一次都不会出现。
+ * 结构照抄 board_snapshot 的 'stations'：只有启用中的主摊位，按 sort_order 排。
+ */
+const stations: BoardStation[] = PREVIEW_STATIONS
+  .filter((station) => station.type === "main")
+  .map(({ station_id, name_zh, sort_order }) => ({ station_id: station_id!, name_zh, sort_order }));
+
 const feed: (FeedItem & SecretFeedFlag)[] = [
-  { id: "f0", kind: "attempt", name: "张乐言 / 赵恩慈", color_group: "green", identity: "duo", station: "神秘摊位", status: "passed", score: 6, total: 61, at: ago(0), secret: true },
-  { id: "f1", kind: "attempt", name: "林沐恩 / 周以诺", color_group: "red", identity: "duo", station: "创意工坊", status: "passed", score: 9, total: 58, at: ago(1) },
+  { id: "f0", kind: "attempt", name: "张乐言 / 赵恩慈", color_group: "green", identity: "duo", station_id: null, station: "神秘摊位", status: "passed", score: 6, total: 61, at: ago(0), secret: true },
+  { id: "f1", kind: "attempt", name: "林沐恩 / 周以诺", color_group: "red", identity: "duo", station_id: 2, station: "音乐之声", status: "passed", score: 9, total: 58, at: ago(1) },
   { id: "f2", kind: "life_event", name: "黄恩慈", card: "choice_all_wallet", label: "失主留下一句谢谢", scene: "捡到钱包", choice: "先交给失物处", outcome: "失主留下一句谢谢", stage: 2, before: 45, after: 48, at: ago(2) },
-  { id: "f3", kind: "token", name: "张乐言", usage: "second_chance", station: "默契挑战", at: ago(4) },
-  { id: "f4", kind: "attempt", name: "王心怡 / 李俊熙 / 何嘉树", color_group: "violet", identity: "trio", station: "人生选择", status: "passed", score: 6, total: 51, at: ago(6) },
-  { id: "f5", kind: "attempt", name: "吴佳音", color_group: "solo-2", identity: "solo", station: "体能补给", status: "failed", score: 0, total: 43, at: ago(9) },
+  { id: "f3", kind: "token", name: "张乐言", usage: "second_chance", station_id: 4, station: "同心协力", at: ago(4) },
+  { id: "f4", kind: "attempt", name: "王心怡 / 李俊熙 / 何嘉树", color_group: "violet", identity: "trio", station_id: 7, station: "旅途抉择", status: "passed", score: 6, total: 51, at: ago(6) },
+  { id: "f5", kind: "attempt", name: "吴佳音", color_group: "solo-2", identity: "solo", station_id: 5, station: "你画我猜", status: "failed", score: 0, total: 43, at: ago(9) },
 ];
 
 /* Relative to now, so the demo board shows a believable "已进行 22:00" instead
@@ -45,6 +56,7 @@ export const SCREEN_PREVIEW: BoardSnapshot = {
   phase: "playing",
   started_at: STARTED_AT,
   stations_total: 7,
+  stations,
   players,
   stats: { players: players.length, teams: 27, stamps: 237, life_events: 18, tokens_used: 11, top_score: players[0].score },
   awards: null,
@@ -58,18 +70,19 @@ export const SCREEN_AWARDS: BoardSnapshot["awards"] = {
     { rank: 2, name: "陈子谦", score: 55, color_group: "blue", identity: "trio", stations_done: 7, life_events: 3 },
     { rank: 3, name: "黄恩慈", score: 51, color_group: "blue", identity: "trio", stations_done: 7, life_events: 3 },
   ],
+  /*
+   * 个人奖最多 3 个，key 和 caption 的写法跟着 _event_awards 走
+   * （20260921000300_award_pool.sql）。rollercoaster / steady_heart 已经退出奖池，
+   * 这里再摆出来就是演示一个真实场次永远颁不出的奖。
+   */
   specials: [
-    { key: "lucky", emoji: "🍀", title: "天选之子", subtitle: "人生事件加分最多", caption: "人生事件净赚 +14 分", name: "张乐言", color_group: "green", identity: "duo", score: 47 },
-    { key: "unlucky", emoji: "🌧️", title: "时运不济", subtitle: "人生事件扣分最多", caption: "人生事件净亏 12 分", name: "王心怡", color_group: "violet", identity: "trio", score: 26 },
-    { key: "rollercoaster", emoji: "🎢", title: "人生过山车", subtitle: "同时经历了最高的加分和最重的扣分", caption: "一次 +21，一次 -9，落差 30 分", name: "吴佳音", color_group: "solo-2", identity: "solo", score: 33 },
-    { key: "steady_heart", emoji: "🌊", title: "波澜不惊", subtitle: "经历过人生，却最稳得住", caption: "三段人生上下不超过 3 分", name: "何嘉树", color_group: "cyan", identity: "trio", score: 44 },
-    { key: "median", emoji: "⚖️", title: "不偏不倚", subtitle: "分数正好落在全场正中间", caption: "全场 24 人，正好排第 12", name: "赵恩慈", color_group: "green", identity: "duo", score: 39 },
+    { key: "lucky", emoji: "🍀", title: "天选之子", subtitle: "际遇加分最多", caption: "际遇净赚 +14 分", name: "张乐言", color_group: "green", identity: "duo", score: 47 },
+    { key: "comeback", emoji: "🌙", title: "月下逆袭", subtitle: "从谷底回升最多", caption: "最低时只剩 12 分，最后 44 分", name: "何嘉树", color_group: "cyan", identity: "trio", score: 44 },
+    { key: "solo_star", emoji: "⭐", title: "独行明星", subtitle: "独自出发里总分最高", caption: "一个人走完，50 分", name: "吴佳音", color_group: "solo-2", identity: "solo", score: 50 },
   ],
-  /* Exactly one team award: the station run is the only thing a team does
-     together, and the two retired station-score awards always went to the
-     same team as each other. */
+  /* 队伍奖两个：最快逛完（事实）→ 满月收集（去重）。 */
   team_awards: [
     { key: "fastest", emoji: "⚡", title: "最快通关", subtitle: "全场最先走完所有站点", caption: "全场第一个完成 7 站", members: "林沐恩 / 周以诺", member_count: 2, color_group: "red", identity: "duo" },
-    { key: "full_moon", emoji: "🌕", title: "满月收集", subtitle: "拿下最多个满分", caption: "7 站里拿了 4 个满分", members: "王心怡 / 李俊熙 / 何嘉树", member_count: 3, color_group: "violet", identity: "trio" },
+    { key: "full_moon", emoji: "🌕", title: "满月收集", subtitle: "满分站点最多的队", caption: "4 站满分", members: "王心怡 / 李俊熙 / 何嘉树", member_count: 3, color_group: "violet", identity: "trio" },
   ],
 };

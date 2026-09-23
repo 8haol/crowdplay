@@ -101,6 +101,14 @@ begin
     end loop;
   end loop;
 
+  -- 5b. solo players draw audience = 'all' scenes too, so those never mention teammates;
+  --     theme scenes are shared across orgs, so none names a venue
+  assert not exists (select 1 from life_event_scenes s
+    where s.theme = 'midautumn' and s.audience = 'all'
+      and (s.prompt || s.choices::text) ~ '队友|队伍'), 'all-audience ma_ scenes mention no teammates';
+  assert not exists (select 1 from life_event_scenes s
+    where s.theme = 'midautumn' and (s.title || s.prompt || s.choices::text) ~* 'soho'), 'ma_ scenes name no venue';
+
   -- 6. theme column is validated
   begin
     insert into life_event_scenes (key, audience, theme, title, prompt, choices) values ('bad', 'all', 'halloween', 'x', 'y', '[]');

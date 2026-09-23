@@ -76,11 +76,13 @@ export default function KeepsakeBadge({ data, rank }: { data: PollResult; rank: 
       score: player.score,
       rank,
       date: eventDate,
-      orgZh: data.org?.name_zh ?? copy.cardTitleCase,
-      orgEn: data.org?.name_en ?? copy.cardTitleCase,
+      orgZh: data.org?.name_zh ?? data.org?.name_en ?? copy.cardTitleCase,
+      /* 没有英文名就只写一行，不把中文名再印一遍。 */
+      orgEn: data.org?.name_en && data.org.name_en !== data.org?.name_zh ? data.org.name_en : "",
       stamps,
-      stationsDone: player.stations_done,
-      stationsTotal: player.stations_total,
+      /* 「已集」数的是真正盖上的章，和下面那排章对得上；stations_done 把挑战过没过的也算进去。 */
+      stationsDone: stamps.filter((stamp) => !stamp.secret && stamp.page.state === "passed").length,
+      stationsTotal: stamps.filter((stamp) => !stamp.secret).length || player.stations_total,
     }, copy, themeId)
       .then(({ url, blob }) => {
         if (!active) return;
@@ -88,7 +90,7 @@ export default function KeepsakeBadge({ data, rank }: { data: PollResult; rank: 
       })
       .catch((e: unknown) => { console.error("badge render failed", e); if (active) setError("纪念徽章生成失败，请刷新后再试"); });
     return () => { active = false; };
-  }, [copy, themeId, data.org?.name_en, data.org?.name_zh, rank, eventDate, filename, identity.name, player.name, player.score, playerColor.hex, playerColor.zh, stamps, player.stations_done, player.stations_total]);
+  }, [copy, themeId, data.org?.name_en, data.org?.name_zh, rank, eventDate, filename, identity.name, player.name, player.score, playerColor.hex, playerColor.zh, stamps, player.stations_total]);
 
   const sharePayload = useMemo<ShareData | null>(
     () =>
@@ -281,48 +283,66 @@ function drawMidautumnBadge(ctx: CanvasRenderingContext2D, data: BadgeData, copy
   /* the card */
   const ink = cssVar("--color-ink");
   const dim = cssVar("--color-ink-dim");
-  roundedRect(ctx, 90, 300, 900, 1430, 58, cssVar("--color-card"));
-  trackedLabel(ctx, copy.card, 150, 400, 34, 6, ink, "left", 900);
-  trackedLabel(ctx, copy.cardEn, 930, 396, 24, 10, dim, "right", 800);
+  /* 竖向节奏：卡内上下留白 80，每段之间（含虚线两侧）一律 60。 */
+  const PAD = 80;
+  const GAP = 60;
+  const cardTop = 270;
+  /* 卡片高度按下面同一套步长先算出来，好在写字之前把白卡铺上。 */
+  const cardHeight = PAD + 26 + 136 + 40 + 84 + GAP + 22 + 198 + GAP + GAP + stampGridHeight(data.stamps.length) + GAP + GAP + 30 + 46 + 8 + PAD;
+  roundedRect(ctx, 90, cardTop, 900, cardHeight, 58, cssVar("--color-card"));
+  let y = cardTop + PAD + 26;
+  trackedLabel(ctx, copy.card, 150, y, 34, 6, ink, "left", 900);
+  trackedLabel(ctx, copy.cardEn, 930, y - 4, 24, 10, dim, "right", 800);
 
-  label(ctx, data.name, 150, 560, fitFont(ctx, data.name, 110, 780, 60), ink, "left", 900);
+  y += 40 + 96;
+  label(ctx, data.name, 150, y, fitFont(ctx, data.name, 110, 780, 60), ink, "left", 900);
   const identityText = `${data.colorName} · ${data.identity.toUpperCase()}`;
   ctx.font = `800 36px -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", sans-serif`;
   const identityWidth = Math.min(780, Math.ceil(ctx.measureText(identityText).width) + 140);
-  roundedRect(ctx, 150, 610, identityWidth, 84, 42, cssVar("--color-accent-soft"));
-  circle(ctx, 200, 652, 18, data.colorHex);
-  label(ctx, identityText, 236, 665, 36, cssVar("--color-accent-deep"), "left", 800);
+  y += 40;
+  roundedRect(ctx, 150, y, identityWidth, 84, 42, cssVar("--color-accent-soft"));
+  circle(ctx, 200, y + 42, 18, data.colorHex);
+  label(ctx, identityText, 236, y + 55, 36, cssVar("--color-accent-deep"), "left", 800);
+  y += 84;
 
-  trackedLabel(ctx, `${copy.score} · ${copy.scoreEn}`, 150, 800, 28, 8, dim, "left", 800);
-  label(ctx, String(data.score), 140, 1010, fitFont(ctx, String(data.score), 220, 380, 160), cssVar("--color-moon"), "left", 900);
-  roundedRect(ctx, 560, 890, 370, 96, 48, cssVar("--color-accent"));
-  label(ctx, `全场第 ${data.rank} 名`, 745, 956, 40, cssVar("--color-accent-ink"), "center", 900);
+  y += GAP + 22;
+  trackedLabel(ctx, `${copy.score} · ${copy.scoreEn}`, 150, y, 28, 8, dim, "left", 800);
+  y += 40 + 158;
+  label(ctx, String(data.score), 140, y, fitFont(ctx, String(data.score), 220, 380, 160), cssVar("--color-moon"), "left", 900);
+  const pillTop = y - 79 - 48;
+  roundedRect(ctx, 560, pillTop, 370, 96, 48, cssVar("--color-accent"));
+  label(ctx, `全场第 ${data.rank} 名`, 745, pillTop + 66, 40, cssVar("--color-accent-ink"), "center", 900);
 
-  dashedLine(ctx, 150, 1070, 930, cssVar("--color-line"));
-  drawStampGrid(ctx, data, copy, icons, 1070);
+  y += GAP;
+  dashedLine(ctx, 150, y, 930, cssVar("--color-line"));
+  y = drawStampGrid(ctx, data, copy, icons, y + GAP);
 
-  dashedLine(ctx, 150, 1580, 930, cssVar("--color-line"));
-  label(ctx, "「我的恩典够你用的」", 150, 1648, 38, ink, "left", 900);
-  label(ctx, "You don't have to do life alone.", 150, 1696, 27, cssVar("--color-leaf-deep"), "left", 800);
+  y += GAP;
+  dashedLine(ctx, 150, y, 930, cssVar("--color-line"));
+  y += GAP + 30;
+  label(ctx, "「我的恩典够你用的」", 150, y, 38, ink, "left", 900);
+  y += 46;
+  label(ctx, "You don't have to do life alone.", 150, y, 27, cssVar("--color-leaf-deep"), "left", 800);
 
   /* footer on the waves */
   const paper = cssVar("--color-card");
-  label(ctx, data.orgZh, 90, 1790, 26, paper, "left", 900);
-  trackedLabel(ctx, data.orgEn.toUpperCase(), 90, 1834, 20, 1.5, paper, "left", 700);
-  label(ctx, data.date, 990, 1802, 26, paper, "right", 800);
-  trackedLabel(ctx, copy.cardTagline || copy.game, 990, 1850, 20, 2, paper, "right", 700);
+  label(ctx, data.orgZh, 90, 1830, 26, paper, "left", 900);
+  if (data.orgEn) trackedLabel(ctx, data.orgEn.toUpperCase(), 90, 1872, 20, 1.5, paper, "left", 700);
+  label(ctx, data.date, 990, 1842, 26, paper, "right", 800);
+  trackedLabel(ctx, copy.cardTagline || copy.game, 990, 1884, 20, 2, paper, "right", 700);
 }
 
 /* 集章一栏：标题行写已集几枚，下面每行四枚大章，最后一行居中。和集章卡主面板同一套配色。 */
-function drawStampGrid(ctx: CanvasRenderingContext2D, data: BadgeData, copy: Copy, icons: (HTMLImageElement | null)[], top: number) {
+function drawStampGrid(ctx: CanvasRenderingContext2D, data: BadgeData, copy: Copy, icons: (HTMLImageElement | null)[], top: number): number {
   const dim = cssVar("--color-ink-dim");
-  trackedLabel(ctx, `集章 · ${copy.cardEn.replace(/^MOON /, "")}`, 150, top + 70, 28, 8, dim, "left", 800);
-  label(ctx, `已集 ${data.stationsDone} / ${data.stationsTotal}`, 930, top + 70, 30, cssVar("--color-leaf-deep"), "right", 900);
+  trackedLabel(ctx, `集章 · ${copy.cardEn.replace(/^MOON /, "")}`, 150, top + 22, 28, 8, dim, "left", 800);
+  label(ctx, `已集 ${data.stationsDone} / ${data.stationsTotal}`, 930, top + 24, 30, cssVar("--color-leaf-deep"), "right", 900);
 
   const n = data.stamps.length;
-  if (!n) return;
+  const gridTop = top + 22 + 50;
+  if (!n) return top + stampGridHeight(0);
   const perRow = 4;
-  const size = 150;
+  const size = STAMP_SIZE;
   const gap = (780 - size * perRow) / (perRow - 1);
   const r = size / 2;
   data.stamps.forEach((stamp, i) => {
@@ -330,7 +350,7 @@ function drawStampGrid(ctx: CanvasRenderingContext2D, data: BadgeData, copy: Cop
     const inRow = Math.min(perRow, n - row * perRow);
     const rowLeft = 150 + ((perRow - inRow) * (size + gap)) / 2;
     const cx = rowLeft + r + (i % perRow) * (size + gap);
-    const cy = top + 130 + r + row * (size + 40);
+    const cy = gridTop + r + row * (size + STAMP_ROW_GAP);
     const tone = stampTone(stamp);
     circle(ctx, cx, cy, r, tone.fill);
     ctx.save();
@@ -358,6 +378,16 @@ function drawStampGrid(ctx: CanvasRenderingContext2D, data: BadgeData, copy: Cop
       label(ctx, pill, px + w / 2, py + 31, 28, cssVar("--color-card"), "center", 900);
     }
   });
+  return top + stampGridHeight(n);
+}
+
+const STAMP_SIZE = 150;
+const STAMP_ROW_GAP = 60;
+
+/** 集章一栏从标题顶到最后一排章底的高度；卡片高度和实际绘制共用这一个数。 */
+function stampGridHeight(n: number): number {
+  const rows = Math.ceil(n / 4);
+  return 22 + (rows ? 50 + rows * STAMP_SIZE + (rows - 1) * STAMP_ROW_GAP : 0);
 }
 
 function stampTone(stamp: BadgeStamp): { ring: string; fill: string; icon: string; dashed: boolean } {
@@ -450,7 +480,7 @@ function drawPassportBadge(ctx: CanvasRenderingContext2D, data: BadgeData, copy:
   label(ctx, "You don't have to do life alone.", 145, 1665, 31, cssVar("--color-seal-deep"), "left", 800);
 
   label(ctx, data.orgZh, 90, 1810, 24, cssVar("--color-moon"), "left", 900);
-  trackedLabel(ctx, data.orgEn.toUpperCase(), 90, 1852, 20, 1.5, cssVar("--color-moon"), "left", 700);
+  if (data.orgEn) trackedLabel(ctx, data.orgEn.toUpperCase(), 90, 1852, 20, 1.5, cssVar("--color-moon"), "left", 700);
   label(ctx, data.date, 990, 1832, 25, cssVar("--color-moon"), "right", 800);
 }
 

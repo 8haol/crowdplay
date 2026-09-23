@@ -262,17 +262,17 @@ function drawMidautumnBadge(ctx: CanvasRenderingContext2D, data: BadgeData, copy
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
   /* moon with a soft halo */
-  const halo = ctx.createRadialGradient(230, 300, 240, 230, 300, 520);
+  const halo = ctx.createRadialGradient(230, 220, 200, 230, 220, 460);
   const paperHalo = cssVar("--color-card");
   halo.addColorStop(0, withAlpha(paperHalo, 0.55));
   halo.addColorStop(1, withAlpha(paperHalo, 0));
   ctx.fillStyle = halo;
   ctx.fillRect(0, 0, WIDTH, 900);
-  const moon = ctx.createRadialGradient(150, 220, 20, 230, 300, 300);
+  const moon = ctx.createRadialGradient(160, 150, 20, 230, 220, 250);
   moon.addColorStop(0, cssVar("--color-stage-orb-light"));
   moon.addColorStop(0.6, cssVar("--color-foil"));
   moon.addColorStop(1, cssVar("--color-stage-orb-deep"));
-  circle(ctx, 230, 300, 300, moon);
+  circle(ctx, 230, 220, 250, moon);
 
   /* two waves along the bottom */
   wave(ctx, 1420, 90, cssVar("--color-wave-a"));
@@ -281,29 +281,29 @@ function drawMidautumnBadge(ctx: CanvasRenderingContext2D, data: BadgeData, copy
   /* the card */
   const ink = cssVar("--color-ink");
   const dim = cssVar("--color-ink-dim");
-  roundedRect(ctx, 90, 520, 900, 1170, 58, cssVar("--color-card"));
-  trackedLabel(ctx, copy.card, 150, 620, 34, 6, ink, "left", 900);
-  trackedLabel(ctx, copy.cardEn, 930, 616, 24, 10, dim, "right", 800);
+  roundedRect(ctx, 90, 300, 900, 1430, 58, cssVar("--color-card"));
+  trackedLabel(ctx, copy.card, 150, 400, 34, 6, ink, "left", 900);
+  trackedLabel(ctx, copy.cardEn, 930, 396, 24, 10, dim, "right", 800);
 
-  label(ctx, data.name, 150, 770, fitFont(ctx, data.name, 104, 780, 60), ink, "left", 900);
+  label(ctx, data.name, 150, 560, fitFont(ctx, data.name, 110, 780, 60), ink, "left", 900);
   const identityText = `${data.colorName} · ${data.identity.toUpperCase()}`;
   ctx.font = `800 36px -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", sans-serif`;
   const identityWidth = Math.min(780, Math.ceil(ctx.measureText(identityText).width) + 140);
-  roundedRect(ctx, 150, 815, identityWidth, 84, 42, cssVar("--color-accent-soft"));
-  circle(ctx, 200, 857, 18, data.colorHex);
-  label(ctx, identityText, 236, 870, 36, cssVar("--color-accent-deep"), "left", 800);
+  roundedRect(ctx, 150, 610, identityWidth, 84, 42, cssVar("--color-accent-soft"));
+  circle(ctx, 200, 652, 18, data.colorHex);
+  label(ctx, identityText, 236, 665, 36, cssVar("--color-accent-deep"), "left", 800);
 
-  trackedLabel(ctx, `${copy.score} · ${copy.scoreEn}`, 150, 990, 28, 8, dim, "left", 800);
-  label(ctx, String(data.score), 140, 1200, fitFont(ctx, String(data.score), 220, 380, 160), cssVar("--color-moon"), "left", 900);
-  roundedRect(ctx, 560, 1080, 370, 96, 48, cssVar("--color-accent"));
-  label(ctx, `全场第 ${data.rank} 名`, 745, 1146, 40, cssVar("--color-accent-ink"), "center", 900);
+  trackedLabel(ctx, `${copy.score} · ${copy.scoreEn}`, 150, 800, 28, 8, dim, "left", 800);
+  label(ctx, String(data.score), 140, 1010, fitFont(ctx, String(data.score), 220, 380, 160), cssVar("--color-moon"), "left", 900);
+  roundedRect(ctx, 560, 890, 370, 96, 48, cssVar("--color-accent"));
+  label(ctx, `全场第 ${data.rank} 名`, 745, 956, 40, cssVar("--color-accent-ink"), "center", 900);
 
-  dashedLine(ctx, 150, 1250, 930, cssVar("--color-line"));
-  drawStampRow(ctx, data, copy, icons, 1250);
+  dashedLine(ctx, 150, 1070, 930, cssVar("--color-line"));
+  drawStampGrid(ctx, data, copy, icons, 1070);
 
-  dashedLine(ctx, 150, 1545, 930, cssVar("--color-line"));
-  label(ctx, "「我的恩典够你用的」", 150, 1610, 36, ink, "left", 900);
-  label(ctx, "You don't have to do life alone.", 150, 1657, 26, cssVar("--color-leaf-deep"), "left", 800);
+  dashedLine(ctx, 150, 1580, 930, cssVar("--color-line"));
+  label(ctx, "「我的恩典够你用的」", 150, 1648, 38, ink, "left", 900);
+  label(ctx, "You don't have to do life alone.", 150, 1696, 27, cssVar("--color-leaf-deep"), "left", 800);
 
   /* footer on the waves */
   const paper = cssVar("--color-card");
@@ -313,51 +313,50 @@ function drawMidautumnBadge(ctx: CanvasRenderingContext2D, data: BadgeData, copy
   trackedLabel(ctx, copy.cardTagline || copy.game, 990, 1850, 20, 2, paper, "right", 700);
 }
 
-/* 集章一栏：标题行写已集几枚，下面一排章，章下写摊位名。和集章卡主面板同一套配色。 */
-function drawStampRow(ctx: CanvasRenderingContext2D, data: BadgeData, copy: Copy, icons: (HTMLImageElement | null)[], top: number) {
+/* 集章一栏：标题行写已集几枚，下面每行四枚大章，最后一行居中。和集章卡主面板同一套配色。 */
+function drawStampGrid(ctx: CanvasRenderingContext2D, data: BadgeData, copy: Copy, icons: (HTMLImageElement | null)[], top: number) {
   const dim = cssVar("--color-ink-dim");
   trackedLabel(ctx, `集章 · ${copy.cardEn.replace(/^MOON /, "")}`, 150, top + 70, 28, 8, dim, "left", 800);
   label(ctx, `已集 ${data.stationsDone} / ${data.stationsTotal}`, 930, top + 70, 30, cssVar("--color-leaf-deep"), "right", 900);
 
   const n = data.stamps.length;
   if (!n) return;
-  const span = 780;
-  const gap = n > 7 ? 12 : 16;
-  const size = Math.min(104, (span - gap * (n - 1)) / n);
+  const perRow = 4;
+  const size = 150;
+  const gap = (780 - size * perRow) / (perRow - 1);
   const r = size / 2;
-  const cy = top + 110 + r + 6;
   data.stamps.forEach((stamp, i) => {
-    const cx = 150 + r + i * (size + gap);
+    const row = Math.floor(i / perRow);
+    const inRow = Math.min(perRow, n - row * perRow);
+    const rowLeft = 150 + ((perRow - inRow) * (size + gap)) / 2;
+    const cx = rowLeft + r + (i % perRow) * (size + gap);
+    const cy = top + 130 + r + row * (size + 40);
     const tone = stampTone(stamp);
     circle(ctx, cx, cy, r, tone.fill);
     ctx.save();
     ctx.beginPath();
-    ctx.arc(cx, cy, r - 2, 0, Math.PI * 2);
-    ctx.lineWidth = 4;
+    ctx.arc(cx, cy, r - 3, 0, Math.PI * 2);
+    ctx.lineWidth = 6;
     ctx.strokeStyle = tone.ring;
-    if (tone.dashed) ctx.setLineDash([8, 7]);
+    if (tone.dashed) ctx.setLineDash([12, 10]);
     ctx.stroke();
     ctx.restore();
 
     const icon = icons[i];
     if (icon) {
-      const s = size * 0.56;
+      const s = size * 0.58;
       ctx.drawImage(icon, cx - s / 2, cy - s / 2, s, s);
     }
 
     const pill = stamp.page.state === "passed" ? `+${stamp.page.score}` : stamp.page.state === "failed" ? "✕" : null;
     if (pill) {
-      ctx.font = `900 22px -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", sans-serif`;
-      const w = Math.max(40, ctx.measureText(pill).width + 18);
-      const px = cx + r - w + 12;
-      const py = cy - r - 10;
-      roundedRect(ctx, px, py, w, 32, 16, tone.ring);
-      label(ctx, pill, px + w / 2, py + 24, 22, cssVar("--color-card"), "center", 900);
+      ctx.font = `900 28px -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", sans-serif`;
+      const w = Math.max(54, ctx.measureText(pill).width + 24);
+      const px = cx + r - w + 16;
+      const py = cy - r - 8;
+      roundedRect(ctx, px, py, w, 42, 21, tone.ring);
+      label(ctx, pill, px + w / 2, py + 31, 28, cssVar("--color-card"), "center", 900);
     }
-
-    const name = stamp.page.title;
-    const nameSize = fitFont(ctx, name, 22, size + gap - 4, 14);
-    label(ctx, name, cx, cy + r + 38, nameSize, stamp.page.state === "blank" ? dim : cssVar("--color-ink"), "center", 800);
   });
 }
 
@@ -383,7 +382,7 @@ async function loadStampIcons(stamps: BadgeStamp[]): Promise<(HTMLImageElement |
     stamps.map(async (stamp) => {
       if (!stamp.icon) return null;
       const markup = renderToStaticMarkup(createElement(stamp.icon))
-        .replace("<svg", `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" color="${stampTone(stamp).icon}"`);
+        .replace("<svg", `<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" color="${stampTone(stamp).icon}"`);
       const img = new Image();
       img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(markup)}`;
       try {

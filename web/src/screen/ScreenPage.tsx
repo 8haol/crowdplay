@@ -106,7 +106,7 @@ export default function ScreenPage() {
         {data.phase === "waiting" ? (
           <Lobby data={data} landing={landing} joinLink={joinLink} />
         ) : (
-          <div className="grid grid-cols-1 gap-8 px-4 pb-24 lg:min-h-0 lg:flex-1 lg:grid-cols-[1fr_clamp(340px,26vw,460px)] lg:gap-[clamp(0.75rem,1.4vw,1.75rem)] lg:px-[clamp(0.75rem,1.6vw,2rem)] lg:pb-[clamp(0.75rem,1.4vw,1.75rem)]">
+          <div className="grid grid-cols-1 gap-8 px-4 pb-24 lg:min-h-0 lg:flex-1 lg:grid-cols-[1fr_clamp(380px,34vw,660px)] lg:gap-[clamp(0.75rem,1.4vw,1.75rem)] lg:px-[clamp(0.75rem,1.6vw,2rem)] lg:pb-[clamp(0.75rem,1.4vw,1.75rem)]">
             <Board
               players={data.players}
               ended={data.phase === "ended"}
@@ -561,15 +561,15 @@ function RejoinCard({ url }: { url: string }) {
   const copy = useCopy();
   return (
     <div className="flex shrink-0 items-center gap-[clamp(0.6rem,1vw,1.1rem)] rounded-[20px] bg-white/90 p-[clamp(0.5rem,0.9vw,1rem)] shadow-[0_3px_0_var(--color-foil-shadow)]">
-      <ZoomQr url={url} className="h-[clamp(5.5rem,9.5vw,10rem)] w-[clamp(5.5rem,9.5vw,10rem)] shrink-0 rounded-lg" />
+      <ZoomQr url={url} className="h-[clamp(9rem,min(17vw,34vh),22rem)] w-[clamp(9rem,min(17vw,34vh),22rem)] shrink-0 rounded-lg" />
       <div className="min-w-0">
         <div className="text-[clamp(0.55rem,0.75vw,0.8rem)] font-black tracking-[0.28em] text-foil-dim">REJOIN</div>
-        <div className="mt-1 text-[clamp(0.9rem,1.25vw,1.35rem)] font-black leading-tight">
+        <div className="mt-1 text-[clamp(1rem,1.6vw,1.9rem)] font-black leading-tight">
           手机关掉了？
           <br />
           扫这里回到游戏
         </div>
-        <div className="mt-1.5 text-[clamp(0.6rem,0.8vw,0.88rem)] font-semibold leading-snug text-moon-dim">
+        <div className="mt-2 text-[clamp(0.65rem,0.9vw,1rem)] font-semibold leading-snug text-moon-dim">
           进去后点「已经登记过？」，输入你的 3 位{copy.lifeNo}即可找回 · 按 Q 放大
         </div>
       </div>

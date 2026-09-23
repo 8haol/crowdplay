@@ -153,13 +153,26 @@
 :root[data-theme="midautumn"] .geometry-mark > span:nth-child(3) { background: var(--color-accent); box-shadow: none; }
 :root[data-theme="midautumn"] .geometry-mark > span:nth-child(4) { background: var(--wave-a); }
 
-/* 月圆时刻：卡片从 92% 亮到满亮，外圈放一圈月光。两个主题共用，不带主题前缀。 */
-.moon-fill { animation: moon-fill 600ms var(--ease-out-expo, ease-out) both; }
-@keyframes moon-fill {
-  from { filter: brightness(0.92); box-shadow: 0 3px 0 var(--color-shadow-line), 0 0 0 0 rgb(from var(--color-foil) r g b / 0.7); }
-  60% { filter: brightness(1.02); box-shadow: 0 3px 0 var(--color-shadow-line), 0 0 0 16px rgb(from var(--color-foil) r g b / 0.35); }
-  to { filter: brightness(1); box-shadow: 0 3px 0 var(--color-shadow-line), 0 0 0 28px rgb(from var(--color-foil) r g b / 0); }
+/* 月圆时刻：整屏压暗，一弯月牙长成满月，外圈放月光，然后标题和提示依次浮上来。
+   两个主题共用，不带主题前缀。月亮本体一直是满的；上面盖一片暗影，从只露右边一弯开始往左滑走。 */
+.full-moon-orb {
+  background: var(--color-foil);
+  animation: full-moon-glow 2600ms ease-in-out 1450ms infinite;
+  box-shadow: 0 0 60px 12px rgb(from var(--color-foil) r g b / 0.55);
 }
+.full-moon-shade {
+  background: rgb(from var(--color-ink) r g b / 0.88);
+  transform: translateX(-100%) scale(1.02);
+  animation: full-moon-wax 1300ms cubic-bezier(0.45, 0, 0.2, 1) 200ms both;
+}
+@keyframes full-moon-wax {
+  from { transform: translateX(-16%) scale(1.02); }
+  to { transform: translateX(-100%) scale(1.02); }
+}
+@keyframes full-moon-glow {
+  50% { box-shadow: 0 0 84px 22px rgb(from var(--color-foil) r g b / 0.4); }
+}
+.full-moon-line { animation: rise 520ms var(--ease-out-expo, ease-out) var(--d, 0ms) both; }
 @media (prefers-reduced-motion: reduce) {
-  .moon-fill { animation: none; }
+  .full-moon-orb, .full-moon-shade, .full-moon-line { animation: none; }
 }

@@ -149,7 +149,11 @@ export default function PlayPage() {
       return <NoLinkGuidance broken />;
     }
 
-    if (!landing.is_current || sessionArchived || (landing.phase === "ended" && !code)) {
+    /* An ended event is archived only for someone without a passport on this
+       phone. `is_current` is `phase <> 'ended'` since the tenant model, so it
+       must not gate here: players reopen the link after the ceremony to see
+       their rank and make the badge. */
+    if (sessionArchived || (landing.phase === "ended" && !code)) {
       return <ArchivedSession landing={landing} />;
     }
 

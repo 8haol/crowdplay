@@ -56,15 +56,15 @@ export default function Ceremony({
   const [paused, setPaused] = useState(false);
   const slide = slides[Math.min(index, slides.length - 1)];
 
+  /* onFinish sets the parent's state, so it must not run inside a setIndex
+     updater (React warns about updating ScreenPage while rendering Ceremony). */
   const next = useCallback(() => {
-    setIndex((current) => {
-      if (current >= slides.length - 1) {
-        onFinish();
-        return current;
-      }
-      return current + 1;
-    });
-  }, [onFinish, slides.length]);
+    if (index >= slides.length - 1) {
+      onFinish();
+      return;
+    }
+    setIndex(index + 1);
+  }, [index, onFinish, slides.length]);
 
   const back = useCallback(() => setIndex((current) => Math.max(0, current - 1)), []);
 

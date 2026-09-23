@@ -559,7 +559,7 @@ export type FeedItem =
  * One podium place. When two of the individual top three share a team (and the
  * event has at least three teams) the whole podium switches to teams: `kind` is
  * "team", `name` is the member list and `score` is the members' average.
- * Payloads from before 20260923000100_award_lineup have no `kind` — treat as player.
+ * Payloads from before 20260923000300_award_lineup have no `kind` — treat as player.
  */
 export interface PodiumEntry {
   rank: number;

@@ -1,5 +1,5 @@
 /*
- * 20260923000100_award_lineup 之后 specials 只发 solo_star / lucky / unlucky /
+ * 20260923000300_award_lineup 之后 specials 只发 solo_star / lucky / unlucky /
  * comeback / steady，队伍奖只有 fastest。旧 key（full_moon / grace_witness /
  * median / rollercoaster / steady_heart）留着，已结束场次的旧 payload 还要能渲染。
  */
@@ -187,7 +187,7 @@ export const PASSPORT_COPY: Copy = {
   endedBody: "Token 也已经用掉了 —— 这一程你没有独自走完。\n接下来找个位置歇一会儿，等主持人宣布最终成绩和颁奖。",
   graceLine: "",
   shareTitle: "LIFE PASSPORT · SHARE",
-  // Current _event_awards in 20260923000100_award_lineup.sql.
+  // Current _event_awards in 20260923000300_award_lineup.sql.
   awards: {
     lucky: { title: "天选之子", subtitle: "人生事件加分最多" },
     unlucky: { title: "时运不济", subtitle: "人生事件扣分最多" },

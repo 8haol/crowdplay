@@ -27,7 +27,7 @@ type Slide =
  * Running order: the team award, then the personal specials, then the podium
  * climbing from third to first. The podium is individual by default so a Solo
  * player can win it; only when one team would take two of the three places does
- * the server hand back a team podium instead (20260923000100_award_lineup).
+ * the server hand back a team podium instead (20260923000300_award_lineup).
  */
 function buildSlides(awards: BoardAwards, players: number): Slide[] {
   const slides: Slide[] = [{ kind: "intro", players }];

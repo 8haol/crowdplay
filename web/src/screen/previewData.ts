@@ -65,7 +65,7 @@ export const SCREEN_PREVIEW: BoardSnapshot = {
 
 /**
  * Ceremony preview: /screen?preview=awards
- * 7 个奖，key 和 caption 的写法跟着 _event_awards 走（20260923000100_award_lineup.sql）：
+ * 7 个奖，key 和 caption 的写法跟着 _event_awards 走（20260923000300_award_lineup.sql）：
  * 前三名来自三个不同的队 → 个人领奖台；最快通关跳过台上的队，caption 写分钟数；
  * 个人奖独行明星先发，再补天选之子 / 时运不济。
  */

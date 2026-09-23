@@ -182,7 +182,7 @@ export default function Join(props: {
       <div className="absolute inset-x-0 top-0 z-20 flex p-4 text-ink">
         <UpLink label="入口" to="/" />
       </div>
-      <div className={`relative z-10 flex min-h-dvh w-[100vw] max-w-[100vw] flex-col px-6 pt-16 pb-10 ${midautumn ? "items-start" : "items-center"}`}>
+      <div className="relative z-10 flex min-h-dvh w-full flex-col items-center px-6 pt-16 pb-10">
         {midautumn ? (
           /* 中秋：照效果图，左对齐的海报式标题，没有几何标记和英文眉题。 */
           <div className="w-full max-w-sm self-center">

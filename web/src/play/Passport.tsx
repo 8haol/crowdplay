@@ -851,7 +851,7 @@ export interface VisaPage {
   score: number;
 }
 
-function visaPages(stations: EventStation[], attempts: AttemptInfo[], theme: Theme): VisaPage[] {
+export function visaPages(stations: EventStation[], attempts: AttemptInfo[], theme: Theme): VisaPage[] {
   /* A granted Second Chance outranks the failure it replaces: the station is
      open again, so a red stamp would be a lie. */
   const stateOf = (stationId: number): Pick<VisaPage, "state" | "score"> => {

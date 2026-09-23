@@ -2,11 +2,14 @@ import type { Copy } from "../theme/copy";
 import { useCopy, useTheme } from "../theme/ThemeProvider";
 import type { ThemeId } from "../theme/themes";
 import { cssVar } from "../lib/color";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { createElement, useEffect, useMemo, useRef, useState, type FC } from "react";
 import { Link } from "react-router-dom";
 import type { PollResult } from "../lib/types";
 import { colorOf, soloColor } from "../lib/types";
 import { ActionButton, ErrorBanner } from "../lib/ui";
+import { renderToStaticMarkup } from "react-dom/server";
+import { RetryIcon, SecretIcon } from "../theme/StampIcons";
+import { visaPages, type VisaPage } from "./Passport";
 
 const WIDTH = 1080;
 const HEIGHT = 1920;
@@ -30,7 +33,8 @@ type Keepsake = { url: string; file: File };
    prove it has one. */
 export default function KeepsakeBadge({ data, rank }: { data: PollResult; rank: number }) {
   const copy = useCopy();
-  const themeId = useTheme().id;
+  const theme = useTheme();
+  const themeId = theme.id;
   const [keepsake, setKeepsake] = useState<Keepsake | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
@@ -47,6 +51,19 @@ export default function KeepsakeBadge({ data, rank }: { data: PollResult; rank: 
     },
     [data.started_at, generatedAt],
   );
+  const secretDone = data.full_moon?.secret_done ?? false;
+  /* 每枚章带着它自己的图标：主摊位按顺序取本主题的七枚，隐藏摊位盖过才补第八枚。 */
+  const stamps = useMemo<BadgeStamp[]>(() => {
+    const pages = visaPages(data.stations ?? [], data.attempts ?? [], theme);
+    const icons = theme.stampIcons;
+    const main = pages.map((page, i) => ({
+      page,
+      icon: page.state === "retry" ? RetryIcon : icons.length ? icons[i % icons.length] : null,
+    }));
+    return secretDone
+      ? [...main, { page: { key: "secret", title: copy.secretTeaser, note: "SECRET", state: "passed", score: 6 }, icon: SecretIcon, secret: true }]
+      : main;
+  }, [data.stations, data.attempts, theme, secretDone, copy.secretTeaser]);
   const filename = useMemo(() => `${copy.card}-${safeFilename(player.name)}.png`, [player.name, copy.card]);
 
   useEffect(() => {
@@ -61,6 +78,9 @@ export default function KeepsakeBadge({ data, rank }: { data: PollResult; rank: 
       date: eventDate,
       orgZh: data.org?.name_zh ?? copy.cardTitleCase,
       orgEn: data.org?.name_en ?? copy.cardTitleCase,
+      stamps,
+      stationsDone: player.stations_done,
+      stationsTotal: player.stations_total,
     }, copy, themeId)
       .then(({ url, blob }) => {
         if (!active) return;
@@ -68,7 +88,7 @@ export default function KeepsakeBadge({ data, rank }: { data: PollResult; rank: 
       })
       .catch((e: unknown) => { console.error("badge render failed", e); if (active) setError("纪念徽章生成失败，请刷新后再试"); });
     return () => { active = false; };
-  }, [copy, themeId, data.org?.name_en, data.org?.name_zh, rank, eventDate, filename, identity.name, player.name, player.score, playerColor.hex, playerColor.zh]);
+  }, [copy, themeId, data.org?.name_en, data.org?.name_zh, rank, eventDate, filename, identity.name, player.name, player.score, playerColor.hex, playerColor.zh, stamps, player.stations_done, player.stations_total]);
 
   const sharePayload = useMemo<ShareData | null>(
     () =>
@@ -203,7 +223,12 @@ type BadgeData = {
   /** The organisation that ran the event; the badge is their keepsake, not ours. */
   orgZh: string;
   orgEn: string;
+  stamps: BadgeStamp[];
+  stationsDone: number;
+  stationsTotal: number;
 };
+
+type BadgeStamp = { page: VisaPage; icon: FC<{ className?: string }> | null; secret?: boolean };
 
 async function renderBadge(data: BadgeData, copy: Copy, theme: ThemeId = "passport"): Promise<{ url: string; blob: Blob }> {
   const canvas = document.createElement("canvas");
@@ -213,7 +238,8 @@ async function renderBadge(data: BadgeData, copy: Copy, theme: ThemeId = "passpo
   if (!ctx) throw new Error("NO_CANVAS");
 
   if (theme === "midautumn") {
-    drawMidautumnBadge(ctx, data, copy);
+    const icons = await loadStampIcons(data.stamps);
+    drawMidautumnBadge(ctx, data, copy, icons);
   } else {
     drawPassportBadge(ctx, data, copy);
   }
@@ -227,7 +253,7 @@ async function renderBadge(data: BadgeData, copy: Copy, theme: ThemeId = "passpo
 }
 
 /* 中秋：天空渐变、左上一轮月、底部两层海浪，中间一张白卡承载全部信息。取色全走 token。 */
-function drawMidautumnBadge(ctx: CanvasRenderingContext2D, data: BadgeData, copy: Copy) {
+function drawMidautumnBadge(ctx: CanvasRenderingContext2D, data: BadgeData, copy: Copy, icons: (HTMLImageElement | null)[]) {
   const sky = ctx.createLinearGradient(0, 0, 0, HEIGHT);
   sky.addColorStop(0, cssVar("--color-sky-top"));
   sky.addColorStop(0.55, cssVar("--color-night"));
@@ -255,37 +281,126 @@ function drawMidautumnBadge(ctx: CanvasRenderingContext2D, data: BadgeData, copy
   /* the card */
   const ink = cssVar("--color-ink");
   const dim = cssVar("--color-ink-dim");
-  roundedRect(ctx, 90, 540, 900, 940, 58, cssVar("--color-card"));
-  trackedLabel(ctx, copy.card, 150, 640, 34, 6, ink, "left", 900);
-  trackedLabel(ctx, copy.cardEn, 930, 636, 24, 10, dim, "right", 800);
+  roundedRect(ctx, 90, 520, 900, 1170, 58, cssVar("--color-card"));
+  trackedLabel(ctx, copy.card, 150, 620, 34, 6, ink, "left", 900);
+  trackedLabel(ctx, copy.cardEn, 930, 616, 24, 10, dim, "right", 800);
 
-  label(ctx, data.name, 150, 810, fitFont(ctx, data.name, 104, 780, 60), ink, "left", 900);
+  label(ctx, data.name, 150, 770, fitFont(ctx, data.name, 104, 780, 60), ink, "left", 900);
   const identityText = `${data.colorName} · ${data.identity.toUpperCase()}`;
   ctx.font = `800 36px -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", sans-serif`;
   const identityWidth = Math.min(780, Math.ceil(ctx.measureText(identityText).width) + 140);
-  roundedRect(ctx, 150, 860, identityWidth, 84, 42, cssVar("--color-accent-soft"));
-  circle(ctx, 200, 902, 18, data.colorHex);
-  label(ctx, identityText, 236, 915, 36, cssVar("--color-accent-deep"), "left", 800);
+  roundedRect(ctx, 150, 815, identityWidth, 84, 42, cssVar("--color-accent-soft"));
+  circle(ctx, 200, 857, 18, data.colorHex);
+  label(ctx, identityText, 236, 870, 36, cssVar("--color-accent-deep"), "left", 800);
 
-  trackedLabel(ctx, `${copy.score} · ${copy.scoreEn}`, 150, 1050, 28, 8, dim, "left", 800);
-  label(ctx, String(data.score), 140, 1300, fitFont(ctx, String(data.score), 250, 380, 180), cssVar("--color-moon"), "left", 900);
-  roundedRect(ctx, 560, 1170, 370, 96, 48, cssVar("--color-accent"));
-  label(ctx, `全场第 ${data.rank} 名`, 745, 1236, 40, cssVar("--color-accent-ink"), "center", 900);
+  trackedLabel(ctx, `${copy.score} · ${copy.scoreEn}`, 150, 990, 28, 8, dim, "left", 800);
+  label(ctx, String(data.score), 140, 1200, fitFont(ctx, String(data.score), 220, 380, 160), cssVar("--color-moon"), "left", 900);
+  roundedRect(ctx, 560, 1080, 370, 96, 48, cssVar("--color-accent"));
+  label(ctx, `全场第 ${data.rank} 名`, 745, 1146, 40, cssVar("--color-accent-ink"), "center", 900);
 
-  dashedLine(ctx, 150, 1350, 930, cssVar("--color-line"));
-  label(ctx, "「我的恩典够你用的」", 150, 1415, 36, ink, "left", 900);
-  label(ctx, "You don't have to do life alone.", 150, 1462, 26, cssVar("--color-leaf-deep"), "left", 800);
+  dashedLine(ctx, 150, 1250, 930, cssVar("--color-line"));
+  drawStampRow(ctx, data, copy, icons, 1250);
+
+  dashedLine(ctx, 150, 1545, 930, cssVar("--color-line"));
+  label(ctx, "「我的恩典够你用的」", 150, 1610, 36, ink, "left", 900);
+  label(ctx, "You don't have to do life alone.", 150, 1657, 26, cssVar("--color-leaf-deep"), "left", 800);
 
   /* footer on the waves */
   const paper = cssVar("--color-card");
-  label(ctx, data.orgZh, 90, 1760, 26, paper, "left", 900);
-  trackedLabel(ctx, data.orgEn.toUpperCase(), 90, 1804, 20, 1.5, paper, "left", 700);
-  label(ctx, data.date, 990, 1782, 26, paper, "right", 800);
-  trackedLabel(ctx, copy.cardTagline || copy.game, 990, 1830, 20, 2, paper, "right", 700);
+  label(ctx, data.orgZh, 90, 1790, 26, paper, "left", 900);
+  trackedLabel(ctx, data.orgEn.toUpperCase(), 90, 1834, 20, 1.5, paper, "left", 700);
+  label(ctx, data.date, 990, 1802, 26, paper, "right", 800);
+  trackedLabel(ctx, copy.cardTagline || copy.game, 990, 1850, 20, 2, paper, "right", 700);
+}
+
+/* 集章一栏：标题行写已集几枚，下面一排章，章下写摊位名。和集章卡主面板同一套配色。 */
+function drawStampRow(ctx: CanvasRenderingContext2D, data: BadgeData, copy: Copy, icons: (HTMLImageElement | null)[], top: number) {
+  const dim = cssVar("--color-ink-dim");
+  trackedLabel(ctx, `集章 · ${copy.cardEn.replace(/^MOON /, "")}`, 150, top + 70, 28, 8, dim, "left", 800);
+  label(ctx, `已集 ${data.stationsDone} / ${data.stationsTotal}`, 930, top + 70, 30, cssVar("--color-leaf-deep"), "right", 900);
+
+  const n = data.stamps.length;
+  if (!n) return;
+  const span = 780;
+  const gap = n > 7 ? 12 : 16;
+  const size = Math.min(104, (span - gap * (n - 1)) / n);
+  const r = size / 2;
+  const cy = top + 110 + r + 6;
+  data.stamps.forEach((stamp, i) => {
+    const cx = 150 + r + i * (size + gap);
+    const tone = stampTone(stamp);
+    circle(ctx, cx, cy, r, tone.fill);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r - 2, 0, Math.PI * 2);
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = tone.ring;
+    if (tone.dashed) ctx.setLineDash([8, 7]);
+    ctx.stroke();
+    ctx.restore();
+
+    const icon = icons[i];
+    if (icon) {
+      const s = size * 0.56;
+      ctx.drawImage(icon, cx - s / 2, cy - s / 2, s, s);
+    }
+
+    const pill = stamp.page.state === "passed" ? `+${stamp.page.score}` : stamp.page.state === "failed" ? "✕" : null;
+    if (pill) {
+      ctx.font = `900 22px -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", sans-serif`;
+      const w = Math.max(40, ctx.measureText(pill).width + 18);
+      const px = cx + r - w + 12;
+      const py = cy - r - 10;
+      roundedRect(ctx, px, py, w, 32, 16, tone.ring);
+      label(ctx, pill, px + w / 2, py + 24, 22, cssVar("--color-card"), "center", 900);
+    }
+
+    const name = stamp.page.title;
+    const nameSize = fitFont(ctx, name, 22, size + gap - 4, 14);
+    label(ctx, name, cx, cy + r + 38, nameSize, stamp.page.state === "blank" ? dim : cssVar("--color-ink"), "center", 800);
+  });
+}
+
+function stampTone(stamp: BadgeStamp): { ring: string; fill: string; icon: string; dashed: boolean } {
+  if (stamp.secret) {
+    return { ring: cssVar("--color-accent-deep"), fill: cssVar("--color-accent-soft"), icon: cssVar("--color-accent-deep"), dashed: false };
+  }
+  switch (stamp.page.state) {
+    case "passed":
+      return { ring: cssVar("--color-pass"), fill: cssVar("--color-pass-soft"), icon: cssVar("--color-pass"), dashed: false };
+    case "failed":
+      return { ring: cssVar("--color-fail"), fill: cssVar("--color-fail-soft"), icon: cssVar("--color-fail"), dashed: false };
+    case "retry":
+      return { ring: cssVar("--color-ink-dim"), fill: cssVar("--color-card"), icon: cssVar("--color-ink-dim"), dashed: true };
+    default:
+      return { ring: cssVar("--color-line"), fill: cssVar("--color-card"), icon: cssVar("--color-line"), dashed: true };
+  }
+}
+
+/* 印章图标是 React 线稿（currentColor），画进 canvas 前先按章的颜色转成 SVG 图片。 */
+async function loadStampIcons(stamps: BadgeStamp[]): Promise<(HTMLImageElement | null)[]> {
+  return Promise.all(
+    stamps.map(async (stamp) => {
+      if (!stamp.icon) return null;
+      const markup = renderToStaticMarkup(createElement(stamp.icon))
+        .replace("<svg", `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" color="${stampTone(stamp).icon}"`);
+      const img = new Image();
+      img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(markup)}`;
+      try {
+        await img.decode();
+        return img;
+      } catch {
+        return null;
+      }
+    }),
+  );
 }
 
 /** `#rrggbb` → `rgba(r, g, b, a)`; canvas gradients cannot take relative colour syntax on older phones. */
 function withAlpha(hex: string, alpha: number): string {
+  /* 生产构建会把 #ffffff 压成 #fff；认不出就退回不透明，月晕会铺满上半张图。 */
+  const short = /^#?([0-9a-f])([0-9a-f])([0-9a-f])$/i.exec(hex.trim());
+  if (short) hex = `#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}`;
   const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex.trim());
   if (!m) return hex;
   return `rgba(${parseInt(m[1], 16)}, ${parseInt(m[2], 16)}, ${parseInt(m[3], 16)}, ${alpha})`;

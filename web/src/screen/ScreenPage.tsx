@@ -106,17 +106,19 @@ export default function ScreenPage() {
         {data.phase === "waiting" ? (
           <Lobby data={data} landing={landing} joinLink={joinLink} />
         ) : (
-          <div className="grid grid-cols-1 gap-8 px-4 pb-24 lg:min-h-0 lg:flex-1 lg:grid-cols-[1fr_clamp(380px,34vw,660px)] lg:gap-[clamp(0.75rem,1.4vw,1.75rem)] lg:px-[clamp(0.75rem,1.6vw,2rem)] lg:pb-[clamp(0.75rem,1.4vw,1.75rem)]">
+          <div className="grid grid-cols-1 gap-8 px-4 pb-24 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_auto] lg:gap-[clamp(0.75rem,1.4vw,1.75rem)] lg:px-[clamp(0.75rem,1.6vw,2rem)] lg:pb-[clamp(0.75rem,1.4vw,1.75rem)]">
             <Board
               players={data.players}
               ended={data.phase === "ended"}
               stationsTotal={data.stations_total ?? 7}
               onReplay={data.phase === "ended" && data.awards ? () => setCeremonyDone(false) : undefined}
             />
-            <aside className="flex min-h-0 flex-col gap-[clamp(0.5rem,1vw,1.25rem)]">
+            {/* 排名只占一窄栏、按组轮播；播报和常驻的大二维码拿走大半块屏，
+                现场谁想扫随时能扫，不用等人按 Q 放大。 */}
+            <aside className="flex min-h-0 flex-col">
               <Ticker feed={data.feed} stations={data.stations ?? []} />
-              {joinLink && <RejoinCard url={joinLink} />}
             </aside>
+            {joinLink && <RejoinCard url={joinLink} />}
           </div>
         )}
       </Frame>
@@ -393,7 +395,7 @@ function Board({
     () => ordered.slice(page * pageSize, (page + 1) * pageSize),
     [ordered, page, pageSize],
   );
-  const rows = Math.ceil(visible.length / 2) || 1;
+  const rows = visible.length || 1;
 
   const ranks = useMemo(() => {
     const result = new Map<string, number>();
@@ -437,7 +439,7 @@ function Board({
           ref={gridRef}
           className="board-grid grid h-full content-evenly gap-2 lg:gap-[clamp(0.2rem,0.4vw,0.5rem)]"
           style={{
-            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+            gridTemplateColumns: "minmax(0, 1fr)",
             gridTemplateRows: `repeat(${rows}, min-content)`,
             gridAutoFlow: "column",
           }}
@@ -560,18 +562,14 @@ function ZoomQr({ url, className }: { url: string; className: string }) {
 function RejoinCard({ url }: { url: string }) {
   const copy = useCopy();
   return (
-    <div className="flex shrink-0 items-center gap-[clamp(0.6rem,1vw,1.1rem)] rounded-[20px] bg-white/90 p-[clamp(0.5rem,0.9vw,1rem)] shadow-[0_3px_0_var(--color-foil-shadow)]">
-      <ZoomQr url={url} className="h-[clamp(9rem,min(17vw,34vh),22rem)] w-[clamp(9rem,min(17vw,34vh),22rem)] shrink-0 rounded-lg" />
-      <div className="min-w-0">
-        <div className="text-[clamp(0.55rem,0.75vw,0.8rem)] font-black tracking-[0.28em] text-foil-dim">REJOIN</div>
-        <div className="mt-1 text-[clamp(1rem,1.6vw,1.9rem)] font-black leading-tight">
-          手机关掉了？
-          <br />
-          扫这里回到游戏
-        </div>
-        <div className="mt-2 text-[clamp(0.65rem,0.9vw,1rem)] font-semibold leading-snug text-moon-dim">
-          进去后点「已经登记过？」，输入你的 3 位{copy.lifeNo}即可找回 · 按 Q 放大
-        </div>
+    <div className="flex min-h-0 flex-col items-center justify-center rounded-[24px] bg-white/90 p-[clamp(0.75rem,1.3vw,1.5rem)] text-center shadow-[0_3px_0_var(--color-foil-shadow)] lg:w-[min(30vw,62vh)]">
+      <div className="text-[clamp(0.6rem,0.85vw,0.95rem)] font-black tracking-[0.28em] text-foil-dim">SCAN · REJOIN</div>
+      <div className="mt-1 text-[clamp(1.1rem,1.9vw,2.3rem)] font-black leading-tight">扫码加入 · 回到游戏</div>
+      <ZoomQr url={url} className="mt-[clamp(0.5rem,1vw,1.2rem)] aspect-square w-full max-w-[min(26vw,56vh)] shrink-0 rounded-lg" />
+      <div className="mt-[clamp(0.5rem,1vw,1.2rem)] text-[clamp(0.7rem,1vw,1.15rem)] font-semibold leading-snug text-moon-dim">
+        手机关掉了？扫码后点「已经登记过」，
+        <br />
+        输入你的 3 位{copy.lifeNo}即可找回
       </div>
     </div>
   );
@@ -790,14 +788,14 @@ function FeedLine({ item, fresh, stations }: { item: FeedItem; fresh: boolean; s
   const tone = TONE_CLASS[line.tone];
   return (
     <li
-      className={`${fresh ? "feed-in" : ""} flex items-start gap-[clamp(0.4rem,0.7vw,0.85rem)] rounded-xl bg-night-raise/70 py-[clamp(0.4rem,0.62vw,0.8rem)] pl-[clamp(0.5rem,0.8vw,1rem)] pr-[clamp(0.5rem,0.8vw,1rem)]`}
+      className={`${fresh ? "feed-in" : ""} flex items-start gap-[clamp(0.5rem,0.9vw,1.1rem)] rounded-xl bg-night-raise/70 py-[clamp(0.5rem,0.8vw,1rem)] pl-[clamp(0.6rem,1vw,1.25rem)] pr-[clamp(0.6rem,1vw,1.25rem)]`}
       style={{ borderLeft: `4px solid ${tone.rail}` }}
     >
       <span
         className="grid shrink-0 place-items-center rounded-lg bg-white"
         style={{
-          height: "clamp(1.5rem,2.2vw,2.4rem)",
-          width: "clamp(1.5rem,2.2vw,2.4rem)",
+          height: "clamp(1.8rem,2.8vw,3.2rem)",
+          width: "clamp(1.8rem,2.8vw,3.2rem)",
           boxShadow: `inset 0 0 0 1.5px ${tone.rail}55`,
         }}
       >
@@ -805,7 +803,7 @@ function FeedLine({ item, fresh, stations }: { item: FeedItem; fresh: boolean; s
       </span>
 
       <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-[clamp(0.25rem,0.4vw,0.45rem)] text-[clamp(0.74rem,1.05vw,1.2rem)] font-black leading-snug">
+        <span className="flex items-center gap-[clamp(0.25rem,0.4vw,0.45rem)] text-[clamp(0.9rem,1.35vw,1.6rem)] font-black leading-snug">
           {line.dot && (
             <span
               aria-hidden="true"
@@ -815,11 +813,11 @@ function FeedLine({ item, fresh, stations }: { item: FeedItem; fresh: boolean; s
           )}
           <span className="truncate">{line.who}</span>
         </span>
-        <span className="block text-[clamp(0.7rem,0.98vw,1.1rem)] leading-snug text-ink">
+        <span className="block text-[clamp(0.85rem,1.25vw,1.5rem)] leading-snug text-ink">
           {line.what}
         </span>
         {line.detail && (
-          <span className="mt-0.5 block text-[clamp(0.62rem,0.85vw,0.95rem)] leading-snug text-moon-dim">
+          <span className="mt-0.5 block text-[clamp(0.72rem,1.05vw,1.25rem)] leading-snug text-moon-dim">
             {line.detail}
           </span>
         )}
@@ -828,13 +826,13 @@ function FeedLine({ item, fresh, stations }: { item: FeedItem; fresh: boolean; s
       <span className="flex shrink-0 flex-col items-end gap-0.5 pt-0.5">
         {line.chip && (
           <span
-            className="tabular whitespace-nowrap text-[clamp(0.6rem,0.85vw,0.95rem)] font-black"
+            className="tabular whitespace-nowrap text-[clamp(0.75rem,1.1vw,1.3rem)] font-black"
             style={{ color: tone.chip }}
           >
             {line.chip}
           </span>
         )}
-        <span className="tabular text-[clamp(0.55rem,0.72vw,0.82rem)] text-moon-dim/60">
+        <span className="tabular text-[clamp(0.62rem,0.85vw,1rem)] text-moon-dim/60">
           {timeOf(item.at)}
         </span>
       </span>
@@ -892,7 +890,7 @@ function useBoardCapacity(
       if (rowHeight < 8) return;
       const gap = parseFloat(getComputedStyle(grid).rowGap) || 8;
       const perColumn = Math.floor((grid.clientHeight + gap) / (rowHeight + gap));
-      setCapacity(Math.max(6, Math.min(30, perColumn * 2)));
+      setCapacity(Math.max(4, Math.min(20, perColumn)));
     };
 
     measure();

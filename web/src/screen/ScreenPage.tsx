@@ -12,7 +12,7 @@ import { JoinQr } from "../lib/JoinQr";
 import { joinUrl } from "../lib/gameLinks";
 import Ceremony from "./Ceremony";
 import { DemoRibbon } from "../lib/DemoRibbon";
-import { SCREEN_AWARDS, SCREEN_PREVIEW } from "./previewData";
+import { SCREEN_AWARDS, SCREEN_AWARDS_TEAM, SCREEN_PREVIEW } from "./previewData";
 import { useAmbientVerse } from "../lib/scripture";
 
 /* Projector page. No auth: it is opened on the venue laptop and shown to the
@@ -25,7 +25,7 @@ export default function ScreenPage() {
   const [searchParams] = useSearchParams();
   const { screenToken } = useParams<{ screenToken: string }>();
   const previewMode = searchParams.get("preview");
-  const preview = previewMode === "1" || previewMode === "lobby" || previewMode === "awards" || previewMode === "ended";
+  const preview = previewMode === "1" || previewMode === "lobby" || previewMode === "awards" || previewMode === "awards-team" || previewMode === "ended";
   /* The screen token names the event; one call brings the board, the title
      and the join link, so the projector has a single 3-second heartbeat. */
   const pollFn = useMemo(
@@ -141,6 +141,9 @@ function previewData(mode: string | null): BoardSnapshot | null {
   }
   if (mode === "awards") {
     return { ...SCREEN_PREVIEW, phase: "ended", awards: SCREEN_AWARDS };
+  }
+  if (mode === "awards-team") {
+    return { ...SCREEN_PREVIEW, phase: "ended", awards: SCREEN_AWARDS_TEAM };
   }
   if (mode === "ended") {
     return { ...SCREEN_PREVIEW, phase: "ended", awards: null };

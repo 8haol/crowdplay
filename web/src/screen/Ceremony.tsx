@@ -24,10 +24,10 @@ type Slide =
   | { kind: "outro" };
 
 /*
- * Running order: team awards for the station run, then the personal specials,
- * then the podium climbing from third to first. The podium is deliberately last
- * and deliberately individual — a Solo player has to be able to win it, which is
- * why nothing here is decided by a combined team score.
+ * Running order: the team award, then the personal specials, then the podium
+ * climbing from third to first. The podium is individual by default so a Solo
+ * player can win it; only when one team would take two of the three places does
+ * the server hand back a team podium instead (20260923000100_award_lineup).
  */
 function buildSlides(awards: BoardAwards, players: number): Slide[] {
   const slides: Slide[] = [{ kind: "intro", players }];
@@ -164,7 +164,10 @@ function IntroSlide({ players, awards }: { players: number; awards: BoardAwards 
       <div className="mt-[clamp(2rem,4vw,4rem)] flex flex-wrap items-end justify-center gap-[clamp(2rem,5vw,5rem)]">
         <IntroStat value={players} label="位旅客" />
         <IntroStat value={awards.specials.length + awards.podium.length + (awards.team_awards?.length ?? 0)} label="个奖项" />
-        <IntroStat value={awards.podium[0]?.score ?? 0} label={`最高${copy.scoreUnit}`} />
+        <IntroStat
+          value={awards.podium[0]?.score ?? 0}
+          label={awards.podium[0]?.kind === "team" ? `冠军队平均${copy.scoreUnit}` : `最高${copy.scoreUnit}`}
+        />
       </div>
       <p className="mt-[clamp(2rem,3.5vw,3.5rem)] text-[clamp(1rem,1.6vw,1.8rem)] font-black text-ceremony-ink">
         {copy.ceremonyIntro}
@@ -265,6 +268,7 @@ const PODIUM_LOOK: Record<number, { label: string; english: string; medal: strin
 function PodiumSlide({ entry, stationsTotal }: { entry: PodiumEntry; stationsTotal: number }) {
   const copy = useCopy();
   const look = PODIUM_LOOK[entry.rank] ?? PODIUM_LOOK[3];
+  const isTeam = entry.kind === "team";
   const color = tone(entry.color_group, entry.name, entry.identity, copy);
   const ink = readableOn(color);
   return (
@@ -274,20 +278,30 @@ function PodiumSlide({ entry, stationsTotal }: { entry: PodiumEntry; stationsTot
         {look.english}
       </p>
       <h2 className="mt-1 text-[clamp(1.6rem,3.4vw,3.4rem)] font-black tracking-[-0.03em]">{look.label}</h2>
+      {isTeam && (
+        <p className="mt-1.5 text-[clamp(.7rem,1vw,1.05rem)] font-bold text-accent-deep">
+          今晚前几名都出自同队，领奖台按队伍平均分排
+        </p>
+      )}
 
       <div
         className="ceremony-rise mx-auto mt-[clamp(1.25rem,2.5vw,2.5rem)] rounded-[clamp(1.5rem,3vw,3rem)] px-[clamp(1.5rem,4vw,4.5rem)] py-[clamp(1.5rem,3vw,3rem)]"
         style={{ background: color, color: ink, boxShadow: `0 9px 0 ${darken(color, 0.3)}` }}
       >
-        <div className="font-black leading-[0.9] tracking-[-0.06em]" style={{ fontSize: look.size }}>
+        {/* A team place names everyone on it, so it gets the team slide's
+            smaller type instead of the single-name medal size. */}
+        <div
+          className="font-black leading-[0.9] tracking-[-0.06em]"
+          style={{ fontSize: isTeam ? "clamp(1.6rem,4.5vw,4.5rem)" : look.size }}
+        >
           {entry.name}
         </div>
         <div className="mt-[clamp(1rem,2vw,2rem)] flex flex-wrap items-end justify-center gap-[clamp(1.5rem,3.5vw,3.5rem)]">
-          <PodiumStat value={String(entry.score)} label={`最终${copy.scoreUnit}`} ink={ink} big />
+          <PodiumStat value={String(entry.score)} label={isTeam ? `平均${copy.scoreUnit}` : `最终${copy.scoreUnit}`} ink={ink} big />
           {/* Out of what this event ran, never a fixed 7: an event that
               dropped two stations must not announce its winner as 5/7. */}
           <PodiumStat value={`${entry.stations_done}/${stationsTotal}`} label={`完成${copy.station}`} ink={ink} />
-          <PodiumStat value={`${entry.life_events}/3`} label={copy.stagesLabel} ink={ink} />
+          {!isTeam && <PodiumStat value={`${entry.life_events ?? 0}/3`} label={copy.stagesLabel} ink={ink} />}
           {/* The card is already painted in this player's team colour, so the
               colour name would only add a word the room does not need. */}
           <PodiumStat value={copy.identity[entry.identity ?? "solo"].short} label="同行" ink={ink} />

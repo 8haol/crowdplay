@@ -95,7 +95,7 @@ begin
   raise notice 'PASS 08_board';
 end $$;
 -- ---------------------------------------------------------------------------
--- 奖池（spec §3，2026-09-21 定稿）：领奖台照实，最快通关是事实，其余奖只给新面孔。
+-- 颁奖（2026-09-23 定稿）：前三名（同队包揽就改队伍领奖台）+ 最快通关 + 3 个个人奖，不重复。
 -- 用一场新的 playing 场次：上面的 join-t 已经 ended，而且 players 被 attempts /
 -- life_events 的裸外键引用，删不掉。
 -- ---------------------------------------------------------------------------
@@ -109,7 +109,7 @@ do $$
 declare
   v_ev uuid := (select id from events where join_token = 'join-p');
   mains int[] := (select array_agg(s.id order by s.sort_order) from stations s where s.org_id is null and s.type = 'main');
-  t_a uuid; t_b uuid; t_c uuid; t_d uuid; r jsonb; names text[]; i int;
+  t_a uuid; t_b uuid; t_c uuid; t_d uuid; t_e uuid; t0 timestamptz; r jsonb; names text[]; i int;
 begin
   t_a := _make_team(v_ev, 'trio', 'red'); t_b := _make_team(v_ev, 'duo', 'blue');
   t_c := _make_team(v_ev, 'solo', 'solo-1'); t_d := _make_team(v_ev, 'duo', 'green');
@@ -129,42 +129,88 @@ begin
   update life_event_instances set state = 'cancelled' where event_id = v_ev and state = 'pending';
   update events set phase = 'ended', ended_at = now() where id = v_ev;
 
+  -- 颁奖 7 个（2026-09-23 定稿）。个人前三全是红队 → 整场改成队伍领奖台：
+  -- 平均分 红 63 / 绿 42 / 蓝 27，独行 C1 只有 9 分落选。
   r := _event_awards(v_ev);
-  -- podium is the truth: the red trio takes all three places
-  select array_agg(p ->> 'name' order by (p ->> 'rank')::int) into names from jsonb_array_elements(r -> 'podium') p;
-  assert array_length(names, 1) = 3 and names[1] like 'A%' and names[2] like 'A%' and names[3] like 'A%', 'podium is unrestricted top 3, got ' || names::text;
-  -- team awards: red fastest; full moon goes to blue (second most nines), not to red again
-  assert jsonb_array_length(r -> 'team_awards') = 2, 'two team awards, got ' || (r -> 'team_awards')::text;
-  assert r -> 'team_awards' -> 0 ->> 'key' = 'fastest' and r -> 'team_awards' -> 0 ->> 'color_group' = 'red', 'red is fastest';
-  assert r -> 'team_awards' -> 1 ->> 'key' = 'full_moon' and r -> 'team_awards' -> 1 ->> 'color_group' = 'blue', 'full moon skips the fastest team, got ' || (r -> 'team_awards')::text;
-  assert r -> 'team_awards' -> 1 ->> 'caption' = '1 站满分', 'full moon caption counts the nines';
-  -- specials never repeat a podium or team-award member
-  assert not exists (select 1 from jsonb_array_elements(r -> 'specials') s where s ->> 'name' like 'A%' or s ->> 'name' like 'B%'), 'specials are fresh faces: ' || (r -> 'specials')::text;
-  assert jsonb_array_length(r -> 'specials') <= 3, 'at most three specials';
-  -- no life events → lucky / unlucky / comeback / grace_witness have nobody; solo star + median remain
-  assert exists (select 1 from jsonb_array_elements(r -> 'specials') s where s ->> 'key' = 'solo_star' and s ->> 'name' = 'C1'), 'solo star is the solo: ' || (r -> 'specials')::text;
-  assert exists (select 1 from jsonb_array_elements(r -> 'specials') s where s ->> 'key' = 'median' and s ->> 'name' like 'D%'), 'median (8 players → 4th lowest) is a green duo member: ' || (r -> 'specials')::text;
-  assert jsonb_array_length(r -> 'specials') = 2, 'exactly the two awards that have a fresh face';
-  assert not exists (select 1 from jsonb_array_elements(r -> 'specials') s where s ->> 'key' not in ('lucky', 'unlucky', 'comeback', 'solo_star', 'grace_witness', 'median')), 'only the six agreed keys';
-  assert (select count(distinct s ->> 'name') from jsonb_array_elements(r -> 'specials') s) = jsonb_array_length(r -> 'specials'), 'no player wins two specials';
+  assert r ->> 'podium_mode' = 'team', 'same-team top three switches to a team podium: ' || r::text;
+  assert (select array_agg(p ->> 'color_group' order by (p ->> 'rank')::int) from jsonb_array_elements(r -> 'podium') p) = array['red', 'green', 'blue'],
+    'team podium ranks by average score: ' || (r -> 'podium')::text;
+  assert (r -> 'podium' -> 0 ->> 'score')::numeric = 63 and r -> 'podium' -> 0 ->> 'kind' = 'team'
+     and r -> 'podium' -> 0 ->> 'members' like '%A1%A%A%' and (r -> 'podium' -> 0 ->> 'member_count')::int = 3, 'team podium entry carries members + average: ' || (r -> 'podium' -> 0)::text;
+  -- 最快通关跳过领奖台上的队；C1 没走完 → 这场不发
+  assert jsonb_array_length(r -> 'team_awards') = 0, 'no fastest: every finisher is on the podium: ' || (r -> 'team_awards')::text;
+  -- 没有际遇 → 只剩独行明星
+  assert jsonb_array_length(r -> 'specials') = 1 and r -> 'specials' -> 0 ->> 'key' = 'solo_star' and r -> 'specials' -> 0 ->> 'name' = 'C1'
+     and r -> 'specials' -> 0 ->> 'caption' = '独自出发，9 分', 'solo star is always tried first: ' || (r -> 'specials')::text;
+  assert not exists (select 1 from jsonb_array_elements(r -> 'team_awards') a where a ->> 'key' = 'full_moon'), 'full moon is retired';
 
-  -- the median is skipped (not re-picked from used faces) when its holder already has an award:
-  -- remove the green duo so the 4th lowest of six is a blue player
-  update players set is_removed = true where team_id = t_d;
-  r := _event_awards(v_ev);
-  assert not exists (select 1 from jsonb_array_elements(r -> 'specials') s where s ->> 'key' = 'median'), 'median is not awarded to an already-awarded face: ' || (r -> 'specials')::text;
-  assert jsonb_array_length(r -> 'specials') = 1, 'fewer specials rather than a fallback';
-  update players set is_removed = false where team_id = t_d;
+  -- 个人领奖台：前三来自三个不同的队
+  update players set score = 70 where code = '801';
+  update players set score = 60 where code = '804';
+  update players set score = 50 where code = '807';
+  update players set score = 25 where code = '802';
+  update players set score = 20 where code = '803';
+  -- 新来一个 E 队，和 C1 都走完 7 站；C1 先凑齐，之后用再挑战重打一站
+  t_e := _make_team(v_ev, 'duo', 'violet');
+  insert into players (event_id, name, code, identity, color_group, team_id) values
+    (v_ev, 'E1', '809', 'duo', 'violet', t_e), (v_ev, 'E2', '810', 'duo', 'violet', t_e);
+  update events set phase = 'playing', ended_at = null where id = v_ev;
+  for i in 4..7 loop perform award_team_score('STAFF2', '806', mains[i], 3, false, 'c' || i); end loop;
+  for i in 1..7 loop perform award_team_score('STAFF2', '809', mains[i], 3, false, 'e' || i); end loop;
+  update players set locked_for_life_event = false, pending_threshold = null where event_id = v_ev;
+  update life_event_instances set state = 'cancelled' where event_id = v_ev and state = 'pending';
+  update events set phase = 'ended', ended_at = now() where id = v_ev;
+  t0 := (select started_at from events where id = v_ev);
+  update team_attempts ta set created_at = t0 + make_interval(mins => 10 + array_position(mains, ta.station_id)) where team_id = t_c;
+  update team_attempts ta set created_at = t0 + make_interval(mins => 20 + array_position(mains, ta.station_id)) where team_id = t_e;
+  update team_attempts set status = 'superseded' where team_id = t_c and station_id = mains[7];
+  insert into team_attempts (event_id, team_id, station_id, score, status, scored_by, created_at)
+  values (v_ev, t_c, mains[7], 6, 'passed', 'staff', t0 + interval '40 minutes');
 
-  -- no nines anywhere except red → full moon not awarded at all
-  update attempts set score = 3 where player_id in (select id from players where code in ('804', '805')) and score = 9;
-  update team_attempts set score = 3 where team_id = t_b and score = 9;
+  -- 际遇：A2 净 +5；B2 最后一下 -4 且再没涨（不算逆袭）；D2 两次都没丢分
+  delete from life_events where event_id = v_ev;
+  insert into life_events (event_id, player_id, card_type, card_label, score_before, score_after)
+  select v_ev, id, 'x', 'up', 20, 25 from players where code = '802';
+  insert into life_events (event_id, player_id, card_type, card_label, score_before, score_after)
+  select v_ev, id, 'x', 'down', 31, 27 from players where code = '805';
+  update players set score = 27 where code = '805';
+  insert into life_events (event_id, player_id, card_type, card_label, score_before, score_after)
+  select v_ev, id, 'x', v.l, v.b, v.a from players, (values ('up', 10, 13), ('flat', 20, 20)) v(l, b, a) where code = '808';
+
   r := _event_awards(v_ev);
-  assert jsonb_array_length(r -> 'team_awards') = 1 and r -> 'team_awards' -> 0 ->> 'key' = 'fastest', 'full moon skipped when only the fastest team has nines';
+  assert r ->> 'podium_mode' = 'player', 'three different teams keep the personal podium: ' || r::text;
+  assert (select array_agg(p ->> 'name' order by (p ->> 'rank')::int) from jsonb_array_elements(r -> 'podium') p) = array['A1', 'B1', 'D1'],
+    'personal podium by score: ' || (r -> 'podium')::text;
+  -- 最快通关按第一次凑齐 7 站算（C1 第 17 分钟），重打不往后推；E 第 27 分钟
+  assert jsonb_array_length(r -> 'team_awards') = 1 and r -> 'team_awards' -> 0 ->> 'key' = 'fastest'
+     and r -> 'team_awards' -> 0 ->> 'members' = 'C1', 'fastest counts the first time all stations were in: ' || (r -> 'team_awards')::text;
+  assert r -> 'team_awards' -> 0 ->> 'caption' = '开局 17 分钟走完 7 站', 'caption is minutes, not a place: ' || (r -> 'team_awards')::text;
+  -- C1 拿了最快通关 → 没有独行新面孔；池子补满 3 个
+  assert (select array_agg(s ->> 'key' || ':' || (s ->> 'name')) from jsonb_array_elements(r -> 'specials') s) = array['lucky:A2', 'unlucky:B2', 'steady:D2'],
+    'pool fills three fresh faces, comeback needs a real rebound: ' || (r -> 'specials')::text;
+  assert r -> 'specials' -> 2 ->> 'caption' = '2 次际遇，一分没丢', 'steady caption';
+
+  -- 所有奖项里没有人出现两次
+  assert (select count(*) from (
+      select p ->> 'name' n from jsonb_array_elements(r -> 'podium') p
+      union all select a ->> 'members' from jsonb_array_elements(r -> 'team_awards') a
+      union all select s ->> 'name' from jsonb_array_elements(r -> 'specials') s) x)
+    = (select count(distinct n) from (
+      select p ->> 'name' n from jsonb_array_elements(r -> 'podium') p
+      union all select a ->> 'members' from jsonb_array_elements(r -> 'team_awards') a
+      union all select s ->> 'name' from jsonb_array_elements(r -> 'specials') s) x), 'nobody wins twice';
+
+  -- 月下逆袭：谷底只看扣分那几次，要求真的回升
+  update players set score = 40 where code = '805';
+  r := _event_awards(v_ev);
+  assert not exists (select 1 from jsonb_array_elements(r -> 'specials') s where s ->> 'key' = 'comeback'), 'comeback stays behind lucky + unlucky in the pool';
+  assert (select name from players where id = _pick_award(v_ev, 'min_after is not null and score > min_after', '(score - min_after) desc', '{}')) = 'B2',
+    'comeback: B2 fell to 27 and finished on 40';
+  assert (select min_after from _award_stats(v_ev) where name = 'A2') is null, 'an up-only card is never a low point';
 
   -- the board carries the same awards once the event is over
   r := board_snapshot('screen-p') -> 'awards';
-  assert jsonb_array_length(r -> 'podium') = 3 and jsonb_array_length(r -> 'team_awards') = 1, 'board_snapshot serves the pooled awards';
-  raise notice 'OK award pool';
+  assert r ->> 'podium_mode' = 'player' and jsonb_array_length(r -> 'podium') = 3 and jsonb_array_length(r -> 'team_awards') = 1, 'board_snapshot serves the awards';
+  raise notice 'OK award lineup';
 end $$;
 rollback;

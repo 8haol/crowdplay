@@ -1,7 +1,7 @@
 /*
- * 20260921000300_award_pool 之后 specials 只发 lucky / unlucky / comeback /
- * solo_star / grace_witness / median，队伍奖是 fastest / full_moon。旧 key
- * （rollercoaster / steady_heart）留着，已结束场次的旧 payload 还要能渲染。
+ * 20260923000100_award_lineup 之后 specials 只发 solo_star / lucky / unlucky /
+ * comeback / steady，队伍奖只有 fastest。旧 key（full_moon / grace_witness /
+ * median / rollercoaster / steady_heart）留着，已结束场次的旧 payload 还要能渲染。
  */
 export type AwardKey =
   | "fastest"
@@ -10,6 +10,7 @@ export type AwardKey =
   | "unlucky"
   | "comeback"
   | "solo_star"
+  | "steady"
   | "grace_witness"
   | "median"
   | "rollercoaster"
@@ -186,16 +187,17 @@ export const PASSPORT_COPY: Copy = {
   endedBody: "Token 也已经用掉了 —— 这一程你没有独自走完。\n接下来找个位置歇一会儿，等主持人宣布最终成绩和颁奖。",
   graceLine: "",
   shareTitle: "LIFE PASSPORT · SHARE",
-  // Current _event_awards in 20260913000300_event_station_reads.sql.
+  // Current _event_awards in 20260923000100_award_lineup.sql.
   awards: {
     lucky: { title: "天选之子", subtitle: "人生事件加分最多" },
     unlucky: { title: "时运不济", subtitle: "人生事件扣分最多" },
     rollercoaster: { title: "人生过山车", subtitle: "同时经历了最高的加分和最重的扣分" },
     steady_heart: { title: "波澜不惊", subtitle: "经历过人生，却最稳得住" },
-    fastest: { title: "最快通关", subtitle: "全场最先走完所有站点" },
+    fastest: { title: "最快通关", subtitle: "飞快走完所有站点" },
     full_moon: { title: "满月收集", subtitle: "拿下最多个满分" },
     comeback: { title: "月下逆袭", subtitle: "从最低谷追回来最多分" },
-    solo_star: { title: "独行明星", subtitle: "独自走完，也走得漂亮" },
+    solo_star: { title: "独行明星", subtitle: "独自出发，也走得漂亮" },
+    steady: { title: "稳如磐石", subtitle: "经历了几次人生事件，一分没丢" },
     grace_witness: { title: "恩典见证", subtitle: "用了 Grace Token，再挑战时拿下高分" },
     median: { title: "不偏不倚", subtitle: "分数正好落在全场正中间" },
   },
@@ -337,10 +339,11 @@ export const MIDAUTUMN_COPY: Copy = {
     unlucky: { title: "时运不济", subtitle: "月下际遇扣分最多" },
     rollercoaster: { title: "潮起潮落", subtitle: "同时经历了最高的加分和最重的扣分" },
     steady_heart: { title: "波澜不惊", subtitle: "经历过际遇，却最稳得住" },
-    fastest: { title: "最快逛完", subtitle: "全场最先走完所有摊位" },
+    fastest: { title: "最快逛完", subtitle: "飞快逛完所有摊位" },
     full_moon: { title: "满月收集", subtitle: "收集了最多枚满分印章" },
     comeback: { title: "月下逆袭", subtitle: "从最低谷追回来最多分" },
-    solo_star: { title: "独行明星", subtitle: "独自逛完，也逛得精彩" },
+    solo_star: { title: "独行明星", subtitle: "独自出发，也逛得精彩" },
+    steady: { title: "稳如磐石", subtitle: "几次月下际遇，一分没丢" },
     grace_witness: { title: "恩典见证", subtitle: "用了同行求助券，再挑战时拿下高分" },
     median: { title: "不偏不倚", subtitle: "分数正好落在全场正中间" },
   },

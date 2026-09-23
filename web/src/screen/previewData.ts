@@ -63,26 +63,37 @@ export const SCREEN_PREVIEW: BoardSnapshot = {
   feed,
 };
 
-/** Ceremony preview: /screen?preview=awards */
+/**
+ * Ceremony preview: /screen?preview=awards
+ * 7 个奖，key 和 caption 的写法跟着 _event_awards 走（20260923000100_award_lineup.sql）：
+ * 前三名来自三个不同的队 → 个人领奖台；最快通关跳过台上的队，caption 写分钟数；
+ * 个人奖独行明星先发，再补天选之子 / 时运不济。
+ */
 export const SCREEN_AWARDS: BoardSnapshot["awards"] = {
+  podium_mode: "player",
   podium: [
-    { rank: 1, name: "林沐恩", score: 58, color_group: "red", identity: "duo", stations_done: 7, life_events: 3 },
-    { rank: 2, name: "陈子谦", score: 55, color_group: "blue", identity: "trio", stations_done: 7, life_events: 3 },
-    { rank: 3, name: "黄恩慈", score: 51, color_group: "blue", identity: "trio", stations_done: 7, life_events: 3 },
+    { rank: 1, kind: "player", name: "林沐恩", score: 58, color_group: "red", identity: "duo", stations_done: 7, life_events: 3 },
+    { rank: 2, kind: "player", name: "陈子谦", score: 55, color_group: "blue", identity: "trio", stations_done: 7, life_events: 3 },
+    { rank: 3, kind: "player", name: "王心怡", score: 51, color_group: "violet", identity: "trio", stations_done: 7, life_events: 3 },
   ],
-  /*
-   * 个人奖最多 3 个，key 和 caption 的写法跟着 _event_awards 走
-   * （20260921000300_award_pool.sql）。rollercoaster / steady_heart 已经退出奖池，
-   * 这里再摆出来就是演示一个真实场次永远颁不出的奖。
-   */
   specials: [
+    { key: "solo_star", emoji: "⭐", title: "独行明星", subtitle: "独自出发里总分最高", caption: "独自出发，46 分", name: "吴佳音", color_group: "solo-2", identity: "solo", score: 46 },
     { key: "lucky", emoji: "🍀", title: "天选之子", subtitle: "际遇加分最多", caption: "际遇净赚 +14 分", name: "张乐言", color_group: "green", identity: "duo", score: 47 },
-    { key: "comeback", emoji: "🌙", title: "月下逆袭", subtitle: "从谷底回升最多", caption: "最低时只剩 12 分，最后 44 分", name: "何嘉树", color_group: "cyan", identity: "trio", score: 44 },
-    { key: "solo_star", emoji: "⭐", title: "独行明星", subtitle: "独自出发里总分最高", caption: "一个人走完，50 分", name: "吴佳音", color_group: "solo-2", identity: "solo", score: 50 },
+    { key: "unlucky", emoji: "🌧️", title: "时运不济", subtitle: "际遇扣分最多", caption: "际遇净亏 9 分", name: "何嘉树", color_group: "cyan", identity: "trio", score: 31 },
   ],
-  /* 队伍奖两个：最快逛完（事实）→ 满月收集（去重）。 */
   team_awards: [
-    { key: "fastest", emoji: "⚡", title: "最快通关", subtitle: "全场最先走完所有站点", caption: "全场第一个完成 7 站", members: "林沐恩 / 周以诺", member_count: 2, color_group: "red", identity: "duo" },
-    { key: "full_moon", emoji: "🌕", title: "满月收集", subtitle: "满分站点最多的队", caption: "4 站满分", members: "王心怡 / 李俊熙 / 何嘉树", member_count: 3, color_group: "violet", identity: "trio" },
+    { key: "fastest", emoji: "⚡", title: "最快通关", subtitle: "飞快走完所有站点", caption: "开局 38 分钟走完 7 站", members: "郑可欣 / 周以诺", member_count: 2, color_group: "orange", identity: "duo" },
   ],
+};
+
+/** /screen?preview=awards-team：前三里有两人同队 → 整场改成队伍领奖台，按平均分排。 */
+export const SCREEN_AWARDS_TEAM: BoardSnapshot["awards"] = {
+  ...SCREEN_AWARDS,
+  podium_mode: "team",
+  podium: [
+    { rank: 1, kind: "team", name: "陈子谦 / 王心怡 / 黄恩慈", members: "陈子谦 / 王心怡 / 黄恩慈", member_count: 3, score: 55.3, color_group: "blue", identity: "trio", stations_done: 7, life_events: null },
+    { rank: 2, kind: "team", name: "林沐恩 / 李俊熙", members: "林沐恩 / 李俊熙", member_count: 2, score: 52.5, color_group: "red", identity: "duo", stations_done: 7, life_events: null },
+    { rank: 3, kind: "team", name: "吴佳音", members: "吴佳音", member_count: 1, score: 46, color_group: "solo-2", identity: "solo", stations_done: 7, life_events: null },
+  ],
+  specials: SCREEN_AWARDS!.specials.filter((award) => award.key !== "solo_star"),
 };

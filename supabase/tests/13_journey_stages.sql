@@ -52,7 +52,8 @@ begin
   v_awards := board_snapshot('screen-t') -> 'awards';
   assert v_awards is not null, 'awards appear once the game ends';
   assert jsonb_array_length(v_awards -> 'podium') = 2, 'podium lists everyone present';
-  assert jsonb_array_length(v_awards -> 'team_awards') = 1 and v_awards -> 'team_awards' -> 0 ->> 'key' = 'fastest', 'exactly one team award: the finish line';
+  -- the only finisher is on the podium, so fastest is skipped rather than doubled up
+  assert jsonb_array_length(v_awards -> 'team_awards') = 0, 'fastest skips a team already on the podium';
   assert not exists (select 1 from jsonb_array_elements((v_awards -> 'team_awards') || (v_awards -> 'specials')) a where a ->> 'key' in ('challenger', 'perfectionist')),
          'the duplicate station-score awards stay retired';
   assert exists (select 1 from _award_stats(v_ev) s join players p on p.id = s.player_id where p.code = v_code and s.ev_swing = s.ev_up - s.ev_down and s.ev_count = 3),

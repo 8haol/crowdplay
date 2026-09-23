@@ -68,7 +68,7 @@ export const FLOW: FlowStep[] = [
     time: "约 50 分钟",
     title: "结束并颁奖",
     who: "总控点「结束本场并开始颁奖」",
-    body: "大屏立刻进入整屏颁奖典礼：先是唯一的队伍奖「最快通关」，再是 4 个个人奖，然后从第三名往上揭晓前三名，最后落在经文上。除了「最快通关」，所有奖项都是个人的 —— Solo 玩家一样有机会拿第一。主持人可以用方向键翻页、空格前进、P 暂停、Esc 跳到总榜。这一步玩家手机上还看不到名次，全场才会抬头看大屏。",
+    body: "大屏立刻进入整屏颁奖典礼：先是唯一的队伍奖「最快通关」，再是 3 个个人奖，然后从第三名往上揭晓前三名，最后落在经文上。一共 7 个奖，同一个人不会被叫上台两次。主持人可以用方向键翻页、空格前进、P 暂停、Esc 跳到总榜。这一步玩家手机上还看不到名次，全场才会抬头看大屏。",
     demo: { href: "/screen?preview=awards", title: "看颁奖典礼", emoji: "🏆", detail: "一页一个奖，自动播放，也可以手动翻" },
   },
   {
@@ -125,29 +125,29 @@ export const SCORING = {
     },
     {
       title: "前三名是个人的",
-      body: "冠亚季军和四个特别奖全部按个人算，Solo 玩家和 Trio 玩家机会一样。只有「最快通关」一个奖按队伍发 —— 站点是整队录一次分，队友的站点数字完全相同，发给某一个人就成了抽签。",
+      body: "冠亚季军默认按个人算，Solo 玩家和 Trio 玩家机会一样；但如果前三里有两人来自同一队，这场改成按队伍平均分排，每队一席 —— 站点是整队录一次分，队友之间只差人生事件那几分，一队包揽前三其实就是队伍名次。只有「最快通关」一个奖本来就按队伍发。",
     },
   ],
 };
 
 /** Personal prizes: metrics that genuinely differ between teammates. */
 export const AWARDS_PERSONAL = [
-  { emoji: "🥇", title: "冠 / 亚 / 季军", note: "个人总分前三，从第三名往上揭晓" },
+  { emoji: "🥇", title: "冠 / 亚 / 季军", note: "个人总分前三，从第三名往上揭晓。前三里有两人同队时，这场改按队伍平均分排，每队一席" },
+  { emoji: "⭐", title: "独行明星", note: "独行玩家里总分最高的那位，每场优先发" },
   { emoji: "🍀", title: "天选之子", note: "人生事件净加分最多" },
   { emoji: "🌧️", title: "时运不济", note: "人生事件净扣分最多" },
-  { emoji: "🎢", title: "人生过山车", note: "最高加分和最重扣分之间落差最大（必须两边都经历过）" },
-  { emoji: "🌊", title: "波澜不惊", note: "同样走完三段，上下落差却最小" },
+  { emoji: "🌙", title: "月下逆袭 / 🪨 稳如磐石", note: "备选：天选或时运找不到人时补上 —— 从扣分后的谷底回升最多 / 几次人生事件一分没丢" },
 ];
 
 /**
- * The single team prize. 「挑战王」(站点总分最高) and 「满分收藏家」(满分最多)
- * used to be here too, but they measure the same station score twice — the team
- * with the most 9s is the team with the highest total — so both trophies kept
- * landing on the same three people. Finishing time is the one team number that
- * is not just "who scored more", so it is the only team award left.
+ * The single team prize. 「挑战王」「满分收藏家」「满月收集」 all measured the
+ * station score again — the team with the most 9s is the team with the highest
+ * total — so they kept landing on the podium team. Finishing time is the one
+ * team number that is not just "who scored more", and it skips any team already
+ * on the podium so the same people are not called up twice.
  */
 export const AWARDS_TEAM = [
-  { emoji: "⚡", title: "最快通关", note: "全场最先走完所有七站的队伍，整队一起领" },
+  { emoji: "⚡", title: "最快通关", note: "最先凑齐所有七站的队伍（已经上领奖台的队跳过），整队一起领" },
 ];
 
 export interface SopRole {
@@ -270,6 +270,6 @@ export const FAQ: Array<{ q: string; a: string }> = [
   },
   {
     q: "Solo 玩家有可能拿第一吗？",
-    a: "有。冠亚季军完全按个人总分算，和队伍人数无关。全场只有「最快通关」一个奖按队伍发。原来还有「挑战王」和「满分收藏家」，但它们量的是同一个站点总分（满分最多的队必然也是总分最高的队），两个奖只会落在同一组人身上，所以取消了。",
+    a: "有。冠亚季军默认按个人总分算，和队伍人数无关（只有前三里出现同队两人时才改按队伍平均分排，Solo 自成一队照样能上）。另外还有专门给 Solo 的「独行明星」。",
   },
 ];

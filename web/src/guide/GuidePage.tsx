@@ -449,7 +449,7 @@ const ALL_DEMOS: Array<{ group: string; note: string; items: DemoLink[] }> = [
     items: [
       { href: "/screen?preview=lobby", title: "候场画面", detail: "入场二维码 + 到场人数 + 名牌墙轮播", emoji: "🖥️" },
       { href: "/screen?preview=1", title: "进行中", detail: "按队伍排列的进度板 + 实时播报 + 找回二维码", emoji: "📊" },
-      { href: "/screen?preview=awards", title: "颁奖典礼", detail: "1 个队伍奖 + 4 个个人奖 + 前三名", emoji: "🏆" },
+      { href: "/screen?preview=awards", title: "颁奖典礼", detail: "1 个队伍奖 + 3 个个人奖 + 前三名", emoji: "🏆" },
       { href: "/screen?preview=ended", title: "最终总榜", detail: "颁奖结束后的排名画面（可重播颁奖）", emoji: "📋" },
     ],
   },
@@ -573,17 +573,17 @@ function Awards() {
       id="awards"
       eyebrow="CEREMONY"
       title="结束后的颁奖"
-      lede="游戏进行中大屏刻意不排名次，所以颁奖是全场第一次知道结果。每个奖项都保证只有一个得主，指标不成立的奖项（比如全场没人扣过分）会自动跳过。"
+      lede="游戏进行中大屏刻意不排名次，所以颁奖是全场第一次知道结果。一共 7 个奖，同一个人不会被叫上台两次；指标不成立的奖项（比如全场没人扣过分）由备选补上，备选也没人就少发。"
     >
       <AwardGroup
         badge="个人奖"
-        note="这四个指标问的是同一段人生的四个不同问题：赚了多少、亏了多少、上下落差多大、有多稳"
+        note="个人奖最多 3 个，只发给还没上过台的人"
         items={AWARDS_PERSONAL}
       />
       <div className="mt-6">
         <AwardGroup
           badge="队伍奖"
-          note="只有一个。站点是整队录一次分，所以队伍之间唯一不重复的指标是「谁先跑完」"
+          note="只有一个。站点是整队录一次分，所以队伍之间唯一不重复的指标是「谁先跑完」；已经上领奖台的队跳过"
           items={AWARDS_TEAM}
           tone="accent"
         />

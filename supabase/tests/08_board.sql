@@ -136,7 +136,7 @@ begin
   assert (select array_agg(p ->> 'color_group' order by (p ->> 'rank')::int) from jsonb_array_elements(r -> 'podium') p) = array['red', 'green', 'blue'],
     'team podium ranks by average score: ' || (r -> 'podium')::text;
   assert (r -> 'podium' -> 0 ->> 'score')::numeric = 63 and r -> 'podium' -> 0 ->> 'kind' = 'team'
-     and r -> 'podium' -> 0 ->> 'members' like '%A1%A%A%' and (r -> 'podium' -> 0 ->> 'member_count')::int = 3, 'team podium entry carries members + average: ' || (r -> 'podium' -> 0)::text;
+     and r -> 'podium' -> 0 ->> 'members' like '%A1%' and r -> 'podium' -> 0 ->> 'members' like '%A2%' and r -> 'podium' -> 0 ->> 'members' like '%A3%' and (r -> 'podium' -> 0 ->> 'member_count')::int = 3, 'team podium entry carries members + average: ' || (r -> 'podium' -> 0)::text;
   -- 最快通关跳过领奖台上的队；C1 没走完 → 这场不发
   assert jsonb_array_length(r -> 'team_awards') = 0, 'no fastest: every finisher is on the podium: ' || (r -> 'team_awards')::text;
   -- 没有际遇 → 只剩独行明星
@@ -184,7 +184,7 @@ begin
   -- 最快通关按第一次凑齐 7 站算（C1 第 17 分钟），重打不往后推；E 第 27 分钟
   assert jsonb_array_length(r -> 'team_awards') = 1 and r -> 'team_awards' -> 0 ->> 'key' = 'fastest'
      and r -> 'team_awards' -> 0 ->> 'members' = 'C1', 'fastest counts the first time all stations were in: ' || (r -> 'team_awards')::text;
-  assert r -> 'team_awards' -> 0 ->> 'caption' = '开局 17 分钟走完 7 站', 'caption is minutes, not a place: ' || (r -> 'team_awards')::text;
+  assert r -> 'team_awards' -> 0 ->> 'caption' = '开局 17 分钟全部完成', 'caption is minutes, not a place: ' || (r -> 'team_awards')::text;
   -- C1 拿了最快通关 → 没有独行新面孔；池子补满 3 个
   assert (select array_agg(s ->> 'key' || ':' || (s ->> 'name')) from jsonb_array_elements(r -> 'specials') s) = array['lucky:A2', 'unlucky:B2', 'steady:D2'],
     'pool fills three fresh faces, comeback needs a real rebound: ' || (r -> 'specials')::text;

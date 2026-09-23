@@ -82,7 +82,7 @@ export const SCREEN_AWARDS: BoardSnapshot["awards"] = {
     { key: "unlucky", emoji: "🌧️", title: "时运不济", subtitle: "际遇扣分最多", caption: "际遇净亏 9 分", name: "何嘉树", color_group: "cyan", identity: "trio", score: 31 },
   ],
   team_awards: [
-    { key: "fastest", emoji: "⚡", title: "最快通关", subtitle: "飞快走完所有站点", caption: "开局 38 分钟走完 7 站", members: "郑可欣 / 周以诺", member_count: 2, color_group: "orange", identity: "duo" },
+    { key: "fastest", emoji: "⚡", title: "最快通关", subtitle: "飞快走完所有站点", caption: "开局 38 分钟全部完成", members: "郑可欣 / 周以诺", member_count: 2, color_group: "orange", identity: "duo" },
   ],
 };
 

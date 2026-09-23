@@ -8,7 +8,7 @@
 --   最快通关 1 个队：7 个主摊位（不含隐藏、已撤）都有有效成绩的队里，按「第一次凑齐
 --     全部主摊位」的时间排——每站取最早一次记分（含被再挑战 superseded 的那条），
 --     再取最晚的那站；用了再挑战不会把完成时间往后推。跳过领奖台上的队（个人领奖台
---     时是台上那几人所在的队）。caption 写开局到完成的分钟数，不写名次。
+--     时是台上那几人所在的队）。caption 写开局到完成的分钟数，不写名次，也不写「站 / 摊位」（两个主题通用）。
 --   个人奖最多 3 个，只发新面孔（不在领奖台、不是最快通关队成员、没拿过个人奖）：
 --     独行明星先发（独行玩家里总分最高的新面孔），再按 lucky → unlucky → comeback →
 --     steady 补满 3 个，找不到新面孔就顺延，候选用尽就少发。
@@ -147,8 +147,8 @@ begin
       'members', v_team.members, 'member_count', v_team.member_count,
       'identity', v_team.identity, 'color_group', v_team.color_group,
       'caption', case when v_started is not null and v_finished > v_started
-        then format('开局 %s 分钟走完 %s 站', ceil(extract(epoch from v_finished - v_started) / 60)::int, v_total)
-        else format('走完全部 %s 站', v_total) end
+        then format('开局 %s 分钟全部完成', ceil(extract(epoch from v_finished - v_started) / 60)::int)
+        else '全部完成' end
     );
     v_used := v_used || coalesce((select array_agg(p.id) from players p where p.team_id = v_id and not p.is_removed), '{}'::uuid[]);
   end if;

@@ -412,3 +412,7 @@ enabled = true
 # declarative_schema_path = "./schemas"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+# 前端用 sb_publishable_ 新式 key，它不是 JWT，默认的 JWT 校验会把请求全挡成 401；鉴权靠请求体里的 admin_key。
+[functions.album-sign]
+verify_jwt = false

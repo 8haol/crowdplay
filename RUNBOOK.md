@@ -68,6 +68,53 @@ update platform_config
 扮 NPC 的义工用普通工作人员码登录 `/staff`，列表里这个站标着「隐藏」，像普通摊位一样给整队记分（固定 +6）。
 提示文案里写 NPC 的外貌 / 穿着特征和「别让别的队听见」，暗号藏在际遇结局文案里由教会自己填。
 
+## 相册 / R2
+
+后台「活动相册」里的原片存在 Cloudflare R2，不在 Supabase。浏览器直接和 R2 收发文件，
+Supabase 里只存元数据；签名由 Edge Function `album-sign` 完成，R2 密钥只放在它的 secrets 里。
+
+**第一次开通**（只做一次）：
+
+1. Cloudflare 控制台 → R2 → 开通（需要绑卡；10 GB 以内免费，之后 $0.015 / GB·月，下载流量免费）。
+2. 建 bucket `denghuo-albums`（已建好），地区选 Automatic。
+3. R2 → Manage API tokens → Create：权限 **Object Read & Write**，只勾这个 bucket。记下
+   Access Key ID、Secret Access Key，以及页面上的 S3 endpoint（`https://<account_id>.r2.cloudflarestorage.com`）。
+4. bucket → Settings → CORS policy（已用 Cloudflare API 设好，换域名时改这里）：
+
+   ```json
+   [
+     {
+       "AllowedOrigins": ["https://lifepassport.netlify.app", "http://localhost:5173"],
+       "AllowedMethods": ["GET", "PUT", "HEAD"],
+       "AllowedHeaders": ["Content-Type"],
+       "ExposeHeaders": ["ETag", "Content-Length"],
+       "MaxAgeSeconds": 3600
+     }
+   ]
+   ```
+
+5. bucket → Settings → Object lifecycle rules → 加一条「Abort incomplete multipart uploads after 7 days」。
+6. 在主 checkout 的终端里自己运行（密钥不要贴给任何人，包括 Claude）：
+
+   ```bash
+   npx supabase secrets set R2_ENDPOINT=https://<account_id>.r2.cloudflarestorage.com R2_BUCKET=denghuo-albums R2_ACCESS_KEY_ID=<...> R2_SECRET_ACCESS_KEY=<...> ALLOWED_ORIGINS=https://lifepassport.netlify.app
+   ```
+
+**部署顺序**：`supabase db push` → `supabase functions deploy album-sign` → 上面的 secrets → 最后合并前端。
+前端合并即上线，顺序反了的话相册页会报「相册存储还没开通」或 `PGRST202`。
+
+**额度**：每个机构默认 20 GB，计入已传完的和 24 小时内还在传的。在 `/root` 的机构列表点「相册 x / y GB」改额度。
+超额时上传直接被拒，不会传到一半才失败。
+
+**查某机构用量**：
+
+```sql
+select o.slug, _album_used_bytes(o.id) / 1024.0 ^ 3 as used_gb, o.album_quota_bytes / 1024.0 ^ 3 as quota_gb
+from organizations o order by 2 desc;
+```
+
+**删机构**之前要先在该机构后台把相册清空，否则 `/root` 会拒绝删除，这样 R2 上不会留下没人认领的文件。
+
 ## T-24 小时
 
 1. 确认生产 Supabase 为 Active，并创建一次可恢复备份。

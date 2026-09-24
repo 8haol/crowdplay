@@ -4,6 +4,7 @@ import { ErrorBanner } from "../lib/ui";
 import { Btn, DialogHead, Modal } from "../admin/adminUi";
 import { T, inputClass, inputStyle } from "../admin/adminTokens";
 import type { PlatformOrg } from "../lib/types";
+import { GB, formatBytes, formatUsage } from "../admin/adminUtils";
 
 export function NewOrgDialog(props: {
   platformKey: string;
@@ -209,6 +210,60 @@ export function DeleteOrgDialog(props: {
             props.onDone(`已删除「${props.org.name_zh}」`);
           } catch (error) { setErr(errorText(error)); } finally { setBusy(false); }
         }}>永久删除</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+/** 改某个机构的相册额度。单位 GB（1024³ 字节），0–1000。 */
+export function AlbumQuotaDialog(props: {
+  platformKey: string;
+  org: PlatformOrg;
+  onClose: () => void;
+  onDone: (message: string) => void;
+}) {
+  const used = props.org.album_used_bytes ?? 0;
+  const quota = props.org.album_quota_bytes ?? 0;
+  const [value, setValue] = useState(() => String(Math.round((quota / GB) * 10) / 10));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const gb = value.trim() === "" ? Number.NaN : Number(value);
+  const valid = Number.isFinite(gb) && gb >= 0 && gb <= 1000;
+  const bytes = valid ? Math.round(gb * GB) : 0;
+  const belowUsage = valid && bytes < used;
+
+  return (
+    <Modal onClose={props.onClose}>
+      <DialogHead eyebrow="相册额度" title={`「${props.org.name_zh}」的相册空间`} onClose={props.onClose} />
+      <p className="mt-4 text-sm font-semibold leading-6" style={{ color: T.inkSoft }}>
+        现在已用 {formatUsage(used, quota)}。额度只挡新的上传，调低不会删掉已经传上去的照片。
+      </p>
+      <label className="mt-6 block">
+        <span className="text-sm font-black">额度（GB）</span>
+        <input className={inputClass} style={inputStyle} autoFocus inputMode="decimal"
+          value={value} onChange={(e) => setValue(e.target.value.replace(/[^\d.]/g, ""))} />
+        <span className="text-xs font-semibold" style={{ color: value && !valid ? T.danger : belowUsage ? T.warn : T.inkFaint }}>
+          {value && !valid
+            ? "要在 0–1000 之间"
+            : belowUsage
+              ? `比已用的 ${formatBytes(used)} 还少，这间机构暂时传不了新照片`
+              : "0–1000，可以有一位小数"}
+        </span>
+      </label>
+      <div className="mt-4"><ErrorBanner text={err} /></div>
+      <div className="mt-6 flex justify-end gap-2">
+        <Btn variant="quiet" onClick={props.onClose}>取消</Btn>
+        <Btn variant="primary" disabled={!valid || busy} onClick={async () => {
+          setBusy(true); setErr(null);
+          try {
+            await rpc("platform_set_album_quota", {
+              p_platform_key: props.platformKey,
+              p_org_id: props.org.id,
+              p_quota_bytes: bytes,
+            });
+            props.onDone(`「${props.org.name_zh}」的相册额度改成了 ${formatBytes(bytes)}`);
+          } catch (error) { setErr(errorText(error)); } finally { setBusy(false); }
+        }}>保存</Btn>
       </div>
     </Modal>
   );

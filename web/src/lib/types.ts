@@ -690,6 +690,10 @@ export interface PlatformOrg {
   event_count: number;
   last_event_at: string | null;
   has_live_event: boolean;
+  // 活动相册用量与额度（字节）。可选：前端可能先于 schema 上线（Netlify 合并即部署，
+  // db push 是手动的），旧版 platform_orgs 不返回这两个字段时显示「—」而不是 NaN。
+  album_used_bytes?: number;
+  album_quota_bytes?: number;
 }
 
 export interface PlatformOrgs {

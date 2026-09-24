@@ -15,6 +15,8 @@ export const ROOT_PREVIEW: PlatformOrgs = {
       event_count: 3,
       last_event_at: "2026-08-27T19:40:00Z",
       has_live_event: true,
+      album_used_bytes: 10952166604,
+      album_quota_bytes: 21474836480,
     },
     {
       id: "00000000-0000-0000-0000-0000000000a2",
@@ -26,6 +28,8 @@ export const ROOT_PREVIEW: PlatformOrgs = {
       event_count: 1,
       last_event_at: "2026-09-05T18:30:00Z",
       has_live_event: false,
+      album_used_bytes: 0,
+      album_quota_bytes: 21474836480,
     },
   ],
 };

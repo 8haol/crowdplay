@@ -8,7 +8,8 @@ import { T } from "../admin/adminTokens";
 import { rpc, errorText } from "../lib/api";
 import type { ImpersonateResult, PlatformOrg, PlatformOrgs } from "../lib/types";
 import { ROOT_PREVIEW } from "./previewData";
-import { DeleteOrgDialog, NewOrgDialog, RenameOrgDialog, ResetKeyDialog } from "./RootDialogs";
+import { AlbumQuotaDialog, DeleteOrgDialog, NewOrgDialog, RenameOrgDialog, ResetKeyDialog } from "./RootDialogs";
+import { formatUsage } from "../admin/adminUtils";
 
 const SESSION_KEY = "lp_platform_key";
 const ADMIN_SESSION_KEY = "lp_admin_key";
@@ -75,6 +76,7 @@ function RootConsole(props: {
     | { kind: "rename"; org: PlatformOrg }
     | { kind: "reset"; org: PlatformOrg }
     | { kind: "delete"; org: PlatformOrg }
+    | { kind: "quota"; org: PlatformOrg }
     | null
   >(null);
 
@@ -170,7 +172,7 @@ function RootConsole(props: {
           /* 加了「口令」一列之后，窄一点的笔记本上四个操作按钮会被压得逐字换行。
              让表格自己横向滚动，而不是把每一列都挤扁。 */
           <div className="overflow-x-auto">
-          <table className="w-full min-w-[56rem] text-sm">
+          <table className="w-full min-w-[62rem] text-sm">
             <thead>
               <tr style={{ color: T.inkFaint }}>
                 <th className="px-5 py-3 text-left font-black">机构</th>
@@ -178,6 +180,7 @@ function RootConsole(props: {
                 <th className="px-5 py-3 text-left font-black">口令</th>
                 <th className="whitespace-nowrap px-5 py-3 text-right font-black">场次</th>
                 <th className="whitespace-nowrap px-5 py-3 text-left font-black">最近一场</th>
+                <th className="whitespace-nowrap px-5 py-3 text-left font-black">相册</th>
                 <th className="px-5 py-3 text-right font-black">操作</th>
               </tr>
             </thead>
@@ -223,6 +226,24 @@ function RootConsole(props: {
                   <td className="px-5 py-4 text-right font-black">{org.event_count}</td>
                   <td className="px-5 py-4" style={{ color: T.inkSoft }}>
                     {org.last_event_at ? org.last_event_at.slice(0, 10) : "—"}
+                  </td>
+                  <td className="whitespace-nowrap px-5 py-4">
+                    {org.album_quota_bytes == null ? (
+                      <span style={{ color: T.inkFaint }}>—</span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="pressable tabular text-sm font-black underline decoration-dotted underline-offset-4 disabled:cursor-not-allowed disabled:no-underline"
+                        style={{
+                          color: (org.album_used_bytes ?? 0) > org.album_quota_bytes * 0.8 ? T.warn : T.inkSoft,
+                        }}
+                        disabled={busy || Boolean(previewData)}
+                        title="点击修改相册额度"
+                        onClick={() => setDialog({ kind: "quota", org })}
+                      >
+                        相册 {formatUsage(org.album_used_bytes ?? 0, org.album_quota_bytes)}
+                      </button>
+                    )}
                   </td>
                   <td className="px-5 py-4 text-right">
                     <div className="flex justify-end gap-2 whitespace-nowrap">
@@ -281,6 +302,14 @@ function RootConsole(props: {
       )}
       {dialog?.kind === "reset" && (
         <ResetKeyDialog
+          platformKey={platformKey}
+          org={dialog.org}
+          onClose={() => setDialog(null)}
+          onDone={finishDialog}
+        />
+      )}
+      {dialog?.kind === "quota" && (
+        <AlbumQuotaDialog
           platformKey={platformKey}
           org={dialog.org}
           onClose={() => setDialog(null)}

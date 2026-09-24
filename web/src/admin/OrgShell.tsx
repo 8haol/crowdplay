@@ -13,6 +13,8 @@ import { EventsListView, type DeletableEvent } from "./views/EventsListView";
 import { LifeEventCatalogView } from "./LifeEventCatalogView";
 import { OrgSettingsView } from "./views/OrgSettingsView";
 import { StationLibraryPage } from "./views/StationLibraryPage";
+import { AlbumsListView } from "./albums/AlbumsListView";
+import { AlbumDetailView } from "./albums/AlbumDetailView";
 import type { OrgPreview } from "./previewData";
 
 /*
@@ -25,12 +27,15 @@ import type { OrgPreview } from "./previewData";
 export function OrgShell({
   adminKey,
   section,
+  albumId,
   previewData,
   onLogout,
   onAdminKeyChanged,
 }: {
   adminKey: string;
   section: OrgSection;
+  /** 只在 section === "albums" 时有值：/admin/albums/:albumId。 */
+  albumId?: string;
   previewData?: OrgPreview;
   onLogout: () => void;
   onAdminKeyChanged: (key: string) => void;
@@ -134,6 +139,24 @@ export function OrgShell({
           )}
           {section === "life-events" && (
             <LifeEventCatalogView adminKey={adminKey} preview={Boolean(previewData)} />
+          )}
+          {section === "albums" && (
+            previewData || !albumId ? (
+              <AlbumsListView
+                adminKey={adminKey}
+                events={data.events}
+                preview={Boolean(previewData)}
+                onOpen={(id) => navigate(`/admin/albums/${id}`)}
+              />
+            ) : (
+              <AlbumDetailView
+                key={albumId}
+                adminKey={adminKey}
+                albumId={albumId}
+                onBack={() => navigate("/admin/albums")}
+                onDone={(message) => { navigate("/admin/albums"); done(message); }}
+              />
+            )
           )}
           {section === "org-settings" && (
             <OrgSettingsView

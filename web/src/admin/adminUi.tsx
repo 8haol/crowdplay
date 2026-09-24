@@ -5,7 +5,8 @@ import { THEME_OPTIONS, type ThemeId } from "./adminUtils";
 export type IconName =
   | "events" | "live" | "players" | "life-events" | "stations" | "settings"
   | "screen" | "plus" | "download" | "close" | "chevron" | "back" | "copy"
-  | "logout" | "search" | "menu" | "check";
+  | "logout" | "search" | "menu" | "check"
+  | "albums" | "upload" | "image" | "video";
 
 export function AdminIcon({ name, className = "" }: { name: IconName; className?: string }) {
   const paths: Record<IconName, React.ReactNode> = {
@@ -26,6 +27,10 @@ export function AdminIcon({ name, className = "" }: { name: IconName; className?
     search: <><circle cx="11" cy="11" r="7" /><path d="m20 20-3.6-3.6" /></>,
     menu: <path d="M4 7h16M4 12h16M4 17h16" />,
     check: <path d="M4.5 12.8l4.6 4.6L19.5 7" />,
+    albums: <><rect x="3" y="7" width="14" height="13" rx="2" /><path d="M7 4h11a3 3 0 0 1 3 3v10" /><path d="m3 17 4.5-4.5 3.5 3.5 2-2 4 4" /><circle cx="12.5" cy="11" r="1.3" /></>,
+    upload: <path d="M12 16V4M7 9l5-5 5 5M5 21h14" />,
+    image: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="m3 16 5-5 4 4 3-3 6 6" /><circle cx="15.5" cy="8.5" r="1.5" /></>,
+    video: <><rect x="3" y="6" width="13" height="12" rx="2" /><path d="m16 10 5-3v10l-5-3" /></>,
   };
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">

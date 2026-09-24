@@ -1,4 +1,4 @@
-import { useLayoutEffect } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { BrowserRouter, Routes, Route, Link, useLocation } from "react-router-dom";
 import PlayPage from "./play/PlayPage";
 import StaffPage from "./staff/StaffPage";
@@ -128,6 +128,7 @@ export default function App() {
             /admin/e/:eventId/* 是某一场。见 AdminPage 顶部的注释。 */}
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/admin/:section" element={<AdminPage />} />
+        <Route path="/admin/albums/:albumId" element={<AdminPage />} />
         <Route path="/admin/e/:eventId" element={<AdminPage />} />
         <Route path="/admin/e/:eventId/:section" element={<AdminPage />} />
         <Route path="/root" element={<RootPage />} />
@@ -151,9 +152,14 @@ export default function App() {
  */
 function RouteScrollManager() {
   const location = useLocation();
+  const previousPath = useRef<string | null>(null);
 
   useLayoutEffect(() => {
+    const samePage = previousPath.current === location.pathname;
+    previousPath.current = location.pathname;
     if (location.pathname === "/guide" || location.pathname === "/library") return;
+    // 相册详情用 ?p= 记灯箱里是哪一张：开关灯箱、翻页都不是换页，不能把网格滚回顶部。
+    if (samePage && location.pathname.startsWith("/admin/albums/")) return;
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [location.pathname, location.search]);
 

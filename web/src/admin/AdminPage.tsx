@@ -15,7 +15,8 @@ const SESSION_KEY = "lp_admin_key";
  * 后台是两层的，路由就把这两层写出来：
  *
  *   /admin                              机构层（全部活动）
- *   /admin/library|life-events|org-settings
+ *   /admin/library|life-events|albums|org-settings
+ *   /admin/albums/:albumId              机构层里的某一本相册
  *   /admin/e/:eventId/overview|live|players|stations|settings
  *
  * 这么做是因为用户抱怨的根源是「左侧这一栏到底针对谁」没有任何地方明示。
@@ -67,8 +68,9 @@ export default function AdminPage() {
     );
   }
 
-  // 机构层：/admin 本身是「全部活动」，其余三页各占一个路径段。
-  const requested = params.section as OrgSection | undefined;
+  // 机构层：/admin 本身是「全部活动」，其余几页各占一个路径段。
+  // /admin/albums/:albumId 没有 :section，但它仍然是「活动相册」那一页。
+  const requested = (params.albumId ? "albums" : params.section) as OrgSection | undefined;
   const section: OrgSection =
     requested && ORG_NAV.some((item) => item.id === requested) ? requested : "events";
   return (
@@ -77,6 +79,7 @@ export default function AdminPage() {
       <OrgShell
         adminKey={adminKey}
         section={section}
+        albumId={section === "albums" ? params.albumId : undefined}
         previewData={preview ? ORG_PREVIEW : undefined}
         onLogout={logout}
         onAdminKeyChanged={keyChanged}

@@ -6,7 +6,7 @@
  * （admin_console、admin_event_stations、admin_list_players…）属于某一场。
  * 往任何一套里加东西之前，先看它对应的 RPC 要不要 event_id。
  */
-export type OrgSection = "events" | "library" | "life-events" | "org-settings";
+export type OrgSection = "events" | "library" | "life-events" | "albums" | "org-settings";
 export type EventSection = "overview" | "live" | "players" | "stations" | "settings";
 
 import type { IconName } from "./adminUi";
@@ -63,6 +63,7 @@ export const ORG_NAV: Array<NavItem<OrgSection>> = [
   { id: "events", label: "全部活动", icon: "events", note: "创建、查看、进入任意一场" },
   { id: "library", label: "站点库", icon: "stations", note: "跨场次复用的站点模板" },
   { id: "life-events", label: "人生事件库", icon: "life-events", note: "30 个场景与隐藏结果" },
+  { id: "albums", label: "活动相册", icon: "albums", note: "上传、挑片、下载原片" },
   { id: "org-settings", label: "机构设置", icon: "settings", note: "管理密码" },
 ];
 
@@ -74,6 +75,34 @@ export const EVENT_NAV: Array<NavItem<EventSection>> = [
   { id: "stations", label: "本场站点", icon: "stations", note: "本场启用哪些站" },
   { id: "settings", label: "本场设置", icon: "settings", note: "名称、登记开关、工作人员码" },
 ];
+
+/*
+ * 文件大小。1024 进制，因为额度本身就是按 GiB 定的（20 GiB = 21474836480），
+ * 用 1000 进制的话「已用 20 / 20 GB」会在真正满之前就出现。单位只写 GB / MB / KB，
+ * 不写 GiB：看的人是同工，不是运维。
+ */
+const KB = 1024;
+const MB = KB * 1024;
+export const GB = MB * 1024;
+
+function trimZero(value: number, digits: number): string {
+  return value.toFixed(digits).replace(/\.0+$/, "");
+}
+
+export function formatBytes(bytes: number): string {
+  const b = Number.isFinite(bytes) ? Math.max(0, bytes) : 0;
+  if (b >= GB) return `${trimZero(b / GB, 1)} GB`;
+  if (b >= MB) return `${trimZero(b / MB, b >= 10 * MB ? 0 : 1)} MB`;
+  if (b === 0) return "0 KB";
+  return `${Math.max(1, Math.round(b / KB))} KB`;
+}
+
+/** 「10.2 / 20 GB」：两边都够 1 GB 时共用一个单位，读起来像一句话。 */
+export function formatUsage(used: number, quota: number): string {
+  if (used >= GB && quota >= GB) return `${trimZero(used / GB, 1)} / ${trimZero(quota / GB, 1)} GB`;
+  if (used <= 0) return `0 / ${formatBytes(quota)}`;
+  return `${formatBytes(used)} / ${formatBytes(quota)}`;
+}
 
 export function formatDate(value: string | null | undefined, includeTime = false): string {
   if (!value) return "—";

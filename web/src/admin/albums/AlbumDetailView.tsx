@@ -102,9 +102,11 @@ export function AlbumDetailView({
     };
   }, []);
 
-  useEffect(() => {
-    // React 的 JSX 类型里没有 webkitdirectory。
-    if (folderInput.current) folderInput.current.webkitdirectory = true;
+  // React 的 JSX 类型里没有 webkitdirectory，只能拿到元素再设。用 ref 回调而不是挂载时的 effect：
+  // 挂载那一刻相册还在加载、这个 input 还没渲染，effect 设不上，「选择文件夹」就退化成了普通多选。
+  const setFolderInput = useCallback((node: HTMLInputElement | null) => {
+    if (node) node.webkitdirectory = true;
+    folderInput.current = node;
   }, []);
 
   const load = useCallback(() => {
@@ -428,7 +430,7 @@ export function AlbumDetailView({
         }}
       />
       <input
-        ref={folderInput}
+        ref={setFolderInput}
         type="file"
         multiple
         className="hidden"
@@ -456,7 +458,7 @@ export function AlbumDetailView({
               <span className="sm:hidden">上传照片和视频</span>
             </div>
             <div className="mt-0.5 text-xs font-semibold" style={{ color: T.inkSoft }}>
-              原片原样保存，单个不超过 5GB；同时传 3 个，失败的可以单独重试。
+              原片原样保存，单个不超过 5GB；同时传 4 个，失败的可以单独重试。
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap justify-center gap-2">

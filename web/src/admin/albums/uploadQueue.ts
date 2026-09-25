@@ -14,7 +14,8 @@ import { makeThumbs, type Thumbs } from "./thumbs";
  */
 
 export const MAX_FILE_BYTES = 5_000_000_000;
-const CONCURRENCY = 3;
+// R2 只走 HTTP/1.1，浏览器对一个域名最多 6 条连接；留两条给网格里的缩略图。
+const CONCURRENCY = 4;
 
 export type UploadStatus = "queued" | "preparing" | "uploading" | "finishing" | "done" | "failed";
 
@@ -258,8 +259,11 @@ export class UploadQueue {
   private async process(item: Item) {
     try {
       if (item.takenAt === undefined) item.takenAt = await takenAtFor(item.file);
-      item.thumbs ??= await makeThumbs(item.file, item.contentType);
-      if (item.cancelled) throw CANCELLED;
+      // 小图和原片并行：原片一登记就开始传，解码缩图在后台排队。以前先等小图做完再登记，
+      // 而小图是全局排成一行做的，几个并发名额常常都卡在等解码，上行带宽闲着。
+      const thumbsReady: Promise<Thumbs> = item.thumbs
+        ? Promise.resolve(item.thumbs)
+        : makeThumbs(item.file, item.contentType).then((thumbs) => (item.thumbs = thumbs));
 
       const signed = await albumSign<UploadSigned>("upload", {
         admin_key: this.adminKey,
@@ -275,8 +279,10 @@ export class UploadQueue {
       item.status = "uploading";
       this.emit(true);
       await this.put(item, signed.put_original, item.file, item.contentType, true);
-      if (item.thumbs.thumb) await this.put(item, signed.put_thumb, item.thumbs.thumb, "image/jpeg", false);
-      if (item.thumbs.preview) await this.put(item, signed.put_preview, item.thumbs.preview, "image/jpeg", false);
+      const thumbs = await thumbsReady;
+      if (item.cancelled) throw CANCELLED;
+      if (thumbs.thumb) await this.put(item, signed.put_thumb, thumbs.thumb, "image/jpeg", false);
+      if (thumbs.preview) await this.put(item, signed.put_preview, thumbs.preview, "image/jpeg", false);
       if (item.cancelled) throw CANCELLED;
 
       item.status = "finishing";

@@ -1,5 +1,5 @@
 import { RpcError, errorText } from "../../lib/api";
-import { downloadLinks } from "./albumApi";
+import { linksFor, usesProxy, type DownloadQuality } from "./albumApi";
 import type { AlbumPhoto } from "./albumTypes";
 
 /*
@@ -55,18 +55,18 @@ export function photosCanTake(photo: Pick<AlbumPhoto, "content_type">): boolean 
   return PHOTOS_TYPES.has(photo.content_type.toLowerCase());
 }
 
-export function planBatches(photos: AlbumPhoto[]): AlbumPhoto[][] {
+export function planBatches(photos: AlbumPhoto[], sizeOf: (photo: AlbumPhoto) => number = (photo) => photo.size_bytes): AlbumPhoto[][] {
   const batches: AlbumPhoto[][] = [];
   let current: AlbumPhoto[] = [];
   let bytes = 0;
   for (const photo of photos) {
-    if (current.length > 0 && (current.length >= BATCH_COUNT || bytes + photo.size_bytes > BATCH_BYTES)) {
+    if (current.length > 0 && (current.length >= BATCH_COUNT || bytes + sizeOf(photo) > BATCH_BYTES)) {
       batches.push(current);
       current = [];
       bytes = 0;
     }
     current.push(photo);
-    bytes += photo.size_bytes;
+    bytes += sizeOf(photo);
   }
   if (current.length > 0) batches.push(current);
   return batches;
@@ -104,13 +104,17 @@ export class SaveToPhotosJob {
   private startedAt = Date.now();
   private reportTimer: ReturnType<typeof setTimeout> | null = null;
   private adminKey: string;
+  private quality: DownloadQuality;
   private onChange: (state: SaveState) => void;
 
-  constructor(adminKey: string, photos: AlbumPhoto[], onChange: (state: SaveState) => void) {
+  constructor(adminKey: string, photos: AlbumPhoto[], quality: DownloadQuality, onChange: (state: SaveState) => void) {
     this.adminKey = adminKey;
+    this.quality = quality;
     this.onChange = onChange;
-    const supported = photos.filter(photosCanTake);
-    this.batches = planBatches(supported);
+    // 低画质版一律是 MP4：原片是 MKV 之类相册不认的，选低画质反而能存进去。
+    const takes = (photo: AlbumPhoto) => photosCanTake(photo) || usesProxy(photo, quality);
+    const supported = photos.filter(takes);
+    this.batches = planBatches(supported, (photo) => this.sizeOf(photo));
     this.state = {
       total: supported.length,
       saved: 0,
@@ -122,9 +126,14 @@ export class SaveToPhotosJob {
       readyCount: 0,
       phase: supported.length === 0 ? "done" : "fetching",
       failed: [],
-      unsupported: photos.filter((photo) => !photosCanTake(photo)),
+      unsupported: photos.filter((photo) => !takes(photo)),
       cancelled: false,
     };
+  }
+
+  /** 低画质版的大小事先不知道，按原片的十分之一估（实测 1080p60 的是 1/20），拿到响应头再校正。 */
+  private sizeOf(photo: AlbumPhoto): number {
+    return usesProxy(photo, this.quality) ? Math.max(1, Math.round(photo.size_bytes / 10)) : photo.size_bytes;
   }
 
   get snapshot(): SaveState {
@@ -191,13 +200,13 @@ export class SaveToPhotosJob {
     const batch = this.batches[this.state.batchIndex];
     const signal = this.ctrl.signal;
     this.state.batchSize = batch.length;
-    this.state.batchBytes = batch.reduce((sum, photo) => sum + photo.size_bytes, 0);
+    this.state.batchBytes = batch.reduce((sum, photo) => sum + this.sizeOf(photo), 0);
     this.state.loadedBytes = 0;
     this.report(true);
 
-    let links: Awaited<ReturnType<typeof downloadLinks>>;
+    let links: Awaited<ReturnType<typeof linksFor>>;
     try {
-      links = await downloadLinks(this.adminKey, batch.map((photo) => photo.id));
+      links = await linksFor(this.adminKey, batch, this.quality);
     } catch (err) {
       if (signal.aborted) return;
       for (const photo of batch) this.state.failed.push({ id: photo.id, filename: photo.filename, error: errorText(err) });
@@ -213,6 +222,7 @@ export class SaveToPhotosJob {
         if (index >= batch.length) return;
         const photo = batch[index];
         let counted = 0;
+        let expected = this.sizeOf(photo);
         try {
           const link = links[photo.id];
           if (!link) throw new RpcError("PHOTO_NOT_FOUND");
@@ -220,11 +230,14 @@ export class SaveToPhotosJob {
             counted += bytes;
             this.state.loadedBytes += bytes;
             this.report();
+          }, (size) => {
+            this.state.batchBytes += size - expected;
+            expected = size;
           });
-          files[index] = new File([blob], link.filename || photo.filename, { type: photo.content_type });
+          files[index] = new File([blob], link.filename || photo.filename, { type: link.proxy ? "video/mp4" : photo.content_type });
         } catch (err) {
           if (signal.aborted) return;
-          this.state.loadedBytes += photo.size_bytes - counted;
+          this.state.loadedBytes += expected - counted;
           this.state.failed.push({ id: photo.id, filename: photo.filename, error: describe(err) });
         }
       }
@@ -258,9 +271,16 @@ export class SaveToPhotosJob {
   }
 }
 
-async function fetchBlob(url: string, signal: AbortSignal, onBytes: (bytes: number) => void): Promise<Blob> {
+async function fetchBlob(
+  url: string,
+  signal: AbortSignal,
+  onBytes: (bytes: number) => void,
+  onSize: (bytes: number) => void,
+): Promise<Blob> {
   const res = await fetch(url, { signal });
   if (!res.ok || !res.body) throw new RpcError("STORAGE_ERROR");
+  const length = Number(res.headers.get("content-length"));
+  if (Number.isFinite(length) && length > 0) onSize(length);
   const reader = res.body.getReader();
   const chunks: Uint8Array[] = [];
   for (;;) {

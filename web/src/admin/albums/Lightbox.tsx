@@ -510,10 +510,12 @@ export function Lightbox(props: LightboxProps) {
   const [strip, setStrip] = useState(true);
   // 这次打开灯箱里点过「原画质」的视频。
   const [originals, setOriginals] = useState<ReadonlySet<string>>(() => new Set());
+  // 下载菜单开在哪一张上；记 id 而不是布尔，翻到别的张自然就关了。
+  const [dlMenu, setDlMenu] = useState<string | null>(null);
 
-  const latest = useRef({ index, count, photo, reduce, info, onIndexChange, onClose });
+  const latest = useRef({ index, count, photo, reduce, info, dlMenu, onIndexChange, onClose });
   useLayoutEffect(() => {
-    latest.current = { index, count, photo, reduce, info, onIndexChange, onClose };
+    latest.current = { index, count, photo, reduce, info, dlMenu, onIndexChange, onClose };
   });
 
   const rootRef = useRef<HTMLDivElement>(null);
@@ -547,8 +549,8 @@ export function Lightbox(props: LightboxProps) {
   const scheduleHide = useCallback(() => {
     window.clearTimeout(hideTimer.current);
     hideTimer.current = window.setTimeout(() => {
-      // 鼠标停在按钮上、或信息栏开着的时候不藏。
-      if (overControls.current || latest.current.info) return;
+      // 鼠标停在按钮上、信息栏或下载菜单开着的时候不藏。
+      if (overControls.current || latest.current.info || latest.current.dlMenu) return;
       setChrome(false);
     }, CHROME_IDLE_MS);
   }, []);
@@ -769,13 +771,14 @@ export function Lightbox(props: LightboxProps) {
     };
   }, [clearTimers]);
 
-  // 键盘：Esc 先关信息栏、再关灯箱；← → 翻页，按住连翻（焦点在视频上时把方向键留给视频）。
+  // 键盘：Esc 先关下载菜单、信息栏，再关灯箱；← → 翻页，按住连翻（焦点在视频上时把方向键留给视频）。
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.altKey || e.metaKey || e.ctrlKey) return;
       if (e.key === "Escape") {
         e.preventDefault();
-        if (latest.current.info) setInfo(false);
+        if (latest.current.dlMenu) setDlMenu(null);
+        else if (latest.current.info) setInfo(false);
         else latest.current.onClose();
         return;
       }
@@ -820,6 +823,8 @@ export function Lightbox(props: LightboxProps) {
   };
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    // 点画面别处就收起下载菜单。
+    if (latest.current.dlMenu) setDlMenu(null);
     if (e.pointerType === "mouse" && e.button !== 0) return;
     if (animatingRef.current) return;
     const target = e.target as Element;
@@ -1154,9 +1159,53 @@ export function Lightbox(props: LightboxProps) {
                   原画质
                 </button>
               )}
-              <button type="button" onClick={() => onDownload(photo)} aria-label="下载原片" title="下载原片" className={iconBtn}>
-                <AdminIcon name="download" className="h-5 w-5" />
-              </button>
+              {isVideo(photo) && photo.has_proxy ? (
+                // 有低画质版的视频：点了先选版本。
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setDlMenu((open) => (open === photo.id ? null : photo.id))}
+                    aria-label="下载"
+                    aria-haspopup="menu"
+                    aria-expanded={dlMenu === photo.id}
+                    title="下载"
+                    className={iconBtn}
+                    style={dlMenu === photo.id ? chip : undefined}
+                  >
+                    <AdminIcon name="download" className="h-5 w-5" />
+                  </button>
+                  {dlMenu === photo.id && (
+                    <div
+                      role="menu"
+                      className="absolute right-0 top-12 z-30 w-56 overflow-hidden rounded-2xl p-1.5 shadow-[0_18px_50px_rgb(0_0_0_/_.45)]"
+                      style={{ background: PANEL_BG, color: INK }}
+                    >
+                      {([
+                        ["original", "原画质", `原片 · ${formatBytes(photo.size_bytes)}`],
+                        ["proxy", "低画质 720p", "约原片的十分之一，适合发群"],
+                      ] as const).map(([quality, label, hint]) => (
+                        <button
+                          key={quality}
+                          type="button"
+                          role="menuitem"
+                          className="flex w-full flex-col items-start rounded-xl px-3 py-2.5 text-left hover:bg-[color-mix(in_oklab,var(--color-card)_12%,transparent)]"
+                          onClick={() => {
+                            setDlMenu(null);
+                            onDownload(photo, quality);
+                          }}
+                        >
+                          <span className="text-sm font-black">{label}</span>
+                          <span className="text-[11px] font-semibold" style={{ color: INK_DIM }}>{hint}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <button type="button" onClick={() => onDownload(photo, "original")} aria-label="下载原片" title="下载原片" className={iconBtn}>
+                  <AdminIcon name="download" className="h-5 w-5" />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setInfo((open) => !open)}

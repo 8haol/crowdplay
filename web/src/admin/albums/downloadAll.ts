@@ -1,5 +1,5 @@
 import { RpcError, errorText } from "../../lib/api";
-import { downloadLinks, type DownloadLink } from "./albumApi";
+import { linksFor, type DownloadLink, type DownloadQuality } from "./albumApi";
 import type { AlbumPhoto } from "./albumTypes";
 
 /*
@@ -11,6 +11,9 @@ import type { AlbumPhoto } from "./albumTypes";
  * 再下一次同一个文件夹，只会补上缺的那些。
  *
  * 其他浏览器只能一张张下：拿到带 attachment 的 URL，用隐藏的 <a> 点一下。
+ *
+ * 视频可以选下低画质版（quality = "proxy"）：文件名加 _720p，大小事先不知道，
+ * 进度的总量在拿到响应头之后再校正。
  *
  * File System Access API 在 TypeScript 的 DOM 库里不全，这里只声明用到的那几个方法。
  */
@@ -73,10 +76,11 @@ export async function downloadToFolder(options: {
   adminKey: string;
   dir: DirHandleLike;
   photos: AlbumPhoto[];
+  quality: DownloadQuality;
   signal: AbortSignal;
   onProgress: (progress: FolderProgress) => void;
 }): Promise<FolderProgress> {
-  const { adminKey, dir, photos, signal, onProgress } = options;
+  const { adminKey, dir, photos, quality, signal, onProgress } = options;
   const progress: FolderProgress = {
     total: photos.length,
     done: 0,
@@ -108,8 +112,7 @@ export async function downloadToFolder(options: {
     const key = Math.floor(index / LINK_BATCH);
     let batch = batches.get(key);
     if (!batch || Date.now() - batch.at > LINK_TTL_MS) {
-      const ids = photos.slice(key * LINK_BATCH, (key + 1) * LINK_BATCH).map((photo) => photo.id);
-      const links = downloadLinks(adminKey, ids);
+      const links = linksFor(adminKey, photos.slice(key * LINK_BATCH, (key + 1) * LINK_BATCH), quality);
       batch = { at: Date.now(), links };
       batches.set(key, batch);
       links.catch(() => { if (batches.get(key) === batch) batches.delete(key); });
@@ -130,7 +133,8 @@ export async function downloadToFolder(options: {
       try {
         const link = await linkFor(index);
         if (!link) throw new RpcError("PHOTO_NOT_FOUND");
-        const name = await claimName(dir, reserved, link.filename || photo.filename, photo.size_bytes);
+        // 低画质版的大小事先不知道：-1 永远对不上，同名的就加 (1)，不会被当成「已经下过」跳过。
+        const name = await claimName(dir, reserved, link.filename || photo.filename, link.proxy ? -1 : photo.size_bytes);
         if (name === null) {
           progress.skipped++;
           progress.loadedBytes += photo.size_bytes;
@@ -141,6 +145,9 @@ export async function downloadToFolder(options: {
           counted += bytes;
           progress.loadedBytes += bytes;
           report();
+        }, (size) => {
+          // 总量里先按原片大小算的，换成实际要下的大小。
+          progress.totalBytes += size - photo.size_bytes;
         });
         progress.done++;
       } catch (err) {
@@ -165,9 +172,12 @@ async function saveOne(
   url: string,
   signal: AbortSignal,
   onBytes: (bytes: number) => void,
+  onSize: (bytes: number) => void,
 ) {
   const res = await fetch(url, { signal });
   if (!res.ok || !res.body) throw new RpcError("STORAGE_ERROR");
+  const length = Number(res.headers.get("content-length"));
+  if (Number.isFinite(length) && length > 0) onSize(length);
   const handle = await dir.getFileHandle(name, { create: true });
   try {
     const writable = await handle.createWritable();
@@ -238,21 +248,39 @@ function clickLink(link: DownloadLink) {
   anchor.remove();
 }
 
-export async function downloadPhoto(adminKey: string, photo: AlbumPhoto): Promise<void> {
-  const links = await downloadLinks(adminKey, [photo.id]);
+/** 低画质版的 URL 不带 attachment，点了会直接播：先下成 Blob，用同源的 blob: URL 才能让 download 生效。 */
+async function saveLink(link: DownloadLink) {
+  if (!link.proxy) {
+    clickLink(link);
+    return;
+  }
+  const res = await fetch(link.url);
+  if (!res.ok) throw new RpcError("STORAGE_ERROR");
+  const url = URL.createObjectURL(await res.blob());
+  clickLink({ url, filename: link.filename });
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+export async function downloadPhoto(adminKey: string, photo: AlbumPhoto, quality: DownloadQuality = "original"): Promise<void> {
+  const links = await linksFor(adminKey, [photo], quality);
   const link = links[photo.id];
   if (!link) throw new RpcError("PHOTO_NOT_FOUND");
-  clickLink(link);
+  await saveLink(link);
 }
 
 /** 没有选文件夹能力的浏览器：一张张触发下载，中间隔一下，免得被当成弹窗轰炸拦掉。 */
-export async function downloadOneByOne(adminKey: string, photos: AlbumPhoto[], signal?: AbortSignal): Promise<void> {
-  const links = await downloadLinks(adminKey, photos.map((photo) => photo.id));
+export async function downloadOneByOne(
+  adminKey: string,
+  photos: AlbumPhoto[],
+  quality: DownloadQuality = "original",
+  signal?: AbortSignal,
+): Promise<void> {
+  const links = await linksFor(adminKey, photos, quality);
   for (const photo of photos) {
     if (signal?.aborted) return;
     const link = links[photo.id];
     if (!link) continue;
-    clickLink(link);
+    await saveLink(link);
     await new Promise((resolve) => setTimeout(resolve, 700));
   }
 }

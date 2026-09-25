@@ -1,6 +1,8 @@
 import { RpcError, rpc } from "../../lib/api";
 import { deviceId } from "./deviceId";
-import type { AlbumPhoto, AlbumPhotosData, AlbumsData, ViewKind } from "./albumTypes";
+import type { AlbumPhoto, AlbumPhotosData, AlbumsData, DownloadQuality, ViewKind } from "./albumTypes";
+
+export type { DownloadQuality };
 
 /*
  * 相册的两条通道（契约见 docs/superpowers/plans/2026-09-25-org-photo-albums.md）：
@@ -29,6 +31,21 @@ export interface UploadSigned {
 export interface DownloadLink {
   url: string;
   filename: string;
+  /**
+   * 视频的低画质版。它的 URL 是看片用的（不带 attachment），浏览器点了会直接播而不是下载，
+   * 调用方要自己 fetch 成 Blob 再存；大小事先也不知道，以响应的 Content-Length 为准。
+   */
+  proxy?: boolean;
+}
+
+export function usesProxy(photo: AlbumPhoto, quality: DownloadQuality): boolean {
+  return quality === "proxy" && photo.content_type.startsWith("video/") && !!photo.has_proxy;
+}
+
+/** IMG_0001.MOV → IMG_0001_720p.mp4：跟原片放在一起也分得清。 */
+export function proxyFilename(filename: string): string {
+  const dot = filename.lastIndexOf(".");
+  return `${dot > 0 ? filename.slice(0, dot) : filename}_720p.mp4`;
 }
 
 /**
@@ -217,6 +234,27 @@ function flush() {
       );
     }
   }
+}
+
+/** 按画质要下载 URL：选了低画质、且有低画质版的视频给 proxy，其余给原片。 */
+export async function linksFor(
+  adminKey: string,
+  photos: AlbumPhoto[],
+  quality: DownloadQuality,
+): Promise<Record<string, DownloadLink>> {
+  const proxies = photos.filter((photo) => usesProxy(photo, quality));
+  const rest = photos.filter((photo) => !usesProxy(photo, quality));
+  const [links, proxyUrls] = await Promise.all([
+    rest.length > 0 ? downloadLinks(adminKey, rest.map((photo) => photo.id)) : Promise.resolve({} as Record<string, DownloadLink>),
+    Promise.all(proxies.map((photo) => viewUrl(adminKey, photo.id, "proxy"))),
+  ]);
+  const out = { ...links };
+  proxies.forEach((photo, i) => {
+    const url = proxyUrls[i];
+    // 低画质版签不出来就不给这一条，调用方当作这张失败，可以重试或改下原画质。
+    if (url) out[photo.id] = { url, filename: proxyFilename(photo.filename), proxy: true };
+  });
+  return out;
 }
 
 /** 原片下载 URL（带 attachment）。按 500 一批顺序要，合并成一张表。 */

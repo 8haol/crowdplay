@@ -14,7 +14,7 @@ import { ErrorBanner, SuccessBanner } from "../../lib/ui";
 import { AdminIcon, Btn, EmptyState, PageTitle, Panel } from "../adminUi";
 import { T } from "../adminTokens";
 import { formatBytes } from "../adminUtils";
-import { fetchAlbumPhotos, photoUrl, togglePhotoLike } from "./albumApi";
+import { fetchAlbumPhotos, photoUrl, togglePhotoLike, usesProxy, type DownloadQuality } from "./albumApi";
 import { loadThumb, peekThumb } from "./thumbCache";
 import { isVideo, type AlbumPhoto, type AlbumPhotosData, type ViewKind } from "./albumTypes";
 import {
@@ -34,7 +34,7 @@ import {
   type ViewState,
 } from "./albumView";
 import { AlbumToolbar, SelectionBar } from "./AlbumToolbar";
-import { DeleteAlbumDialog, DeletePhotosDialog, RenameAlbumDialog } from "./AlbumDialogs";
+import { DeleteAlbumDialog, DeletePhotosDialog, DownloadQualityDialog, RenameAlbumDialog } from "./AlbumDialogs";
 import {
   canSaveToFolder,
   downloadOneByOne,
@@ -110,6 +110,9 @@ export function AlbumDetailView({
   const [sendingOneByOne, setSendingOneByOne] = useState(false);
   const downloadCtrl = useRef<AbortController | null>(null);
   const [saving, setSaving] = useState<SaveState | null>(null);
+  /** 等用户选「原画质 / 低画质」的那一批。 */
+  const [askQuality, setAskQuality] = useState<AlbumPhoto[] | null>(null);
+  const lastQuality = useRef<DownloadQuality>("original");
   const saveJob = useRef<SaveToPhotosJob | null>(null);
   const lastDir = useRef<DirHandleLike | null>(null);
   const dragDepth = useRef(0);
@@ -485,7 +488,7 @@ export function AlbumDetailView({
 
   /* ------------------------------------------------------------ 下载 */
 
-  const startFolderDownload = async (list: AlbumPhoto[], reuseFolder = false) => {
+  const startFolderDownload = async (list: AlbumPhoto[], reuseFolder = false, quality: DownloadQuality = "original") => {
     if (downloadCtrl.current || list.length === 0) return;
     let dir = reuseFolder ? lastDir.current : null;
     if (!dir) {
@@ -506,6 +509,7 @@ export function AlbumDetailView({
         adminKey,
         dir,
         photos: list,
+        quality,
         signal: ctrl.signal,
         onProgress: (progress) => { if (alive.current) setDownload(progress); },
       });
@@ -516,10 +520,11 @@ export function AlbumDetailView({
   };
 
   /** iPhone / iPad：交给系统面板存进「照片」。必须在点击事件里直接调用。 */
-  const startSaveToPhotos = useCallback((list: AlbumPhoto[]) => {
+  const startSaveToPhotos = useCallback((list: AlbumPhoto[], quality: DownloadQuality = "original") => {
     if (list.length === 0) return;
     if (saveJob.current && saveJob.current.snapshot.phase !== "done") return;
-    const job = new SaveToPhotosJob(adminKey, list, (state) => {
+    lastQuality.current = quality;
+    const job = new SaveToPhotosJob(adminKey, list, quality, (state) => {
       if (alive.current && saveJob.current === job) setSaving(state);
     });
     saveJob.current = job;
@@ -540,18 +545,20 @@ export function AlbumDetailView({
     setSaving(null);
   }, []);
 
-  const downloadSelected = async () => {
+  /** 按平台选下载方式。必须在点击事件里直接调用：选文件夹、弹系统面板都要用户手势。 */
+  const runDownload = async (list: AlbumPhoto[], quality: DownloadQuality) => {
+    lastQuality.current = quality;
     if (canPhotos) {
-      startSaveToPhotos(selectedPhotos);
+      startSaveToPhotos(list, quality);
       return;
     }
     if (canFolder) {
-      await startFolderDownload(selectedPhotos);
+      await startFolderDownload(list, false, quality);
       return;
     }
     setSendingOneByOne(true);
     try {
-      await downloadOneByOne(adminKey, selectedPhotos);
+      await downloadOneByOne(adminKey, list, quality);
     } catch (error) {
       setNotice({ tone: "error", text: errorText(error) });
     } finally {
@@ -559,12 +566,19 @@ export function AlbumDetailView({
     }
   };
 
-  const downloadSingle = useCallback((photo: AlbumPhoto) => {
-    if (canPhotos && photosCanTake(photo)) {
-      startSaveToPhotos([photo]);
+  /** 里面有带低画质版的视频就先问要哪个版本，没有就直接下原片。 */
+  const requestDownload = (list: AlbumPhoto[]) => {
+    if (list.length === 0) return;
+    if (list.some((photo) => usesProxy(photo, "proxy"))) setAskQuality(list);
+    else void runDownload(list, "original");
+  };
+
+  const downloadSingle = useCallback((photo: AlbumPhoto, quality: DownloadQuality) => {
+    if (canPhotos && (photosCanTake(photo) || usesProxy(photo, quality))) {
+      startSaveToPhotos([photo], quality);
       return;
     }
-    downloadPhoto(adminKey, photo).catch((error) => {
+    downloadPhoto(adminKey, photo, quality).catch((error) => {
       if (alive.current) setNotice({ tone: "error", text: errorText(error) });
     });
   }, [adminKey, canPhotos, startSaveToPhotos]);
@@ -619,12 +633,12 @@ export function AlbumDetailView({
         actions={
           <>
             {canPhotos && hasPhotos && (
-              <Btn icon="download" disabled={saving !== null && saving.phase !== "done"} onClick={() => startSaveToPhotos(sortedAll)}>
+              <Btn icon="download" disabled={saving !== null && saving.phase !== "done"} onClick={() => requestDownload(sortedAll)}>
                 全部存到相册
               </Btn>
             )}
             {!canPhotos && canFolder && hasPhotos && (
-              <Btn icon="download" disabled={downloading} onClick={() => void startFolderDownload(sortedAll)}>
+              <Btn icon="download" disabled={downloading} onClick={() => requestDownload(sortedAll)}>
                 全部下载到文件夹
               </Btn>
             )}
@@ -763,7 +777,7 @@ export function AlbumDetailView({
                       busy={downloading || sendingOneByOne || (saving !== null && saving.phase !== "done")}
                       downloadLabel={canPhotos ? "存到相册" : "下载"}
                       onToggleAll={() => setSelected(allSelected ? new Set() : new Set(visible.map((p) => p.id)))}
-                      onDownload={() => void downloadSelected()}
+                      onDownload={() => requestDownload(selectedPhotos)}
                       onDelete={() => setDialog("delete-photos")}
                       onCancel={exitSelecting}
                     />
@@ -816,7 +830,7 @@ export function AlbumDetailView({
               onClose={closeSaving}
               onRetry={() => {
                 const failedIds = new Set(saving.failed.map((item) => item.id));
-                startSaveToPhotos(photos.filter((photo) => failedIds.has(photo.id)));
+                startSaveToPhotos(photos.filter((photo) => failedIds.has(photo.id)), lastQuality.current);
               }}
               onDownloadRest={() => void downloadRest(saving.unsupported)}
             />
@@ -836,7 +850,7 @@ export function AlbumDetailView({
               onClose={() => setDownload(null)}
               onRetry={() => {
                 const failedIds = new Set(download.failed.map((item) => item.id));
-                void startFolderDownload(photos.filter((photo) => failedIds.has(photo.id)), true);
+                void startFolderDownload(photos.filter((photo) => failedIds.has(photo.id)), true, lastQuality.current);
               }}
             />
           )}
@@ -854,6 +868,19 @@ export function AlbumDetailView({
           cachedThumb={cachedThumb}
           onToggleLike={toggleLike}
           onDownload={downloadSingle}
+        />
+      )}
+
+      {askQuality && (
+        <DownloadQualityDialog
+          photos={askQuality}
+          savingToPhotos={canPhotos}
+          onClose={() => setAskQuality(null)}
+          onPick={(quality) => {
+            const list = askQuality;
+            setAskQuality(null);
+            void runDownload(list, quality);
+          }}
         />
       )}
 

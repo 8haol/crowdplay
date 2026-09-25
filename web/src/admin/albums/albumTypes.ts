@@ -39,6 +39,9 @@ export interface AlbumPhotosData {
   photos: AlbumPhoto[];
 }
 
+/** 下载时视频要哪个版本。照片永远是原图。 */
+export type DownloadQuality = "original" | "proxy";
+
 export type ViewKind = "thumb" | "preview" | "original" | "proxy";
 
 export function isVideo(photo: Pick<AlbumPhoto, "content_type">): boolean {
@@ -59,5 +62,6 @@ export interface LightboxProps {
   /** 已经拿到手的缩略图 URL，同步读，给「先拉伸缩略图再淡入预览图」用。 */
   cachedThumb: (photo: AlbumPhoto) => string | null;
   onToggleLike: (photo: AlbumPhoto) => void;
-  onDownload: (photo: AlbumPhoto) => void;
+  /** 视频有低画质版时灯箱里会让用户选；其余一律 original。 */
+  onDownload: (photo: AlbumPhoto, quality: DownloadQuality) => void;
 }

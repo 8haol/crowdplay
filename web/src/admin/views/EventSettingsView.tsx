@@ -162,11 +162,16 @@ export function EventSettingsView({
                   hint="留空就随机生成六位；也可以自己定一个好记的，4–12 位字母或数字"
                 >
                   {/* No toUpperCase in onChange: rewriting the value mid-IME-composition
-                      duplicates what was typed. CSS shows it upper-case; it is
+                      duplicates what was typed. The email keyboard keeps pinyin
+                      out (ASCII layout only); CSS shows it upper-case; it is
                       normalised where it is used. */}
                   <input
                     className={`${inputClass} uppercase`}
                     style={inputStyle}
+                    inputMode="email"
+                    autoCapitalize="characters"
+                    autoCorrect="off"
+                    spellCheck={false}
                     value={custom}
                     maxLength={12}
                     placeholder="留空 = 随机生成"

@@ -274,6 +274,12 @@ function StationPicker({ stations, onPick }: { stations: EventStation[]; onPick:
 
 /* ------------------------------------------------------------------- login */
 
+/** Drops anything that can't be in a staff code. Only call outside IME composition. */
+function stripToCode(input: HTMLInputElement) {
+  const clean = input.value.replace(/[^A-Za-z0-9]/g, "");
+  if (clean !== input.value) input.value = clean;
+}
+
 export function Login(props: {
   title: string;
   onOk: (key: string) => void;
@@ -313,21 +319,33 @@ export function Login(props: {
         >
           {/* A staff code is read off a chat message and typed in a noisy room;
               it is short, per-event and low-value, so it stays visible. The admin
-              password is a real secret and stays masked. */}
+              password is a real secret and stays masked.
+              Uncontrolled on purpose: writing `value` back mid-composition makes a
+              Chinese IME re-commit its buffer ("ccil" → "ccilccilccil…"). The staff
+              code is [A-Z0-9]{4,12}, so it asks for the email keyboard, which iOS
+              and Gboard only offer in an ASCII layout — no pinyin, same as the
+              password field — and anything else that slips in is stripped once
+              composition is over. Upper-casing is CSS here and real on submit. */}
           <input
             type={props.admin ? "password" : "text"}
+            inputMode={props.admin ? undefined : "email"}
             autoComplete={props.admin ? "current-password" : "one-time-code"}
             autoCapitalize={props.admin ? "off" : "characters"}
+            autoCorrect="off"
             spellCheck={false}
             className={`w-full rounded-[16px] bg-card px-4 py-3.5 text-lg font-bold outline-none transition-shadow duration-200 focus:shadow-[0_0_0_3px_var(--color-accent)] ${props.admin ? "" : "text-center font-mono tracking-[0.3em] uppercase"}`}
             style={{ border: "2px solid transparent" }}
             placeholder={props.admin ? "密码" : "工作人员码"}
-            maxLength={props.admin ? 64 : 6}
-            // Uncontrolled on purpose: writing `value` back mid-composition (the
-            // old toUpperCase did) makes a Chinese IME re-commit its buffer, so
-            // "ccil" came out as "ccilccilccil…". The DOM owns the text; the
-            // staff code is upper-cased by CSS here and for real on submit.
-            onChange={(event) => setKey(event.target.value)}
+            maxLength={props.admin ? 64 : 12}
+            onChange={(event) => {
+              if (!props.admin && !(event.nativeEvent as InputEvent).isComposing) stripToCode(event.target);
+              setKey(event.target.value);
+            }}
+            onCompositionEnd={(event) => {
+              if (props.admin) return;
+              stripToCode(event.currentTarget);
+              setKey(event.currentTarget.value);
+            }}
           />
           <ErrorBanner text={err} />
           <ActionButton

@@ -1,15 +1,18 @@
 import {
   memo,
   useEffect,
+  useImperativeHandle,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
-  type RefObject,
+  type ReactNode,
+  type Ref,
 } from "react";
 import { AdminIcon } from "../adminUi";
 import { T } from "../adminTokens";
-import { peekUrl, viewUrl } from "./albumApi";
+import { peekThumb, requestThumb } from "./thumbCache";
 import { isVideo, type AlbumPhoto } from "./albumTypes";
 import { columnsFor, type DayGroup, type SizeId } from "./albumView";
 
@@ -43,6 +46,7 @@ export interface PhotoGridProps {
   onLongPress: (photo: AlbumPhoto) => void;
   onLike: (photo: AlbumPhoto) => void;
   onSelectDay: (group: DayGroup, select: boolean) => void;
+  gridRef?: Ref<PhotoGridHandle>;
 }
 
 function estimateWidth() {
@@ -55,8 +59,83 @@ function layoutFor(width: number, size: SizeId) {
   return { cols: columnsFor(width, size), gap: width < 640 ? 2 : 4 };
 }
 
+/*
+ * 只渲染视口上下各 OVERSCAN 屏以内的行（像 Google 相册、原生相册的格子回收）。
+ * 以前 689 格全挂在页面上，每张缩略图解码后约 0.5MB，iPhone Safari 顶不住就把屏幕外的
+ * 丢掉，滑回来重新解码，于是闪灰、掉帧。方格等高、列数已知，所以每行的位置可以直接算，
+ * 不用量：外层给出总高度，行和格子绝对定位。滑走的格子卸掉，缩略图留在 thumbCache 里，
+ * 滑回来几毫秒就能再显示。
+ */
+const HEADER_H = 54; // DayHeader：pt-4 + h-8 + pb-1.5
+const OVERSCAN = 1.5;
+/** 从灯箱回来把那张滚进视野时，顶上要让出吸顶的导航栏 + 工具条。 */
+const REVEAL_TOP = 180;
+
+type Row =
+  | { kind: "header"; group: DayGroup; top: number }
+  | { kind: "photos"; photos: AlbumPhoto[]; top: number };
+
+interface Layout {
+  rows: Row[];
+  height: number;
+  cell: number;
+  rowOf: Map<string, number>;
+}
+
+function buildLayout(groups: DayGroup[], grouped: boolean, width: number, cols: number, gap: number): Layout {
+  const cell = Math.max(0, (width - gap * (cols - 1)) / cols);
+  const rows: Row[] = [];
+  const rowOf = new Map<string, number>();
+  let y = 0;
+  for (const group of groups) {
+    if (grouped) {
+      rows.push({ kind: "header", group, top: y });
+      y += HEADER_H;
+    }
+    for (let i = 0; i < group.photos.length; i += cols) {
+      const photos = group.photos.slice(i, i + cols);
+      for (const photo of photos) rowOf.set(photo.id, rows.length);
+      rows.push({ kind: "photos", photos, top: y });
+      y += cell + (i + cols < group.photos.length ? gap : 0);
+    }
+  }
+  return { rows, height: y, cell, rowOf };
+}
+
+const rowHeight = (row: Row, cell: number) => (row.kind === "header" ? HEADER_H : cell);
+
+/** 第一个底边在 y 之下的行。 */
+function firstRowEndingAfter(layout: Layout, y: number): number {
+  const { rows, cell } = layout;
+  let lo = 0;
+  let hi = rows.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (rows[mid].top + rowHeight(rows[mid], cell) <= y) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+function visibleRows(layout: Layout, el: HTMLElement | null): [number, number] {
+  if (!el || layout.rows.length === 0) return [0, -1];
+  const top = el.getBoundingClientRect().top;
+  const vh = window.innerHeight || 800;
+  const from = -top - vh * OVERSCAN;
+  const to = -top + vh * (1 + OVERSCAN);
+  const first = firstRowEndingAfter(layout, from);
+  let last = first;
+  while (last + 1 < layout.rows.length && layout.rows[last + 1].top < to) last++;
+  return [first, last];
+}
+
+export interface PhotoGridHandle {
+  /** 把这张滚进视野（它可能没挂在页面上，所以不能 querySelector）。 */
+  reveal: (photoId: string) => void;
+}
+
 export const PhotoGrid = memo(function PhotoGrid(props: PhotoGridProps) {
-  const { adminKey, groups, grouped, size, selecting, selected, onTile, onCheck, onLongPress, onLike, onSelectDay } = props;
+  const { adminKey, groups, grouped, size, selecting, selected, onTile, onCheck, onLongPress, onLike, onSelectDay, gridRef } = props;
   const wrapRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(estimateWidth);
 
@@ -74,41 +153,81 @@ export const PhotoGrid = memo(function PhotoGrid(props: PhotoGridProps) {
   }, []);
 
   const { cols, gap } = layoutFor(width, size);
-  const gridStyle = { gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap };
+  const layout = useMemo(() => buildLayout(groups, grouped, width, cols, gap), [groups, grouped, width, cols, gap]);
+  const layoutRef = useRef(layout);
+
+  const [range, setRange] = useState<[number, number]>([0, -1]);
+  useLayoutEffect(() => {
+    layoutRef.current = layout;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const next = visibleRows(layoutRef.current, wrapRef.current);
+      setRange((prev) => (prev[0] === next[0] && prev[1] === next[1] ? prev : next));
+    };
+    const schedule = () => { frame ||= requestAnimationFrame(update); };
+    update();
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+    };
+  }, [layout]);
+
+  useImperativeHandle(gridRef, () => ({
+    reveal(photoId) {
+      const current = layoutRef.current;
+      const index = current.rowOf.get(photoId);
+      const el = wrapRef.current;
+      if (index === undefined || !el) return;
+      const row = current.rows[index];
+      const top = el.getBoundingClientRect().top + window.scrollY + row.top;
+      const bottom = top + current.cell;
+      // 直接跳过去：html 上是 smooth，平滑滚过几千像素会把沿途的行全挂一遍。
+      if (top < window.scrollY + REVEAL_TOP) window.scrollTo({ top: top - REVEAL_TOP, behavior: "instant" });
+      else if (bottom > window.scrollY + window.innerHeight) window.scrollTo({ top: bottom - window.innerHeight + 16, behavior: "instant" });
+    },
+  }), []);
+
+  const { cell } = layout;
+  const items: ReactNode[] = [];
+  for (let i = range[0]; i <= range[1] && i < layout.rows.length; i++) {
+    const row = layout.rows[i];
+    if (row.kind === "header") {
+      let selectedCount = 0;
+      if (selecting) for (const photo of row.group.photos) if (selected.has(photo.id)) selectedCount++;
+      items.push(
+        <div key={`h:${row.group.key}`} className="absolute inset-x-0" style={{ top: row.top, height: HEADER_H }}>
+          <DayHeader group={row.group} selecting={selecting} selectedCount={selectedCount} onToggle={onSelectDay} />
+        </div>,
+      );
+      continue;
+    }
+    row.photos.forEach((photo, col) => {
+      items.push(
+        <PhotoTile
+          key={photo.id}
+          top={row.top}
+          left={col * (cell + gap)}
+          cell={cell}
+          adminKey={adminKey}
+          photo={photo}
+          selecting={selecting}
+          selected={selecting && selected.has(photo.id)}
+          onTile={onTile}
+          onCheck={onCheck}
+          onLongPress={onLongPress}
+          onLike={onLike}
+        />,
+      );
+    });
+  }
 
   return (
-    <div ref={wrapRef} className="min-w-0">
-      {groups.map((group) => {
-        let selectedCount = 0;
-        if (selecting) for (const photo of group.photos) if (selected.has(photo.id)) selectedCount++;
-        return (
-          <section key={group.key} aria-label={grouped ? `${group.label}，${group.photos.length} 张` : undefined}>
-            {grouped && (
-              <DayHeader
-                group={group}
-                selecting={selecting}
-                selectedCount={selectedCount}
-                onToggle={onSelectDay}
-              />
-            )}
-            <div className="grid" style={gridStyle}>
-              {group.photos.map((photo) => (
-                <PhotoTile
-                  key={photo.id}
-                  adminKey={adminKey}
-                  photo={photo}
-                  selecting={selecting}
-                  selected={selecting && selected.has(photo.id)}
-                  onTile={onTile}
-                  onCheck={onCheck}
-                  onLongPress={onLongPress}
-                  onLike={onLike}
-                />
-              ))}
-            </div>
-          </section>
-        );
-      })}
+    <div ref={wrapRef} className="relative min-w-0" style={{ height: layout.height }}>
+      {items}
     </div>
   );
 });
@@ -149,7 +268,7 @@ function DayHeader({
   const all = selecting && selectedCount === count;
   const state = all ? "on" : selectedCount > 0 ? "some" : "off";
   return (
-    <div className="group/day flex min-h-10 items-center gap-1.5 pb-1.5 pt-4">
+    <div className="group/day flex h-full items-center gap-1.5 pb-1.5 pt-4">
       <button
         type="button"
         aria-label={all ? `取消选择${group.label}的 ${count} 张` : `全选${group.label}的 ${count} 张`}
@@ -172,50 +291,10 @@ function DayHeader({
 
 /* ------------------------------------------------------------------ 格子 */
 
-/*
- * 整个网格共用一个 IntersectionObserver：几千格各开一个太浪费。
- * 提前 600px 开始要 URL，滚到时图多半已经在路上了。
- */
-const watchers = new Map<Element, () => void>();
-let observer: IntersectionObserver | null = null;
-
-function watch(element: Element, onVisible: () => void): () => void {
-  if (typeof IntersectionObserver === "undefined") {
-    queueMicrotask(onVisible);
-    return () => undefined;
-  }
-  observer ??= new IntersectionObserver(
-    (entries) => {
-      for (const entry of entries) {
-        if (!entry.isIntersecting) continue;
-        const callback = watchers.get(entry.target);
-        if (!callback) continue;
-        watchers.delete(entry.target);
-        observer?.unobserve(entry.target);
-        callback();
-      }
-    },
-    { rootMargin: "600px 0px" },
-  );
-  watchers.set(element, onVisible);
-  observer.observe(element);
-  return () => {
-    watchers.delete(element);
-    observer?.unobserve(element);
-  };
-}
-
-function useSeen(ref: RefObject<Element | null>): boolean {
-  const [seen, setSeen] = useState(false);
-  useEffect(() => {
-    const element = ref.current;
-    if (!element || seen) return;
-    return watch(element, () => setSeen(true));
-  }, [ref, seen]);
-  return seen;
-}
-
 const PhotoTile = memo(function PhotoTile({
+  top,
+  left,
+  cell,
   adminKey,
   photo,
   selecting,
@@ -225,6 +304,9 @@ const PhotoTile = memo(function PhotoTile({
   onLongPress,
   onLike,
 }: {
+  top: number;
+  left: number;
+  cell: number;
   adminKey: string;
   photo: AlbumPhoto;
   selecting: boolean;
@@ -234,9 +316,7 @@ const PhotoTile = memo(function PhotoTile({
   onLongPress: (photo: AlbumPhoto) => void;
   onLike: (photo: AlbumPhoto) => void;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
-  const seen = useSeen(ref);
   const [fetched, setFetched] = useState<{ id: string; url: string | null } | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [broken, setBroken] = useState(false);
@@ -245,14 +325,16 @@ const PhotoTile = memo(function PhotoTile({
   const photoId = photo.id;
   const hasThumb = photo.has_thumb;
 
-  useEffect(() => {
-    if (!seen || !hasThumb || peekUrl("thumb", photoId)) return;
-    let alive = true;
-    viewUrl(adminKey, photoId, "thumb").then((url) => { if (alive) setFetched({ id: photoId, url }); });
-    return () => { alive = false; };
-  }, [seen, hasThumb, photoId, adminKey]);
+  // 挂上时内存里已经有的（滑回来的）直接显示，不再淡入一次。
+  const [instant] = useState(() => hasThumb && peekThumb(photoId) !== null);
 
-  const url = hasThumb ? peekUrl("thumb", photoId) ?? (fetched?.id === photoId ? fetched.url : null) : null;
+  // 卸掉时取消：还没轮到下载的就不下了（手指甩过去的那几百张）。
+  useEffect(() => {
+    if (!hasThumb || peekThumb(photoId)) return;
+    return requestThumb(adminKey, photoId, (url) => setFetched({ id: photoId, url }));
+  }, [hasThumb, photoId, adminKey]);
+
+  const url = hasThumb ? peekThumb(photoId) ?? (fetched?.id === photoId ? fetched.url : null) : null;
   const video = isVideo(photo);
   const showImage = Boolean(url) && !broken;
   const waiting = hasThumb && !broken && (!url || !loaded) && !(fetched?.id === photoId && fetched.url === null);
@@ -295,10 +377,9 @@ const PhotoTile = memo(function PhotoTile({
 
   return (
     <div
-      ref={ref}
       data-photo-id={photo.id}
-      className="group relative aspect-square min-w-0 overflow-hidden"
-      style={{ background: selected ? "var(--color-admin-neutral)" : T.panelAlt }}
+      className="group absolute overflow-hidden"
+      style={{ top, left, width: cell, height: cell, background: selected ? "var(--color-admin-neutral)" : T.panelAlt }}
     >
       <button
         type="button"
@@ -331,12 +412,10 @@ const PhotoTile = memo(function PhotoTile({
               draggable={false}
               onLoad={() => setLoaded(true)}
               onError={() => setBroken(true)}
-              className="pointer-events-none h-full w-full object-cover transition-opacity duration-150 motion-reduce:transition-none"
-              style={{ opacity: loaded ? 1 : 0 }}
+              className={`pointer-events-none h-full w-full object-cover ${instant ? "" : "transition-opacity duration-150 motion-reduce:transition-none"}`}
+              style={{ opacity: instant || loaded ? 1 : 0 }}
             />
-          ) : waiting ? (
-            <span className="block h-full w-full animate-pulse bg-admin-skeleton" />
-          ) : (
+          ) : waiting ? null : (
             <span className="flex h-full w-full flex-col items-center justify-center gap-1.5 p-2" style={{ color: T.inkFaint }}>
               <AdminIcon name={video ? "video" : "image"} className="h-6 w-6 shrink-0" />
               <span className="line-clamp-2 w-full break-all text-center text-[10px] font-bold leading-tight" style={{ color: T.inkSoft }}>

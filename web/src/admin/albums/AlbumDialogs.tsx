@@ -4,6 +4,7 @@ import { ErrorBanner } from "../../lib/ui";
 import { Btn, DialogHead, Field, Modal } from "../adminUi";
 import { T, inputClass, inputStyle } from "../adminTokens";
 import { deleteAlbum, deletePhotos, renameAlbum } from "./albumApi";
+import { forgetThumbs } from "./thumbCache";
 
 /* 相册详情页的三个对话框：改名、删整本相册、删所选照片。写法照 AdminDialogs.tsx。 */
 
@@ -148,6 +149,7 @@ export function DeletePhotosDialog(props: {
             setErr(null);
             try {
               await deletePhotos(props.adminKey, props.photoIds);
+              forgetThumbs(props.photoIds);
               props.onDeleted(count);
             } catch (error) {
               setErr(errorText(error));

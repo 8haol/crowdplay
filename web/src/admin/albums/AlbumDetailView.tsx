@@ -14,7 +14,8 @@ import { ErrorBanner, SuccessBanner } from "../../lib/ui";
 import { AdminIcon, Btn, EmptyState, PageTitle, Panel } from "../adminUi";
 import { T } from "../adminTokens";
 import { formatBytes } from "../adminUtils";
-import { fetchAlbumPhotos, fetchAlbums, peekUrl, photoUrl, togglePhotoLike } from "./albumApi";
+import { fetchAlbumPhotos, fetchAlbums, photoUrl, togglePhotoLike } from "./albumApi";
+import { loadThumb, peekThumb } from "./thumbCache";
 import type { AlbumPhoto, AlbumPhotosData, ViewKind } from "./albumTypes";
 import {
   applyView,
@@ -44,7 +45,7 @@ import {
   type FolderProgress,
 } from "./downloadAll";
 import { Lightbox } from "./Lightbox";
-import { PhotoGrid } from "./PhotoGrid";
+import { PhotoGrid, type PhotoGridHandle } from "./PhotoGrid";
 import {
   filesFromEntries,
   holdUnload,
@@ -112,6 +113,7 @@ export function AlbumDetailView({
   const folderInput = useRef<HTMLInputElement>(null);
   const likeBusy = useRef(new Set<string>());
   const openedHere = useRef(false);
+  const gridRef = useRef<PhotoGridHandle>(null);
   const alive = useRef(true);
   const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const anchor = useRef<string | null>(null);
@@ -257,10 +259,7 @@ export function AlbumDetailView({
     }
     // 回到网格时，把刚才看到的那张滚进视野（翻了很多张之后，它可能早就不在原来的位置了）。
     if (lastId) {
-      requestAnimationFrame(() => {
-        const tile = document.querySelector(`[data-photo-id="${CSS.escape(lastId)}"]`);
-        tile?.scrollIntoView({ block: "nearest" });
-      });
+      requestAnimationFrame(() => gridRef.current?.reveal(lastId));
     }
   }, [lb.id, navigate, setPhotoParam]);
 
@@ -275,8 +274,13 @@ export function AlbumDetailView({
     if (photo) setLb((prev) => ({ ...prev, id: photo.id }));
   }, [lightboxPhotos]);
 
-  const getUrl = useCallback((photo: AlbumPhoto, kind: ViewKind) => photoUrl(adminKey, photo, kind), [adminKey]);
-  const cachedThumb = useCallback((photo: AlbumPhoto) => (photo.has_thumb ? peekUrl("thumb", photo.id) : null), []);
+  // 缩略图走按 id 的本地缓存（thumbCache）；预览图和原片仍用签名 URL。
+  const getUrl = useCallback(
+    (photo: AlbumPhoto, kind: ViewKind) =>
+      kind === "thumb" ? (photo.has_thumb ? loadThumb(adminKey, photo.id) : Promise.resolve(null)) : photoUrl(adminKey, photo, kind),
+    [adminKey],
+  );
+  const cachedThumb = useCallback((photo: AlbumPhoto) => (photo.has_thumb ? peekThumb(photo.id) : null), []);
 
   /* ------------------------------------------------------------ 爱心 */
 
@@ -558,7 +562,7 @@ export function AlbumDetailView({
   const pickDir = <Btn className={`max-sm:hidden ${hasPhotos ? "!px-3 !py-2" : ""}`} onClick={() => folderInput.current?.click()}>选择文件夹</Btn>;
 
   return (
-    <div {...dropHandlers} className={floating ? "pb-48" : ""}>
+    <div {...dropHandlers} className={floating ? "pb-24" : ""}>
       <PageTitle
         eyebrow="ALBUM"
         title={album.title}
@@ -711,6 +715,7 @@ export function AlbumDetailView({
           ) : (
             <div className={grouped ? "" : "mt-2"}>
               <PhotoGrid
+                gridRef={gridRef}
                 adminKey={adminKey}
                 groups={groups}
                 grouped={grouped}
@@ -729,7 +734,10 @@ export function AlbumDetailView({
       )}
 
       {floating && (
-        <div className="fixed inset-x-3 bottom-3 z-30 flex flex-col gap-2 sm:inset-x-auto sm:bottom-5 sm:right-5 sm:w-[23rem]">
+        <div
+          className="pointer-events-none fixed inset-x-3 z-30 flex flex-col items-end gap-2 sm:inset-x-auto sm:right-5 sm:w-[23rem] [&>*]:pointer-events-auto"
+          style={{ bottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
+        >
           {download && (
             <DownloadPanel
               progress={download}
@@ -825,21 +833,28 @@ function uploadStatusText(item: UploadItemView): string {
   }
 }
 
+/*
+ * 上传进度默认收成右下角一颗圆钮（外圈是进度，里面是「传完几个 / 共几个」），
+ * 手机上整张面板会挡住半屏照片。点圆钮展开成完整列表，点标题栏再收回去。
+ */
 function UploadPanel({ snapshot, queue }: { snapshot: UploadSnapshot; queue: UploadQueue }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const { items, totalBytes, loadedBytes, active, failed, done } = snapshot;
   if (items.length === 0) return null;
   const pct = totalBytes > 0 ? Math.min(100, Math.round((loadedBytes / totalBytes) * 100)) : 0;
   const heading =
     active > 0 ? `正在上传 ${done} / ${items.length}` : failed > 0 ? `${failed} 个没传上` : `已传完 ${done} 个`;
 
+  if (!open) return <UploadBubble heading={heading} pct={pct} done={done} total={items.length} active={active} failed={failed} onOpen={() => setOpen(true)} />;
+
   return (
-    <section className={`overflow-hidden rounded-[18px] ${SHADOW}`} style={{ background: T.panel, border: `1px solid ${T.line}` }}>
+    <section className={`w-full overflow-hidden rounded-[18px] ${SHADOW}`} style={{ background: T.panel, border: `1px solid ${T.line}` }}>
       <button
         type="button"
         className="flex w-full items-center gap-3 px-4 py-3 text-left"
-        aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
+        aria-expanded
+        aria-label={`${heading}，收起上传列表`}
+        onClick={() => setOpen(false)}
       >
         <AdminIcon name="upload" className="h-4 w-4 shrink-0" />
         <span className="min-w-0 flex-1">
@@ -850,55 +865,109 @@ function UploadPanel({ snapshot, queue }: { snapshot: UploadSnapshot; queue: Upl
             {formatBytes(loadedBytes)} / {formatBytes(totalBytes)} · {pct}%
           </span>
         </span>
-        <AdminIcon name="chevron" className={`h-4 w-4 shrink-0 transition-transform ${open ? "rotate-90" : "-rotate-90"}`} />
+        <AdminIcon name="chevron" className="h-4 w-4 shrink-0 rotate-90" />
       </button>
       <ProgressBar pct={pct} tone={failed > 0 && active === 0 ? T.danger : T.ink} />
-      {open && (
-        <>
-          <ul className="tool-scroll max-h-[38dvh] overflow-y-auto px-2 py-1.5">
-            {items.map((item) => (
-              <li key={item.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5">
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-xs font-black">{item.name}</div>
-                  <div
-                    className="tabular truncate text-[11px] font-semibold"
-                    style={{ color: item.status === "failed" ? T.danger : item.status === "done" ? T.good : T.inkFaint }}
-                  >
-                    {uploadStatusText(item)}
-                  </div>
-                </div>
-                {item.status === "failed" && (
-                  <button type="button" className={rowButton} style={{ color: T.ink, background: T.panelAlt }} onClick={() => queue.retry(item.id)}>
-                    重试
-                  </button>
-                )}
-                {item.status === "done" ? (
-                  <AdminIcon name="check" className="h-4 w-4 shrink-0" />
-                ) : (
-                  <button
-                    type="button"
-                    className={`${rowButton} grid h-7 w-7 place-items-center !p-0`}
-                    style={{ color: T.inkSoft }}
-                    aria-label={item.status === "failed" ? `移出列表：${item.name}` : `取消上传：${item.name}`}
-                    onClick={() => queue.remove(item.id)}
-                  >
-                    <AdminIcon name="close" className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
-          <div className="flex flex-wrap justify-end gap-2 px-3 py-2.5" style={{ borderTop: `1px solid ${T.lineSoft}` }}>
-            {failed > 0 && <Btn className="!px-3 !py-2 !text-xs" onClick={() => queue.retryFailed()}>全部重试</Btn>}
-            {active > 0 ? (
-              <Btn variant="quiet" className="!px-3 !py-2 !text-xs" onClick={() => queue.cancelAll()}>全部取消</Btn>
-            ) : (
-              done > 0 && <Btn variant="quiet" className="!px-3 !py-2 !text-xs" onClick={() => queue.clearFinished()}>清除已完成</Btn>
+      <ul className="tool-scroll max-h-[38dvh] overflow-y-auto px-2 py-1.5">
+        {items.map((item) => (
+          <li key={item.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5">
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-xs font-black">{item.name}</div>
+              <div
+                className="tabular truncate text-[11px] font-semibold"
+                style={{ color: item.status === "failed" ? T.danger : item.status === "done" ? T.good : T.inkFaint }}
+              >
+                {uploadStatusText(item)}
+              </div>
+            </div>
+            {item.status === "failed" && (
+              <button type="button" className={rowButton} style={{ color: T.ink, background: T.panelAlt }} onClick={() => queue.retry(item.id)}>
+                重试
+              </button>
             )}
-          </div>
-        </>
-      )}
+            {item.status === "done" ? (
+              <AdminIcon name="check" className="h-4 w-4 shrink-0" />
+            ) : (
+              <button
+                type="button"
+                className={`${rowButton} grid h-7 w-7 place-items-center !p-0`}
+                style={{ color: T.inkSoft }}
+                aria-label={item.status === "failed" ? `移出列表：${item.name}` : `取消上传：${item.name}`}
+                onClick={() => queue.remove(item.id)}
+              >
+                <AdminIcon name="close" className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+      <div className="flex flex-wrap justify-end gap-2 px-3 py-2.5" style={{ borderTop: `1px solid ${T.lineSoft}` }}>
+        {failed > 0 && <Btn className="!px-3 !py-2 !text-xs" onClick={() => queue.retryFailed()}>全部重试</Btn>}
+        {active > 0 ? (
+          <Btn variant="quiet" className="!px-3 !py-2 !text-xs" onClick={() => queue.cancelAll()}>全部取消</Btn>
+        ) : (
+          done > 0 && <Btn variant="quiet" className="!px-3 !py-2 !text-xs" onClick={() => queue.clearFinished()}>清除已完成</Btn>
+        )}
+      </div>
     </section>
+  );
+}
+
+const RING_R = 24;
+const RING_C = 2 * Math.PI * RING_R;
+
+function UploadBubble({
+  heading,
+  pct,
+  done,
+  total,
+  active,
+  failed,
+  onOpen,
+}: {
+  heading: string;
+  pct: number;
+  done: number;
+  total: number;
+  active: number;
+  failed: number;
+  onOpen: () => void;
+}) {
+  const bad = failed > 0 && active === 0;
+  const finished = active === 0 && failed === 0;
+  const tone = bad ? T.danger : T.ink;
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={`${heading}，展开上传列表`}
+      title={heading}
+      className={`pressable relative grid h-14 w-14 place-items-center rounded-full ${SHADOW}`}
+      style={{ background: T.panel, border: `1px solid ${T.line}`, color: tone }}
+    >
+      <svg aria-hidden="true" viewBox="0 0 56 56" className="absolute inset-0 h-full w-full -rotate-90">
+        <circle cx="28" cy="28" r={RING_R} fill="none" strokeWidth="3" style={{ stroke: "var(--color-admin-neutral)" }} />
+        <circle
+          cx="28"
+          cy="28"
+          r={RING_R}
+          fill="none"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeDasharray={RING_C}
+          strokeDashoffset={RING_C * (1 - (finished ? 100 : pct) / 100)}
+          className="transition-[stroke-dashoffset] duration-300 motion-reduce:transition-none"
+          style={{ stroke: tone }}
+        />
+      </svg>
+      {finished ? (
+        <AdminIcon name="check" className="h-5 w-5" />
+      ) : bad ? (
+        <span className="text-lg font-black leading-none">!</span>
+      ) : (
+        <span className="tabular text-[11px] font-black leading-none">{done}/{total}</span>
+      )}
+    </button>
   );
 }
 
@@ -926,7 +995,7 @@ function DownloadPanel({
         : "全部下载完成";
 
   return (
-    <section className={`overflow-hidden rounded-[18px] ${SHADOW}`} style={{ background: T.panel, border: `1px solid ${T.line}` }}>
+    <section className={`w-full overflow-hidden rounded-[18px] ${SHADOW}`} style={{ background: T.panel, border: `1px solid ${T.line}` }}>
       <div className="flex items-center gap-3 px-4 py-3">
         <AdminIcon name="download" className="h-4 w-4 shrink-0" />
         <div className="min-w-0 flex-1">

@@ -6,7 +6,8 @@ import type { AdminEventSummary } from "../../lib/types";
 import { AdminIcon, Btn, DialogHead, EmptyState, Field, Modal, PageTitle, Panel } from "../adminUi";
 import { T, inputClass, inputStyle } from "../adminTokens";
 import { formatBytes, formatDate, formatUsage } from "../adminUtils";
-import { createAlbum, fetchAlbums, peekUrl, viewUrl } from "./albumApi";
+import { createAlbum, fetchAlbums } from "./albumApi";
+import { peekThumb, requestThumb } from "./thumbCache";
 import type { AlbumSummary, AlbumsData } from "./albumTypes";
 
 /*
@@ -145,13 +146,11 @@ function AlbumCard({ adminKey, album, onOpen }: { adminKey: string; album: Album
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    if (!coverId || peekUrl("thumb", coverId)) return;
-    let alive = true;
-    viewUrl(adminKey, coverId, "thumb").then((url) => { if (alive) setFetched({ id: coverId, url }); });
-    return () => { alive = false; };
+    if (!coverId || peekThumb(coverId)) return;
+    return requestThumb(adminKey, coverId, (url) => setFetched({ id: coverId, url }));
   }, [adminKey, coverId]);
 
-  const coverUrl = coverId ? peekUrl("thumb", coverId) ?? (fetched?.id === coverId ? fetched.url : null) : null;
+  const coverUrl = coverId ? peekThumb(coverId) ?? (fetched?.id === coverId ? fetched.url : null) : null;
 
   return (
     <button

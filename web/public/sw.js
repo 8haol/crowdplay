@@ -9,7 +9,10 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))))
+      // 只清自己的旧版本：相册缩略图缓存（album-thumbs-*）由页面管理，不能跟着外壳升级被清空。
+      .then((keys) => Promise.all(
+        keys.filter((key) => key.startsWith("life-passport-shell-") && key !== CACHE).map((key) => caches.delete(key)),
+      ))
       .then(() => self.clients.claim()),
   );
 });

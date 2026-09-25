@@ -976,7 +976,11 @@ export function Lightbox(props: LightboxProps) {
   const fade = `transition-opacity duration-200 motion-reduce:duration-100 ${chrome ? "opacity-100" : "opacity-0"}`;
   const when = shortDateTime(photo.taken_at);
   const stripSpace = `calc(${STRIP_H}px + env(safe-area-inset-bottom))`;
-  const navShow = chrome ? "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100" : "opacity-0";
+  // 视频的原生控件条（播放键在左下角）会落进左右 20% 的翻页区，点播放变成翻页。
+  // 所以视频只留中间那颗圆键当翻页按钮，控件条露出来；圆键在控件显示时常亮，不用先悬停。
+  const videoNav = isVideo(photo);
+  const navShow = !chrome ? "opacity-0" : videoNav ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100";
+  const navZone = videoNav ? "top-1/2 -translate-y-1/2" : "bottom-0 top-16 w-[20%]";
   const chip: CSSProperties = { background: CHIP, color: INK };
 
   const toggleStrip = () => setStrip((open) => !open);
@@ -1030,13 +1034,13 @@ export function Lightbox(props: LightboxProps) {
             })}
           </div>
 
-          {/* 左右各 20% 的翻页区：鼠标移进去才出现 56px 的圆键，点整个区域都能翻。手机上没有，靠滑动。 */}
+          {/* 左右各 20% 的翻页区：鼠标移进去才出现 56px 的圆键，点整个区域都能翻（视频除外，见 navZone）。手机上没有，靠滑动。 */}
           {!zoomed && index > 0 && (
             <button
               type="button"
               onClick={() => go(-1)}
               aria-label="上一张"
-              className="group absolute bottom-0 left-0 top-16 z-10 hidden w-[20%] items-center justify-start pl-3 focus-visible:outline-none pointer-fine:flex sm:pl-5"
+              className={`group absolute left-0 z-10 hidden items-center justify-start pl-3 focus-visible:outline-none pointer-fine:flex sm:pl-5 ${navZone}`}
               style={{ cursor: chrome ? "pointer" : "none" }}
             >
               <span
@@ -1052,7 +1056,7 @@ export function Lightbox(props: LightboxProps) {
               type="button"
               onClick={() => go(1)}
               aria-label="下一张"
-              className="group absolute bottom-0 right-0 top-16 z-10 hidden w-[20%] items-center justify-end pr-3 focus-visible:outline-none pointer-fine:flex sm:pr-5"
+              className={`group absolute right-0 z-10 hidden items-center justify-end pr-3 focus-visible:outline-none pointer-fine:flex sm:pr-5 ${navZone}`}
               style={{ cursor: chrome ? "pointer" : "none" }}
             >
               <span

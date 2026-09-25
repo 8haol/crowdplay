@@ -21,6 +21,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
   type RefObject,
+  type SyntheticEvent,
 } from "react";
 import { createPortal } from "react-dom";
 import { AdminIcon } from "../adminUi";
@@ -86,6 +87,8 @@ interface Loader {
   preview: (photo: AlbumPhoto, getUrl: GetUrl) => Promise<string | null>;
   thumb: (photo: AlbumPhoto, getUrl: GetUrl) => Promise<string | null>;
   original: (photo: AlbumPhoto, getUrl: GetUrl) => Promise<string | null>;
+  /** 视频的低画质版；没有就 null。 */
+  proxy: (photo: AlbumPhoto, getUrl: GetUrl) => Promise<string | null>;
   /** 只留住窗口内的已解码 Image 对象，其余交给浏览器回收。 */
   retain: (ids: Set<string>) => void;
 }
@@ -144,6 +147,7 @@ function createLoader(): Loader {
     },
     thumb: (photo, getUrl) => (photo.has_thumb ? safeGet(getUrl, photo, "thumb") : Promise.resolve(null)),
     original: (photo, getUrl) => safeGet(getUrl, photo, "original"),
+    proxy: (photo, getUrl) => (photo.has_proxy ? safeGet(getUrl, photo, "proxy") : Promise.resolve(null)),
     retain(ids) {
       for (const id of [...held.keys()]) if (!ids.has(id)) held.delete(id);
     },
@@ -252,6 +256,7 @@ function Slide({
   zoomRef,
   videoRef,
   onVideoPlay,
+  original,
 }: {
   photo: AlbumPhoto;
   offset: number;
@@ -263,6 +268,8 @@ function Slide({
   zoomRef: (el: HTMLDivElement | null) => void;
   videoRef: RefObject<HTMLVideoElement | null>;
   onVideoPlay: () => void;
+  /** 用户点了「原画质」：播原片而不是低画质版。 */
+  original: boolean;
 }) {
   const video = isVideo(photo);
   const syncThumb = cachedThumb(photo);
@@ -276,7 +283,12 @@ function Slide({
   const previewAtMount = useRef(preview !== null);
   const previewImg = useRef<HTMLImageElement>(null);
 
-  const [videoUrl, setVideoUrl] = useState<string | null | undefined>(undefined);
+  // 默认播低画质版（有的话）；点了「原画质」换原片，从刚才播到的地方接着播。
+  const videoKind = original || !photo.has_proxy ? "original" : "proxy";
+  const [videoSrc, setVideoSrc] = useState<{ kind: string; url: string | null } | null>(null);
+  // 换画质时新地址到手之前，先接着放旧的。
+  const videoUrl = videoSrc === null ? undefined : videoSrc.url;
+  const resumeAt = useRef<{ time: number; play: boolean } | null>(null);
 
   // 没有同步缩略图时再异步要一次（调用方有缓存，基本是立刻返回）。
   useEffect(() => {
@@ -317,15 +329,30 @@ function Slide({
   }, [preview, reduce]);
 
   useEffect(() => {
-    if (!video || !active || videoUrl !== undefined) return;
+    if (!video || !active || videoSrc?.kind === videoKind) return;
     let alive = true;
-    void loader.original(photo, getUrl).then((url) => {
-      if (alive) setVideoUrl(url);
+    const el = videoRef.current;
+    if (videoSrc && el) resumeAt.current = { time: el.currentTime, play: !el.paused };
+    const load = videoKind === "proxy"
+      // 低画质版签不出来（比如刚补生成、缓存还是旧的）就退回原片。
+      ? loader.proxy(photo, getUrl).then((url) => url ?? loader.original(photo, getUrl))
+      : loader.original(photo, getUrl);
+    void load.then((url) => {
+      if (alive) setVideoSrc({ kind: videoKind, url });
     });
     return () => {
       alive = false;
     };
-  }, [photo, video, active, videoUrl, loader, getUrl]);
+  }, [photo, video, active, videoKind, videoSrc, loader, getUrl, videoRef]);
+
+  const onLoadedMetadata = (e: SyntheticEvent<HTMLVideoElement>) => {
+    const resume = resumeAt.current;
+    resumeAt.current = null;
+    if (!resume) return;
+    const el = e.currentTarget;
+    el.currentTime = resume.time;
+    if (resume.play) void el.play().catch(() => undefined);
+  };
 
   const rememberAspect = (img: HTMLImageElement) => {
     if (!loader.aspects.has(photo.id) && img.naturalWidth && img.naturalHeight) {
@@ -347,6 +374,7 @@ function Slide({
           preload="metadata"
           aria-label={photo.filename}
           onPlay={onVideoPlay}
+          onLoadedMetadata={onLoadedMetadata}
         />
       );
     } else if (thumb) {
@@ -480,6 +508,8 @@ export function Lightbox(props: LightboxProps) {
   const [info, setInfo] = useState(false);
   // 胶片条每次打开都展开（手机也是）；收起只管这一次，不记住。
   const [strip, setStrip] = useState(true);
+  // 这次打开灯箱里点过「原画质」的视频。
+  const [originals, setOriginals] = useState<ReadonlySet<string>>(() => new Set());
 
   const latest = useRef({ index, count, photo, reduce, info, onIndexChange, onClose });
   useLayoutEffect(() => {
@@ -1029,6 +1059,7 @@ export function Lightbox(props: LightboxProps) {
                   zoomRef={setZoomEl}
                   videoRef={videoRef}
                   onVideoPlay={scheduleHide}
+                  original={originals.has(p.id)}
                 />
               );
             })}
@@ -1106,6 +1137,23 @@ export function Lightbox(props: LightboxProps) {
                 </span>
                 <span className="tabular">{photo.like_count}</span>
               </button>
+              {isVideo(photo) && photo.has_proxy && (
+                <button
+                  type="button"
+                  onClick={() => setOriginals((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(photo.id)) next.delete(photo.id);
+                    else next.add(photo.id);
+                    return next;
+                  })}
+                  aria-pressed={originals.has(photo.id)}
+                  title={originals.has(photo.id) ? "正在播原画质，点一下换回省流量的低画质" : "现在是低画质，点一下播原画质（文件大，要等一会儿）"}
+                  className={`h-9 shrink-0 rounded-full px-3 text-xs font-black hover:bg-[color-mix(in_oklab,var(--color-card)_14%,transparent)] ${pressable}`}
+                  style={originals.has(photo.id) ? chip : { color: INK, boxShadow: `inset 0 0 0 1px ${INK_DIM}` }}
+                >
+                  原画质
+                </button>
+              )}
               <button type="button" onClick={() => onDownload(photo)} aria-label="下载原片" title="下载原片" className={iconBtn}>
                 <AdminIcon name="download" className="h-5 w-5" />
               </button>

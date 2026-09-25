@@ -17,7 +17,7 @@ const API_KEY = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ??
 /** album-sign 一次最多接受的 photo_ids。 */
 export const MAX_BATCH = 500;
 
-export type AlbumAction = "upload" | "complete" | "abort" | "view" | "download" | "delete";
+export type AlbumAction = "upload" | "complete" | "abort" | "proxy_upload" | "proxy_done" | "view" | "download" | "delete";
 
 export interface UploadSigned {
   photo_id: string;
@@ -146,9 +146,13 @@ export function peekUrl(kind: ViewKind, photoId: string): string | null {
   return hit && Date.now() - hit.at < TTL_MS ? hit.url : null;
 }
 
+export function forgetUrl(kind: ViewKind, photoId: string) {
+  cache.delete(cacheKey(kind, photoId));
+}
+
 export function forgetUrls(photoIds: string[]) {
   for (const id of photoIds) {
-    for (const kind of ["thumb", "preview", "original"] as const) cache.delete(cacheKey(kind, id));
+    for (const kind of ["thumb", "preview", "original", "proxy"] as const) cache.delete(cacheKey(kind, id));
   }
 }
 
@@ -183,6 +187,7 @@ export function viewUrl(adminKey: string, photoId: string, kind: ViewKind): Prom
 export function photoUrl(adminKey: string, photo: AlbumPhoto, kind: ViewKind): Promise<string | null> {
   if (kind === "thumb" && !photo.has_thumb) return Promise.resolve(null);
   if (kind === "preview" && !photo.has_preview) return Promise.resolve(null);
+  if (kind === "proxy" && !photo.has_proxy) return Promise.resolve(null);
   return viewUrl(adminKey, photo.id, kind);
 }
 

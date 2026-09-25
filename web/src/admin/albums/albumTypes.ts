@@ -26,6 +26,8 @@ export interface AlbumPhoto {
   size_bytes: number;
   has_thumb: boolean;
   has_preview: boolean;
+  /** 视频的 720p 低码率版传好了没有。迁移 20260925000300 之前的库不带这个字段。 */
+  has_proxy?: boolean;
   taken_at: string | null;
   created_at: string;
   like_count: number;
@@ -37,7 +39,7 @@ export interface AlbumPhotosData {
   photos: AlbumPhoto[];
 }
 
-export type ViewKind = "thumb" | "preview" | "original";
+export type ViewKind = "thumb" | "preview" | "original" | "proxy";
 
 export function isVideo(photo: Pick<AlbumPhoto, "content_type">): boolean {
   return photo.content_type.startsWith("video/");

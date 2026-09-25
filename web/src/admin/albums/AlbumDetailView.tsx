@@ -16,7 +16,7 @@ import { T } from "../adminTokens";
 import { formatBytes } from "../adminUtils";
 import { fetchAlbumPhotos, photoUrl, togglePhotoLike } from "./albumApi";
 import { loadThumb, peekThumb } from "./thumbCache";
-import type { AlbumPhoto, AlbumPhotosData, ViewKind } from "./albumTypes";
+import { isVideo, type AlbumPhoto, type AlbumPhotosData, type ViewKind } from "./albumTypes";
 import {
   applyView,
   countByType,
@@ -46,6 +46,7 @@ import {
 } from "./downloadAll";
 import { Lightbox } from "./Lightbox";
 import { SaveToPhotosJob, canSaveToPhotos, photosCanTake, type SaveState } from "./saveToPhotos";
+import { proxyQueue, proxySupported, type ProxyItemView } from "./videoProxy";
 import { PhotoGrid, type PhotoGridHandle } from "./PhotoGrid";
 import {
   filesFromEntries,
@@ -125,6 +126,23 @@ export function AlbumDetailView({
 
   const queue = useMemo(() => uploadQueueFor(adminKey, albumId), [adminKey, albumId]);
   const uploads = useSyncExternalStore(queue.subscribe, queue.getSnapshot);
+  const proxyAll = useSyncExternalStore(proxyQueue.subscribe, proxyQueue.getSnapshot);
+  const proxyItems = useMemo(() => proxyAll.items.filter((item) => item.albumId === albumId), [proxyAll, albumId]);
+  const [canProxy, setCanProxy] = useState(false);
+
+  useEffect(() => {
+    let on = true;
+    void proxySupported().then((ok) => { if (on) setCanProxy(ok); });
+    return () => { on = false; };
+  }, []);
+
+  // 低画质版传好一个，就地把这张标上，不用重拉整本相册。
+  useEffect(() => proxyQueue.onReady((photoId) => {
+    setData((current) => current && {
+      ...current,
+      photos: current.photos.map((photo) => (photo.id === photoId ? { ...photo, has_proxy: true } : photo)),
+    });
+  }), []);
 
   useEffect(() => {
     alive.current = true;
@@ -182,6 +200,11 @@ export function AlbumDetailView({
   );
   const totalBytes = useMemo(() => photos.reduce((sum, photo) => sum + photo.size_bytes, 0), [photos]);
   const videoCount = counts.video;
+  // 老的库（迁移 20260925000300 之前）不带 has_proxy：那时补生成也传不上去，按钮不出。
+  const needProxy = useMemo(
+    () => (photos.length > 0 && "has_proxy" in photos[0] ? photos.filter((photo) => isVideo(photo) && !photo.has_proxy) : []),
+    [photos],
+  );
 
   // 回调里读最新值用；网格收到的回调保持不变，挑一张不会重画几百格。
   const latest = useRef({ photos, view, visible, selecting: false });
@@ -576,7 +599,8 @@ export function AlbumDetailView({
   }
 
   const album = data.album;
-  const floating = uploads.items.length > 0 || download !== null || saving !== null;
+  const floating = uploads.items.length > 0 || download !== null || saving !== null || proxyItems.length > 0;
+  const proxyBusy = proxyItems.some((item) => item.status !== "done" && item.status !== "failed");
   const downloading = Boolean(download?.running);
   const hasPhotos = photos.length > 0;
   const countText = videoCount > 0 ? `${photos.length - videoCount} 张照片 · ${videoCount} 个视频` : `${photos.length} 张`;
@@ -676,6 +700,21 @@ export function AlbumDetailView({
               </div>
             </div>
             <div className="flex shrink-0 flex-wrap justify-center gap-2">{pickFiles}{pickDir}</div>
+          </div>
+        </Panel>
+      )}
+
+      {canProxy && needProxy.length > 0 && !proxyBusy && (
+        // 手机上不出：要把原片整个下回来再转，流量和电量都吃不消。
+        <Panel className="mt-2 px-3 py-2.5 max-sm:hidden sm:px-4">
+          <div className="flex items-center gap-3">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg" style={{ background: T.panelAlt, color: T.ink }}>
+              <AdminIcon name="upload" className="h-4 w-4" />
+            </span>
+            <p className="min-w-0 flex-1 text-xs font-semibold" style={{ color: T.inkSoft }}>
+              {needProxy.length} 个视频还没有低画质版，点开要等很久、播起来会卡。在这台电脑上补生成一份 720p 的，原片不动。
+            </p>
+            <Btn className="!px-3 !py-2" onClick={() => proxyQueue.backfill(adminKey, albumId, needProxy)}>补生成</Btn>
           </div>
         </Panel>
       )}
@@ -780,6 +819,14 @@ export function AlbumDetailView({
                 startSaveToPhotos(photos.filter((photo) => failedIds.has(photo.id)));
               }}
               onDownloadRest={() => void downloadRest(saving.unsupported)}
+            />
+          )}
+          {proxyItems.length > 0 && (
+            <ProxyPanel
+              items={proxyItems}
+              onCancel={() => proxyQueue.cancelAlbum(albumId)}
+              onClose={() => proxyQueue.clearFinished(albumId)}
+              onRetry={() => proxyQueue.retryFailed(albumId)}
             />
           )}
           {download && (
@@ -1188,6 +1235,94 @@ function SavePhotosPanel({
               {state.failed.map((item) => (
                 <li key={item.id} className="text-[11px] font-semibold">
                   <span className="font-black">{item.filename}</span>
+                  <span style={{ color: T.danger }}> · {item.error}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+const PROXY_STEP: Record<ProxyItemView["status"], string> = {
+  queued: "排队中",
+  loading: "读取原片",
+  converting: "转码",
+  waiting: "等原片传完",
+  uploading: "上传低画质版",
+  done: "好了",
+  failed: "没成",
+};
+
+function ProxyPanel({
+  items,
+  onCancel,
+  onClose,
+  onRetry,
+}: {
+  items: ProxyItemView[];
+  onCancel: () => void;
+  onClose: () => void;
+  onRetry: () => void;
+}) {
+  const [showFailed, setShowFailed] = useState(false);
+  const done = items.filter((item) => item.status === "done").length;
+  const failed = items.filter((item) => item.status === "failed");
+  const active = items.length - done - failed.length;
+  const current = items.find((item) => item.status === "converting")
+    ?? items.find((item) => item.status === "loading" || item.status === "uploading");
+  const clean = active === 0 && failed.length === 0;
+
+  // 全部顺利生成完：停一会儿自己收起来。
+  useEffect(() => {
+    if (!clean) return;
+    const timer = setTimeout(onClose, 2500);
+    return () => clearTimeout(timer);
+  }, [clean, onClose]);
+
+  const heading = active > 0
+    ? `正在生成低画质 ${done} / ${items.length}`
+    : failed.length > 0
+      ? `低画质生成完了，${failed.length} 个没成`
+      : "低画质版都生成好了";
+  const pct = current && current.status === "converting" ? Math.round(current.progress * 100) : null;
+
+  return (
+    <section className={`w-full overflow-hidden rounded-[18px] ${SHADOW}`} style={{ background: T.panel, border: `1px solid ${T.line}` }}>
+      <div className="flex items-center gap-3 px-4 py-3">
+        <AdminIcon name={clean ? "check" : "upload"} className="h-4 w-4 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-black" style={{ color: active === 0 && failed.length > 0 ? T.danger : T.ink }}>
+            {heading}
+          </div>
+          <div className="tabular truncate text-[11px] font-semibold" style={{ color: T.inkFaint }}>
+            {current
+              ? `${current.name} · ${PROXY_STEP[current.status]}${pct !== null ? ` ${pct}%` : ""}`
+              : clean ? "灯箱里点开视频默认播低画质，右上角可切原画质" : "原片不受影响，照样能看能下载"}
+          </div>
+        </div>
+        {active > 0 ? (
+          <Btn variant="quiet" className="!px-3 !py-2 !text-xs" onClick={onCancel}>取消</Btn>
+        ) : (
+          <Btn variant="quiet" className="!px-3 !py-2 !text-xs" onClick={onClose}>关闭</Btn>
+        )}
+      </div>
+      {pct !== null && <ProgressBar pct={pct} tone={T.ink} />}
+      {failed.length > 0 && active === 0 && (
+        <div className="px-4 py-2.5" style={{ borderTop: `1px solid ${T.line}` }}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <button type="button" className="text-xs font-black underline underline-offset-2" style={{ color: T.inkSoft }} onClick={() => setShowFailed((v) => !v)}>
+              {showFailed ? "收起" : "看看哪些没成"}
+            </button>
+            <Btn className="!px-3 !py-2 !text-xs" onClick={onRetry}>重试</Btn>
+          </div>
+          {showFailed && (
+            <ul className="tool-scroll mt-2 max-h-40 space-y-1 overflow-y-auto">
+              {failed.map((item) => (
+                <li key={item.id} className="text-[11px] font-semibold">
+                  <span className="font-black">{item.name}</span>
                   <span style={{ color: T.danger }}> · {item.error}</span>
                 </li>
               ))}

@@ -2,6 +2,7 @@ import { RpcError, errorText } from "../../lib/api";
 import { albumSign, type UploadSigned } from "./albumApi";
 import { takenAtFor } from "./exif";
 import { makeThumbs, type Thumbs } from "./thumbs";
+import { canMakeProxy, proxyQueue, type UploadProxyHandle } from "./videoProxy";
 
 /*
  * 上传队列。每本相册一条，挂在模块级的表里：在后台里切到别的页面再回来，
@@ -9,6 +10,7 @@ import { makeThumbs, type Thumbs } from "./thumbs";
  *
  * 每个文件：生成小图 → upload（登记 + 拿 PUT URL）→ XHR PUT 原片（要进度）
  *           → PUT 两张小图 → complete。
+ * 视频另外交给 videoProxy 转一份低画质版，跟原片上传并行；complete 之后它自己传。
  * 任一步失败：先 abort（删掉这张的对象和 pending 行），再标失败。
  * 重试从 upload 重新登记；小图和拍摄时间已经算过的就不再算。
  *
@@ -70,6 +72,8 @@ interface Item extends UploadItemView {
   autoRetries: number;
   /** 上次失败是不是网络类的（值得自动重传）。 */
   transient: boolean;
+  /** 视频的低画质版转码任务。自动重传时留着（转好的不用再转），放弃或取消时一起取消。 */
+  proxy: UploadProxyHandle | null;
 }
 
 /* ----------------------------------------------------------- 筛文件 */
@@ -262,6 +266,7 @@ export class UploadQueue {
         lastProgressAt: 0,
         autoRetries: 0,
         transient: false,
+        proxy: null,
       });
     }
     this.pump();
@@ -335,6 +340,8 @@ export class UploadQueue {
     const item = this.items.find((entry) => entry.id === id);
     if (!item) return;
     if (item.status === "queued" || item.status === "waiting" || item.status === "done" || item.status === "failed") {
+      item.proxy?.cancel();
+      item.proxy = null;
       this.items = this.items.filter((entry) => entry !== item);
     } else {
       item.cancelled = true;
@@ -392,6 +399,9 @@ export class UploadQueue {
       });
       item.photoId = signed.photo_id;
       if (item.cancelled) throw CANCELLED;
+      if (!item.proxy && item.contentType.startsWith("video/") && canMakeProxy()) {
+        item.proxy = proxyQueue.fromUpload(this.adminKey, this.albumId, item.file);
+      }
 
       item.status = "uploading";
       this.emit(true);
@@ -405,6 +415,8 @@ export class UploadQueue {
       item.status = "finishing";
       this.emit(true);
       await albumSign("complete", { admin_key: this.adminKey, photo_id: item.photoId });
+      item.proxy?.attach(item.photoId);
+      item.proxy = null;
       item.status = "done";
       item.loaded = item.size;
       item.photoId = null;
@@ -421,6 +433,8 @@ export class UploadQueue {
         await albumSign("abort", { admin_key: this.adminKey, photo_id: photoId }).catch(() => undefined);
       }
       if (item.cancelled) {
+        item.proxy?.cancel();
+        item.proxy = null;
         this.items = this.items.filter((entry) => entry !== item);
         return;
       }
@@ -433,6 +447,8 @@ export class UploadQueue {
         item.status = "waiting";
       } else {
         item.status = "failed";
+        item.proxy?.cancel();
+        item.proxy = null;
       }
     }
   }

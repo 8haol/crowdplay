@@ -130,8 +130,6 @@ Deno.test("errorStatus：契约 2 的状态码", () => {
   const cases: [string, number][] = [
     ["BAD_KEY", 401],
     ["RATE_LIMITED", 429],
-    ["ALBUM_QUOTA_EXCEEDED:123", 413],
-    ["ALBUM_QUOTA_EXCEEDED", 413],
     ["STORAGE_ERROR", 502],
     ["NOT_CONFIGURED", 500],
     ["BAD_REQUEST", 400],
@@ -146,7 +144,7 @@ Deno.test("errorStatus：契约 2 的状态码", () => {
 });
 
 Deno.test("rpcErrorFromResponse：只转发 CODE / CODE:detail 形状的 message", () => {
-  assert.equal(rpcErrorFromResponse(400, "ALBUM_QUOTA_EXCEEDED:123"), "ALBUM_QUOTA_EXCEEDED:123");
+  assert.equal(rpcErrorFromResponse(400, "ALBUM_SIZE_MISMATCH:123"), "ALBUM_SIZE_MISMATCH:123");
   assert.equal(rpcErrorFromResponse(400, "BAD_KEY"), "BAD_KEY");
   assert.equal(rpcErrorFromResponse(400, 'invalid input syntax for type uuid: "x"'), "HTTP_400");
   assert.equal(rpcErrorFromResponse(404, "Could not find the function"), "HTTP_404");

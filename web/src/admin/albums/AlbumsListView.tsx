@@ -5,7 +5,7 @@ import { ErrorBanner } from "../../lib/ui";
 import type { AdminEventSummary } from "../../lib/types";
 import { AdminIcon, Btn, DialogHead, EmptyState, Field, Modal, PageTitle, Panel } from "../adminUi";
 import { T, inputClass, inputStyle } from "../adminTokens";
-import { formatBytes, formatDate, formatUsage } from "../adminUtils";
+import { formatBytes, formatDate } from "../adminUtils";
 import { createAlbum, fetchAlbums } from "./albumApi";
 import { peekThumb, requestThumb } from "./thumbCache";
 import type { AlbumSummary, AlbumsData } from "./albumTypes";
@@ -77,7 +77,7 @@ export function AlbumsListView({
         </Panel>
       ) : (
         <>
-          <QuotaBar used={data.used_bytes} quota={data.quota_bytes} />
+          <UsagePanel used={data.used_bytes} />
 
           {data.albums.length === 0 ? (
             <Panel className="mt-5">
@@ -109,33 +109,14 @@ export function AlbumsListView({
   );
 }
 
-export function QuotaBar({ used, quota }: { used: number; quota: number }) {
-  const ratio = quota > 0 ? used / quota : used > 0 ? 1 : 0;
-  const full = ratio >= 1;
-  const warn = ratio > 0.8;
-  const tone = full ? T.danger : warn ? T.warn : T.ink;
+/** 没有额度，只报一个总用量：照片和视频都原样存，传多少都行。 */
+function UsagePanel({ used }: { used: number }) {
   return (
     <Panel className="p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <span className="text-sm font-black">相册空间</span>
-        <span className="tabular text-sm font-black" style={{ color: tone }}>已用 {formatUsage(used, quota)}</span>
+        <span className="tabular text-sm font-black">已用 {formatBytes(used)}</span>
       </div>
-      <div
-        className="mt-3 h-2 overflow-hidden rounded-full"
-        style={{ background: "var(--color-admin-neutral)" }}
-        role="progressbar"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={Math.round(Math.min(1, ratio) * 100)}
-        aria-label="相册空间用量"
-      >
-        <div className="h-full rounded-full" style={{ width: `${Math.min(100, ratio * 100)}%`, background: tone }} />
-      </div>
-      {warn && (
-        <p className="mt-2 text-xs font-semibold" style={{ color: tone }}>
-          {full ? "空间满了，传不进新照片。" : "空间快满了。"}删掉不要的原片，或请平台管理员加额度。
-        </p>
-      )}
     </Panel>
   );
 }

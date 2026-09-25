@@ -16,7 +16,6 @@ export interface AlbumSummary {
 
 export interface AlbumsData {
   used_bytes: number;
-  quota_bytes: number;
   albums: AlbumSummary[];
 }
 

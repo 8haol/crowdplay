@@ -1,5 +1,4 @@
 import { RpcError, rpc } from "../../lib/api";
-import { formatBytes } from "../adminUtils";
 import { deviceId } from "./deviceId";
 import type { AlbumPhoto, AlbumPhotosData, AlbumsData, ViewKind } from "./albumTypes";
 
@@ -36,7 +35,7 @@ export interface DownloadLink {
  * POST 到 album-sign。非 200 时把 `{error:"CODE:detail"}` 包成 RpcError，
  * 这样调用方和 RPC 一样走 errorText()；网络失败 / 超时抛 RpcError("NETWORK")。
  *
- * 不自动重试：upload 会登记一行 pending，盲目重试会重复占额度。
+ * 不自动重试：upload 会登记一行 pending，盲目重试会留下重复的行。
  */
 export async function albumSign<T>(
   action: AlbumAction,
@@ -70,23 +69,13 @@ export async function albumSign<T>(
       payload && typeof payload === "object" && typeof (payload as { error?: unknown }).error === "string"
         ? (payload as { error: string }).error
         : `HTTP_${res.status}`;
-    throw albumError(raw);
+    throw new RpcError(raw);
   } catch (err) {
     if (err instanceof RpcError) throw err;
     throw new RpcError("NETWORK");
   } finally {
     clearTimeout(timer);
   }
-}
-
-/** 额度不够时 detail 是剩余字节数；换成人读得懂的大小再交给 errorText。 */
-function albumError(raw: string): RpcError {
-  const err = new RpcError(raw);
-  if (err.code === "ALBUM_QUOTA_EXCEEDED") {
-    const left = Number(err.detail);
-    return new RpcError(`ALBUM_QUOTA_EXCEEDED:${formatBytes(Number.isFinite(left) ? left : 0)}`);
-  }
-  return err;
 }
 
 function chunks<T>(items: T[], size = MAX_BATCH): T[][] {

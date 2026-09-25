@@ -40,9 +40,11 @@ declare
   v_ids uuid[];
 begin
   -- -------------------------------------------------------------------------
-  -- 1. 默认额度、建相册、改名
+  -- 1. 没有额度、建相册、改名
   -- -------------------------------------------------------------------------
-  assert (select album_quota_bytes from organizations where id = v_alpha) = 21474836480, '默认额度 20 GiB';
+  assert not exists (select 1 from information_schema.columns
+                     where table_name = 'organizations' and column_name = 'album_quota_bytes'), '额度列已删';
+  assert not exists (select 1 from pg_proc where proname = 'platform_set_album_quota'), '改额度的 RPC 已删';
 
   r := admin_album_create('alpha-admin', '  园游会  ', ev_a);
   a1 := (r ->> 'id')::uuid;
@@ -75,18 +77,21 @@ begin
   -- 「以 image/ 开头」要锚在开头，不能是中间出现
   perform pg_temp.expect_err(format('select album_reserve_upload(%L, %L, %L, %L, 100, null)', 'alpha-admin', a1, 'a.jpg', 'x-image/jpeg'), 'BAD_FILE');
 
-  -- 5,000,000,000 字节正好合法（默认额度 20 GiB 放得下）
-  r := album_reserve_upload('alpha-admin', a1, 'big.mp4', 'video/mp4', 5000000000, null);
-  p_big := (r ->> 'photo_id')::uuid;
+  -- 5,000,000,000 字节正好合法；连登 5 个共 25e9 字节，超过原来的 20 GiB 也不拦
+  v_ids := '{}';
+  for i in 1..5 loop
+    r := album_reserve_upload('alpha-admin', a1, format('big%s.mp4', i), 'video/mp4', 5000000000, null);
+    v_ids := v_ids || (r ->> 'photo_id')::uuid;
+  end loop;
+  p_big := v_ids[1];
   assert (select size_bytes from album_photos where id = p_big) = 5000000000, '5e9 字节的文件可以登记';
-  assert (album_delete_photos('alpha-admin', array[p_big]) ->> 'deleted')::int = 1, '清掉这张大文件';
+  assert (admin_albums('alpha-admin') ->> 'used_bytes')::bigint = 25000000000, '25e9 字节全部登记成功';
+  assert (album_delete_photos('alpha-admin', v_ids) ->> 'deleted')::int = 5, '清掉这些大文件';
+  v_ids := null;
 
   -- -------------------------------------------------------------------------
-  -- 3. 额度：pending 预占、超额带剩余字节、过期 pending 不计入并被清理
+  -- 3. 用量：pending 计入、过期 pending 不计入并被清理
   -- -------------------------------------------------------------------------
-  r := platform_set_album_quota('root-pass', v_alpha, 1000);
-  assert (r ->> 'quota_bytes')::bigint = 1000 and (r ->> 'org_id')::uuid = v_alpha, '额度设成 1000 字节';
-
   r1 := album_reserve_upload('alpha-admin', a1, 'IMG_0001.JPG', 'image/jpeg', 600, now());
   p1 := (r1 ->> 'photo_id')::uuid;
   assert r1 ->> 'prefix' = format('orgs/%s/albums/%s/%s/', v_alpha, a1, p1), '前缀由服务端按 id 拼出';
@@ -96,15 +101,12 @@ begin
   assert (select object_key from album_photos where id = p1) = r1 ->> 'original_key', 'object_key 落库';
 
   r := admin_albums('alpha-admin');
-  assert (r ->> 'used_bytes')::bigint = 600, 'pending 占额度';
-  assert (r ->> 'quota_bytes')::bigint = 1000, 'admin_albums 带额度';
+  assert (r ->> 'used_bytes')::bigint = 600, 'pending 计入用量';
+  assert not r ? 'quota_bytes', 'admin_albums 不再带额度';
   assert (select (x ->> 'photo_count')::int from jsonb_array_elements(r -> 'albums') x where (x ->> 'id')::uuid = a1) = 0,
          '相册卡片的张数只计 ready';
   assert (select (x ->> 'total_bytes')::bigint from jsonb_array_elements(r -> 'albums') x where (x ->> 'id')::uuid = a1) = 0,
          '相册卡片的字节数只计 ready';
-
-  perform pg_temp.expect_err(format('select album_reserve_upload(%L, %L, %L, %L, 500, null)', 'alpha-admin', a1, 'x.jpg', 'image/jpeg'),
-                             'ALBUM_QUOTA_EXCEEDED:400');
 
   -- 23 小时前的 pending 仍计入；25 小时前的不计入。乙教会也放一行过期 pending，
   -- 甲教会登记时不能顺手删别家的。
@@ -123,15 +125,7 @@ begin
   assert not exists (select 1 from album_photos where id = p_stale), '过期 pending 行被删';
   assert exists (select 1 from album_photos where id = p_fresh), '24h 内的 pending 不删';
   assert exists (select 1 from album_photos where id = p_bstale), '别家机构的过期 pending 不动';
-  assert (admin_albums('alpha-admin') ->> 'used_bytes')::bigint = 1000, '正好用满额度也允许';
-
-  perform pg_temp.expect_err(format('select album_reserve_upload(%L, %L, %L, %L, 1, null)', 'alpha-admin', a1, 'x.jpg', 'image/jpeg'),
-                             'ALBUM_QUOTA_EXCEEDED:0');
-  -- 超管把额度调到已用之下：剩余报 0，不是负数
-  perform platform_set_album_quota('root-pass', v_alpha, 500);
-  perform pg_temp.expect_err(format('select album_reserve_upload(%L, %L, %L, %L, 1, null)', 'alpha-admin', a1, 'x.jpg', 'image/jpeg'),
-                             'ALBUM_QUOTA_EXCEEDED:0');
-  perform platform_set_album_quota('root-pass', v_alpha, 21474836480);
+  assert (admin_albums('alpha-admin') ->> 'used_bytes')::bigint = 1000, '用量 = 600 + 23h pending 100 + 300';
 
   -- -------------------------------------------------------------------------
   -- 4. 文件名安全化：拼不出额外的路径段
@@ -314,21 +308,12 @@ begin
   assert not exists (select 1 from album_photo_likes where photo_id = p1), 'p1 的爱心跟着级联删掉';
 
   -- -------------------------------------------------------------------------
-  -- 10. 超管：platform_orgs 带用量、额度范围、删机构闸门
+  -- 10. 超管：platform_orgs 带用量、删机构闸门
   -- -------------------------------------------------------------------------
   r := (select x from jsonb_array_elements(platform_orgs('root-pass') -> 'orgs') x where x ->> 'slug' = 'alpha');
   assert (r ->> 'album_used_bytes')::bigint = 400, '甲的用量 = p2 300 + 23h pending 100';
-  assert (r ->> 'album_quota_bytes')::bigint = 21474836480, '带额度';
+  assert not r ? 'album_quota_bytes', '不再带额度';
   assert r ? 'admin_key_plain' and r ? 'event_count' and r ? 'has_live_event', 'platform_orgs 原有字段都还在';
-
-  perform pg_temp.expect_err(format('select platform_set_album_quota(%L, %L, -1)', 'root-pass', v_alpha), 'BAD_QUOTA');
-  perform pg_temp.expect_err(format('select platform_set_album_quota(%L, %L, 1073741824001)', 'root-pass', v_alpha), 'BAD_QUOTA');
-  perform pg_temp.expect_err(format('select platform_set_album_quota(%L, %L, null)', 'root-pass', v_alpha), 'BAD_QUOTA');
-  perform pg_temp.expect_err(format('select platform_set_album_quota(%L, %L, 1)', 'root-pass', gen_random_uuid()), 'ORG_NOT_FOUND');
-  perform pg_temp.expect_err(format('select platform_set_album_quota(%L, %L, 1)', 'alpha-admin', v_alpha), 'BAD_PLATFORM_KEY');
-  assert (platform_set_album_quota('root-pass', v_alpha, 0) ->> 'quota_bytes')::bigint = 0, '0 合法';
-  assert (platform_set_album_quota('root-pass', v_alpha, 1073741824000) ->> 'quota_bytes')::bigint = 1073741824000, '1000 GiB 合法';
-  assert (select album_quota_bytes from organizations where id = v_alpha) = 1073741824000, '额度落库';
 
   -- 确认 slug 的闸门优先
   perform pg_temp.expect_err(format('select platform_delete_org(%L, %L, %L)', 'root-pass', v_alpha, 'nope'), 'CONFIRM_MISMATCH');
@@ -383,7 +368,7 @@ begin
   end loop;
 
   -- 正对照：anon 能调 admin 那几个（被拒绝不是因为 anon 什么都调不了）
-  assert (admin_albums('beta-admin') ->> 'quota_bytes')::bigint = 21474836480, 'anon 可以调 admin_albums';
+  assert admin_albums('beta-admin') ? 'used_bytes', 'anon 可以调 admin_albums';
   raise notice 'PASS 25_albums (anon)';
 end $$;
 reset role;

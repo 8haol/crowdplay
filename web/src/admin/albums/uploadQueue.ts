@@ -193,12 +193,6 @@ export class UploadQueue {
   }
 
   /** 还没登记到服务端的字节数：服务端的 used_bytes 里还没算它们。 */
-  unreservedBytes(): number {
-    return this.items
-      .filter((item) => item.status === "queued" || item.status === "preparing")
-      .reduce((sum, item) => sum + item.size, 0);
-  }
-
   retry(id: string) {
     const item = this.items.find((entry) => entry.id === id);
     if (!item || item.status !== "failed") return;

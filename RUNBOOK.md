@@ -103,13 +103,14 @@ Supabase 里只存元数据；签名由 Edge Function `album-sign` 完成，R2 �
 **部署顺序**：`supabase db push` → `supabase functions deploy album-sign` → 上面的 secrets → 最后合并前端。
 前端合并即上线，顺序反了的话相册页会报「相册存储还没开通」或 `PGRST202`。
 
-**额度**：每个机构默认 20 GB，计入已传完的和 24 小时内还在传的。在 `/root` 的机构列表点「相册 x / y GB」改额度。
-超额时上传直接被拒，不会传到一半才失败。
+**没有总额度**（`20260925000200_album_no_quota.sql` 拿掉了原来每机构 20 GB 的上限）：视频大，R2 又便宜，
+100 GB 一个月约 $1.35。只剩单个文件 5 GB 的上限——那是 R2 单次上传的物理上限。
+各机构用了多少在 `/root` 的机构列表里看「相册 x GB」，账单超预期时从这里找源头。
 
 **查某机构用量**：
 
 ```sql
-select o.slug, _album_used_bytes(o.id) / 1024.0 ^ 3 as used_gb, o.album_quota_bytes / 1024.0 ^ 3 as quota_gb
+select o.slug, _album_used_bytes(o.id) / 1024.0 ^ 3 as used_gb
 from organizations o order by 2 desc;
 ```
 

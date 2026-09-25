@@ -104,8 +104,6 @@ export function errorStatus(error: string): number {
       return 401;
     case "RATE_LIMITED":
       return 429;
-    case "ALBUM_QUOTA_EXCEEDED":
-      return 413;
     case "NOT_CONFIGURED":
       return 500;
     case "STORAGE_ERROR":

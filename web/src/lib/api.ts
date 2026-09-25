@@ -168,9 +168,6 @@ const ERROR_ZH: Record<string, string> = {
   CONFIRM_MISMATCH: "确认输入与 slug 不一致",
   ORG_HAS_LIVE_EVENT: "这个机构有正在进行的活动，不能删除",
   // 活动相册（album-sign Edge Function + admin_album_* RPC）。
-  // ALBUM_QUOTA_EXCEEDED 的 detail 原本是剩余字节数；albumApi 在抛出之前
-  // 就把它换成「1.2 GB」这样的可读大小，这里只管套进句子。
-  ALBUM_QUOTA_EXCEEDED: "相册空间不够了，还剩 {d}",
   ALBUM_SIZE_MISMATCH: "传上去的文件大小对不上，请重试这一个",
   ALBUM_NOT_EMPTY: "相册里还有照片，清空后才能删除",
   ALBUM_NOT_FOUND: "找不到这本相册，它可能已被删除",
@@ -178,7 +175,6 @@ const ERROR_ZH: Record<string, string> = {
   BAD_ALBUM_TITLE: "相册名称要 1~60 个字",
   BAD_FILE: "只能上传照片或视频，单个不超过 5GB",
   ORG_HAS_ALBUM_PHOTOS: "这个机构还有相册照片，请先清空相册",
-  BAD_QUOTA: "额度要在 0–1000 GB 之间",
   STORAGE_ERROR: "照片存储暂时连不上，稍后再试",
   NOT_CONFIGURED: "相册存储还没开通",
   BAD_REQUEST: "请求不对，请刷新页面再试",

@@ -174,14 +174,6 @@ Deno.test("RATE_LIMITED → 429", async () => {
   assert.equal(res.status, 429);
 });
 
-Deno.test("ALBUM_QUOTA_EXCEEDED:123 → 413，body 原样带剩余字节", async () => {
-  const { call, seen } = setup(() => pgError("ALBUM_QUOTA_EXCEEDED:123"));
-  const { res, json } = await call({ action: "upload", admin_key: "k", album_id: ALBUM, filename: "a.jpg", content_type: "image/jpeg", size_bytes: 999 });
-  assert.equal(res.status, 413);
-  assert.deepEqual(json, { error: "ALBUM_QUOTA_EXCEEDED:123" });
-  assert.equal(seen.length, 0);
-});
-
 Deno.test("Postgres 自带的英文报错不外泄，换成 HTTP_400", async () => {
   const { call } = setup(() => pgError("permission denied for function album_objects_for"));
   const { res, json } = await call({ action: "download", admin_key: "k", photo_ids: [PHOTO] });

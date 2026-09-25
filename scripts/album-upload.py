@@ -154,8 +154,8 @@ def upload_one(admin_key, album_id, path):
                     sign("abort", {"admin_key": admin_key, "photo_id": photo_id})
                 except Exception:
                     pass
-            # 口令错 / 额度满 / 文件不合法：重试也没用
-            if err.code.split(":")[0] in ("BAD_KEY", "ALBUM_QUOTA_EXCEEDED", "BAD_FILE", "ALBUM_NOT_FOUND", "NOT_CONFIGURED"):
+            # 口令错 / 文件不合法：重试也没用
+            if err.code.split(":")[0] in ("BAD_KEY", "BAD_FILE", "ALBUM_NOT_FOUND", "NOT_CONFIGURED"):
                 raise
             last = err.code
         except Exception as err:
@@ -215,11 +215,8 @@ def main():
             files.append(path)
     files.sort()
     total = sum(os.path.getsize(p) for p in files)
-    free = albums["quota_bytes"] - albums["used_bytes"]
-    log("相册 %s：已有 %d 个，要传 %d 个 / %.2f GB（额度剩 %.2f GB）" % (
-        album_id, len(existing), len(files), total / 1024 ** 3, free / 1024 ** 3))
-    if total > free:
-        sys.exit("额度不够，先去 /root 调大额度")
+    log("相册 %s：已有 %d 个，要传 %d 个 / %.2f GB（机构已用 %.2f GB）" % (
+        album_id, len(existing), len(files), total / 1024 ** 3, albums["used_bytes"] / 1024 ** 3))
 
     done_bytes, done, failed = 0, 0, []
     started = time.time()
@@ -233,7 +230,7 @@ def main():
             except Exception as err:
                 failed.append(os.path.basename(path))
                 log("失败 %s：%s" % (os.path.basename(path), err))
-                if isinstance(err, ApiError) and err.code.startswith(("BAD_KEY", "ALBUM_QUOTA", "NOT_CONFIGURED")):
+                if isinstance(err, ApiError) and err.code.startswith(("BAD_KEY", "NOT_CONFIGURED")):
                     pool.shutdown(cancel_futures=True)
                     break
             rate = done_bytes / max(1, time.time() - started)

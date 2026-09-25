@@ -8,8 +8,8 @@ import { T } from "../admin/adminTokens";
 import { rpc, errorText } from "../lib/api";
 import type { ImpersonateResult, PlatformOrg, PlatformOrgs } from "../lib/types";
 import { ROOT_PREVIEW } from "./previewData";
-import { AlbumQuotaDialog, DeleteOrgDialog, NewOrgDialog, RenameOrgDialog, ResetKeyDialog } from "./RootDialogs";
-import { formatUsage } from "../admin/adminUtils";
+import { DeleteOrgDialog, NewOrgDialog, RenameOrgDialog, ResetKeyDialog } from "./RootDialogs";
+import { formatBytes } from "../admin/adminUtils";
 
 const SESSION_KEY = "lp_platform_key";
 const ADMIN_SESSION_KEY = "lp_admin_key";
@@ -76,7 +76,6 @@ function RootConsole(props: {
     | { kind: "rename"; org: PlatformOrg }
     | { kind: "reset"; org: PlatformOrg }
     | { kind: "delete"; org: PlatformOrg }
-    | { kind: "quota"; org: PlatformOrg }
     | null
   >(null);
 
@@ -228,21 +227,12 @@ function RootConsole(props: {
                     {org.last_event_at ? org.last_event_at.slice(0, 10) : "—"}
                   </td>
                   <td className="whitespace-nowrap px-5 py-4">
-                    {org.album_quota_bytes == null ? (
+                    {org.album_used_bytes == null ? (
                       <span style={{ color: T.inkFaint }}>—</span>
                     ) : (
-                      <button
-                        type="button"
-                        className="pressable tabular text-sm font-black underline decoration-dotted underline-offset-4 disabled:cursor-not-allowed disabled:no-underline"
-                        style={{
-                          color: (org.album_used_bytes ?? 0) > org.album_quota_bytes * 0.8 ? T.warn : T.inkSoft,
-                        }}
-                        disabled={busy || Boolean(previewData)}
-                        title="点击修改相册额度"
-                        onClick={() => setDialog({ kind: "quota", org })}
-                      >
-                        相册 {formatUsage(org.album_used_bytes ?? 0, org.album_quota_bytes)}
-                      </button>
+                      <span className="tabular text-sm font-black" style={{ color: T.inkSoft }}>
+                        相册 {formatBytes(org.album_used_bytes)}
+                      </span>
                     )}
                   </td>
                   <td className="px-5 py-4 text-right">
@@ -302,14 +292,6 @@ function RootConsole(props: {
       )}
       {dialog?.kind === "reset" && (
         <ResetKeyDialog
-          platformKey={platformKey}
-          org={dialog.org}
-          onClose={() => setDialog(null)}
-          onDone={finishDialog}
-        />
-      )}
-      {dialog?.kind === "quota" && (
-        <AlbumQuotaDialog
           platformKey={platformKey}
           org={dialog.org}
           onClose={() => setDialog(null)}

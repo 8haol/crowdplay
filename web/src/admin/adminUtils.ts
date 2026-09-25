@@ -77,13 +77,11 @@ export const EVENT_NAV: Array<NavItem<EventSection>> = [
 ];
 
 /*
- * 文件大小。1024 进制，因为额度本身就是按 GiB 定的（20 GiB = 21474836480），
- * 用 1000 进制的话「已用 20 / 20 GB」会在真正满之前就出现。单位只写 GB / MB / KB，
- * 不写 GiB：看的人是同工，不是运维。
+ * 文件大小，1024 进制。单位只写 GB / MB / KB，不写 GiB：看的人是同工，不是运维。
  */
 const KB = 1024;
 const MB = KB * 1024;
-export const GB = MB * 1024;
+const GB = MB * 1024;
 
 function trimZero(value: number, digits: number): string {
   return value.toFixed(digits).replace(/\.0+$/, "");
@@ -95,13 +93,6 @@ export function formatBytes(bytes: number): string {
   if (b >= MB) return `${trimZero(b / MB, b >= 10 * MB ? 0 : 1)} MB`;
   if (b === 0) return "0 KB";
   return `${Math.max(1, Math.round(b / KB))} KB`;
-}
-
-/** 「10.2 / 20 GB」：两边都够 1 GB 时共用一个单位，读起来像一句话。 */
-export function formatUsage(used: number, quota: number): string {
-  if (used >= GB && quota >= GB) return `${trimZero(used / GB, 1)} / ${trimZero(quota / GB, 1)} GB`;
-  if (used <= 0) return `0 / ${formatBytes(quota)}`;
-  return `${formatBytes(used)} / ${formatBytes(quota)}`;
 }
 
 export function formatDate(value: string | null | undefined, includeTime = false): string {

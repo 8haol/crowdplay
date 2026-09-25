@@ -14,7 +14,7 @@ import { ErrorBanner, SuccessBanner } from "../../lib/ui";
 import { AdminIcon, Btn, EmptyState, PageTitle, Panel } from "../adminUi";
 import { T } from "../adminTokens";
 import { formatBytes } from "../adminUtils";
-import { fetchAlbumPhotos, fetchAlbums, photoUrl, togglePhotoLike } from "./albumApi";
+import { fetchAlbumPhotos, photoUrl, togglePhotoLike } from "./albumApi";
 import { loadThumb, peekThumb } from "./thumbCache";
 import type { AlbumPhoto, AlbumPhotosData, ViewKind } from "./albumTypes";
 import {
@@ -409,20 +409,6 @@ export function AlbumDetailView({
         setNotice({ tone: "error", text: skipped.length ? `没有可以上传的文件：跳过 ${skipped.join("，")}` : "没有可以上传的照片或视频" });
       }
       return;
-    }
-    const bytes = fresh.reduce((sum, item) => sum + item.file.size, 0);
-    try {
-      const usage = await fetchAlbums(adminKey);
-      const remaining = Math.max(0, usage.quota_bytes - usage.used_bytes - queue.unreservedBytes());
-      if (bytes > remaining) {
-        setNotice({
-          tone: "error",
-          text: `空间不够：这批共 ${formatBytes(bytes)}，相册只剩 ${formatBytes(remaining)}。删掉一些原片，或请平台管理员加额度。`,
-        });
-        return;
-      }
-    } catch {
-      // 查不到额度就先传，服务端登记时还会再把关一次。
     }
     queue.add(fresh);
     setNotice(skipped.length ? { tone: "ok", text: `已加入 ${fresh.length} 个文件，跳过 ${skipped.join("，")}` } : null);

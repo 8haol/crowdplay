@@ -286,7 +286,7 @@ export function Login(props: {
   hint?: string;
 }) {
   const copy = useCopy();
-  const [key, setKey] = useState("");
+  const [rawKey, setKey] = useState("");
   const [err, setErr] = useState<string | null>(null);
   return (
     <div className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-desk p-6 text-ink">
@@ -323,14 +323,18 @@ export function Login(props: {
             style={{ border: "2px solid transparent" }}
             placeholder={props.admin ? "密码" : "工作人员码"}
             maxLength={props.admin ? 64 : 6}
-            value={key}
-            onChange={(event) => setKey(props.admin ? event.target.value : event.target.value.toUpperCase())}
+            // Uncontrolled on purpose: writing `value` back mid-composition (the
+            // old toUpperCase did) makes a Chinese IME re-commit its buffer, so
+            // "ccil" came out as "ccilccilccil…". The DOM owns the text; the
+            // staff code is upper-cased by CSS here and for real on submit.
+            onChange={(event) => setKey(event.target.value)}
           />
           <ErrorBanner text={err} />
           <ActionButton
-            disabled={!key}
+            disabled={!rawKey}
             onClick={async () => {
               setErr(null);
+              const key = props.admin ? rawKey : rawKey.trim().toUpperCase();
               try {
                 // cheap key validation round-trip
                 if (props.verify) {

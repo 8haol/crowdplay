@@ -161,19 +161,22 @@ export function EventSettingsView({
                   label="换一个码"
                   hint="留空就随机生成六位；也可以自己定一个好记的，4–12 位字母或数字"
                 >
+                  {/* No toUpperCase in onChange: rewriting the value mid-IME-composition
+                      duplicates what was typed. CSS shows it upper-case; it is
+                      normalised where it is used. */}
                   <input
-                    className={inputClass}
+                    className={`${inputClass} uppercase`}
                     style={inputStyle}
                     value={custom}
                     maxLength={12}
                     placeholder="留空 = 随机生成"
-                    onChange={(e) => { setCustom(e.target.value.toUpperCase()); setConfirmRotate(false); }}
+                    onChange={(e) => { setCustom(e.target.value); setConfirmRotate(false); }}
                   />
                 </Field>
                 {confirmRotate ? (
                   <div className="mt-3 rounded-xl p-4" style={{ background: T.dangerSoft, border: "1px solid var(--color-admin-alert-line)" }}>
                     <div className="text-sm font-black" style={{ color: T.danger }}>
-                      确定把 {session.staff_code} 换成{custom.trim() ? ` ${custom.trim()}` : "一个新的随机码"}？旧码立即失效，正在用旧码的同工要重新输入新码。
+                      确定把 {session.staff_code} 换成{custom.trim() ? ` ${custom.trim().toUpperCase()}` : "一个新的随机码"}？旧码立即失效，正在用旧码的同工要重新输入新码。
                     </div>
                     <div className="mt-3 flex gap-2">
                       <Btn
@@ -185,7 +188,7 @@ export function EventSettingsView({
                               p_admin_key: adminKey,
                               p_new_admin_key: null,
                               p_rotate_staff_event_id: session.event_id,
-                              p_staff_code: custom.trim() || null,
+                              p_staff_code: custom.trim().toUpperCase() || null,
                             });
                             setCustom("");
                             setConfirmRotate(false);

@@ -74,7 +74,8 @@ const EMPTY_TEXT: Record<ViewState["type"], string> = {
   all: "文件",
   photo: "照片",
   video: "视频",
-  liked: "点过爱心的照片",
+  hearted: "有人点过爱心的照片",
+  liked: "你点过爱心的照片",
   nothumb: "缺缩略图的文件",
 };
 

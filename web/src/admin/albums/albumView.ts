@@ -8,7 +8,8 @@ import { isVideo, type AlbumPhoto } from "./albumTypes";
  */
 
 export type SortId = "taken-asc" | "taken-desc" | "name-asc" | "name-desc" | "likes" | "uploaded";
-export type FilterId = "all" | "photo" | "video" | "liked" | "nothumb";
+// hearted = 任何设备点过（爱心数 > 0）；liked = 这台设备点过。liked 沿用旧 id，旧链接 ?type=liked 意思不变。
+export type FilterId = "all" | "photo" | "video" | "hearted" | "liked" | "nothumb";
 export type SizeId = "s" | "m" | "l";
 
 export interface ViewState {
@@ -33,7 +34,8 @@ export const FILTER_OPTIONS: ReadonlyArray<{ id: FilterId; label: string }> = [
   { id: "all", label: "全部" },
   { id: "photo", label: "照片" },
   { id: "video", label: "视频" },
-  { id: "liked", label: "已爱心" },
+  { id: "hearted", label: "大家的爱心" },
+  { id: "liked", label: "我的爱心" },
   { id: "nothumb", label: "无缩略图" },
 ];
 
@@ -131,7 +133,7 @@ export function takenTime(photo: AlbumPhoto): number {
 }
 
 /**
- * 「最多爱心」和「已爱心」按上次读取 / 切换视图时的快照算，
+ * 「最多爱心」和两个爱心筛选按上次读取 / 切换视图时的快照算，
  * 在网格或灯箱里点爱心不会让照片在手指下面跳走或消失。
  */
 export interface LikeSnapshot {
@@ -172,6 +174,7 @@ export function matchesType(photo: AlbumPhoto, type: FilterId, snap: LikeSnapsho
     case "all": return true;
     case "photo": return !isVideo(photo);
     case "video": return isVideo(photo);
+    case "hearted": return (snap.votes.get(photo.id) ?? 0) > 0;
     case "liked": return snap.liked.has(photo.id);
     case "nothumb": return !photo.has_thumb;
   }
@@ -179,14 +182,15 @@ export function matchesType(photo: AlbumPhoto, type: FilterId, snap: LikeSnapsho
 
 export type FilterCounts = Record<FilterId, number>;
 
-/** 每个筛选项的数量，按当前搜索词算。「已爱心」数的是此刻的爱心，不是快照。 */
+/** 每个筛选项的数量，按当前搜索词算。爱心两项数的是此刻的爱心，不是快照。 */
 export function countByType(photos: AlbumPhoto[], q: string): FilterCounts {
-  const counts: FilterCounts = { all: 0, photo: 0, video: 0, liked: 0, nothumb: 0 };
+  const counts: FilterCounts = { all: 0, photo: 0, video: 0, hearted: 0, liked: 0, nothumb: 0 };
   for (const photo of photos) {
     if (!matchesQuery(photo, q)) continue;
     counts.all++;
     if (isVideo(photo)) counts.video++;
     else counts.photo++;
+    if (photo.like_count > 0) counts.hearted++;
     if (photo.liked_by_me) counts.liked++;
     if (!photo.has_thumb) counts.nothumb++;
   }

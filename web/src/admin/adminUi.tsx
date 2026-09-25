@@ -6,7 +6,8 @@ export type IconName =
   | "events" | "live" | "players" | "life-events" | "stations" | "settings"
   | "screen" | "plus" | "download" | "close" | "chevron" | "back" | "copy"
   | "logout" | "search" | "menu" | "check"
-  | "albums" | "upload" | "image" | "video";
+  | "albums" | "upload" | "image" | "video"
+  | "sort" | "grid" | "info" | "film";
 
 export function AdminIcon({ name, className = "" }: { name: IconName; className?: string }) {
   const paths: Record<IconName, React.ReactNode> = {
@@ -31,6 +32,10 @@ export function AdminIcon({ name, className = "" }: { name: IconName; className?
     upload: <path d="M12 16V4M7 9l5-5 5 5M5 21h14" />,
     image: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="m3 16 5-5 4 4 3-3 6 6" /><circle cx="15.5" cy="8.5" r="1.5" /></>,
     video: <><rect x="3" y="6" width="13" height="12" rx="2" /><path d="m16 10 5-3v10l-5-3" /></>,
+    sort: <path d="M7 4v16M3.5 16.5 7 20l3.5-3.5M17 20V4M13.5 7.5 17 4l3.5 3.5" />,
+    grid: <><rect x="3" y="3" width="7.5" height="7.5" rx="1.5" /><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5" /><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5" /><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5" /></>,
+    info: <><circle cx="12" cy="12" r="9" /><path d="M12 11v5.5M12 7.5v.01" /></>,
+    film: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 9h18M3 15h18M7.5 5v4M12 5v4M16.5 5v4M7.5 15v4M12 15v4M16.5 15v4" /></>,
   };
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">

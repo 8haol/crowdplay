@@ -1,23 +1,38 @@
 import {
-  memo,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   useSyncExternalStore,
   type DragEvent,
-  type PointerEvent as ReactPointerEvent,
-  type RefObject,
 } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { RpcError, errorText } from "../../lib/api";
 import { ErrorBanner, SuccessBanner } from "../../lib/ui";
-import { AdminIcon, Btn, EmptyState, PageTitle, Panel, Segmented } from "../adminUi";
+import { AdminIcon, Btn, EmptyState, PageTitle, Panel } from "../adminUi";
 import { T } from "../adminTokens";
 import { formatBytes } from "../adminUtils";
-import { fetchAlbumPhotos, fetchAlbums, peekUrl, photoUrl, togglePhotoLike, viewUrl } from "./albumApi";
-import { isVideo, type AlbumPhoto, type AlbumPhotosData, type ViewKind } from "./albumTypes";
+import { fetchAlbumPhotos, fetchAlbums, peekUrl, photoUrl, togglePhotoLike } from "./albumApi";
+import type { AlbumPhoto, AlbumPhotosData, ViewKind } from "./albumTypes";
+import {
+  applyView,
+  countByType,
+  dedupeKey,
+  groupByDay,
+  isGroupedSort,
+  loadStoredView,
+  paramsWithView,
+  saveStoredView,
+  snapshotLikes,
+  sortPhotos,
+  viewFromParams,
+  type DayGroup,
+  type LikeSnapshot,
+  type ViewState,
+} from "./albumView";
+import { AlbumToolbar, SelectionBar } from "./AlbumToolbar";
 import { DeleteAlbumDialog, DeletePhotosDialog, RenameAlbumDialog } from "./AlbumDialogs";
 import {
   canSaveToFolder,
@@ -29,6 +44,7 @@ import {
   type FolderProgress,
 } from "./downloadAll";
 import { Lightbox } from "./Lightbox";
+import { PhotoGrid } from "./PhotoGrid";
 import {
   filesFromEntries,
   holdUnload,
@@ -40,17 +56,27 @@ import {
 } from "./uploadQueue";
 
 /*
- * 一本相册：上传、网格、挑片、下载、删除。灯箱在 Lightbox.tsx。
+ * 一本相册：上传、网格、挑片、下载、删除。灯箱在 Lightbox.tsx，网格在 PhotoGrid.tsx，
+ * 排序 / 筛选 / 搜索的纯逻辑在 albumView.ts。
  *
  * 打开的照片写在 URL 的 ?p=<id> 里：能把链接直接发给另一位同工，
  * 浏览器的返回键也能关掉灯箱（打开时 push 一条历史，关的时候 back）。
+ * 灯箱里翻页时先只改本地状态，停下来 300ms 再 replace 一次 URL：
+ * 按住方向键连翻几十张也不会把浏览器的 history 限流打满，也不会每翻一张就重排整个网格。
  */
 
-type Sort = "taken" | "likes";
 type Notice = { tone: "ok" | "error"; text: string } | null;
 
 const SHADOW = "shadow-[0_18px_60px_rgb(from_var(--color-admin-shadow)_r_g_b_/_.2)]";
-const PILL = { background: "rgb(from var(--color-admin-overlay) r g b / .58)", color: "var(--color-card)" };
+const URL_SYNC_MS = 300;
+
+const EMPTY_TEXT: Record<ViewState["type"], string> = {
+  all: "文件",
+  photo: "照片",
+  video: "视频",
+  liked: "点过爱心的照片",
+  nothumb: "缺缩略图的文件",
+};
 
 export function AlbumDetailView({
   adminKey,
@@ -69,10 +95,10 @@ export function AlbumDetailView({
   const [data, setData] = useState<AlbumPhotosData | null>(null);
   const [loadError, setLoadError] = useState<unknown>(null);
   const [notice, setNotice] = useState<Notice>(null);
-  const [sort, setSort] = useState<Sort>("taken");
-  // 「最多爱心」按上次读取时的票数排；在网格或灯箱里点爱心不会让照片在手指下面跳走。
-  const [rank, setRank] = useState<ReadonlyMap<string, number>>(() => new Map());
-  const [selecting, setSelecting] = useState(false);
+  const [stored, setStored] = useState(() => loadStoredView(albumId));
+  const [searchKey, setSearchKey] = useState(0);
+  const [snap, setSnap] = useState<LikeSnapshot>(() => snapshotLikes([]));
+  const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
   const [dialog, setDialog] = useState<"rename" | "delete-album" | "delete-photos" | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -87,6 +113,7 @@ export function AlbumDetailView({
   const openedHere = useRef(false);
   const alive = useRef(true);
   const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const anchor = useRef<string | null>(null);
   const canFolder = useMemo(() => canSaveToFolder(), []);
 
   const queue = useMemo(() => uploadQueueFor(adminKey, albumId), [adminKey, albumId]);
@@ -115,7 +142,7 @@ export function AlbumDetailView({
         if (!alive.current) return;
         setData(result);
         setLoadError(null);
-        setRank(new Map(result.photos.map((photo) => [photo.id, photo.like_count])));
+        setSnap(snapshotLikes(result.photos));
       },
       (error) => { if (alive.current) setLoadError(error); },
     );
@@ -129,19 +156,66 @@ export function AlbumDetailView({
     reloadTimer.current = setTimeout(() => { reloadTimer.current = null; load(); }, 1200);
   }, [uploads.completedVersion, load]);
 
+  /* ------------------------------------------------------------ 怎么看 */
+
   const photos = useMemo(() => data?.photos ?? [], [data]);
-  const sorted = useMemo(() => {
-    if (sort === "taken") return photos;
-    const order = new Map(photos.map((photo, index) => [photo.id, index]));
-    const votes = (photo: AlbumPhoto) => rank.get(photo.id) ?? photo.like_count;
-    return [...photos].sort((a, b) => votes(b) - votes(a) || (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
-  }, [photos, sort, rank]);
+  // 按字段记忆：灯箱写回 ?p= 时 searchParams 会换新对象，但看法没变，网格不该跟着重算。
+  const parsed = viewFromParams(searchParams, stored);
+  const view = useMemo<ViewState>(
+    () => ({ sort: parsed.sort, type: parsed.type, q: parsed.q, size: parsed.size }),
+    [parsed.sort, parsed.type, parsed.q, parsed.size],
+  );
+  const counts = useMemo(() => countByType(photos, view.q), [photos, view.q]);
+  const visible = useMemo(() => applyView(photos, view, snap), [photos, view, snap]);
+  const grouped = isGroupedSort(view.sort);
+  const groups = useMemo<DayGroup[]>(
+    () => (grouped ? groupByDay(visible) : [{ key: "all", label: "", photos: visible }]),
+    [grouped, visible],
+  );
   const totalBytes = useMemo(() => photos.reduce((sum, photo) => sum + photo.size_bytes, 0), [photos]);
+  const videoCount = counts.video;
+
+  // 回调里读最新值用；网格收到的回调保持不变，挑一张不会重画几百格。
+  const latest = useRef({ photos, view, visible, selecting: false });
+  const selecting = selectMode || selected.size > 0;
+  useLayoutEffect(() => {
+    latest.current = { photos, view, visible, selecting };
+  });
+
+  const updateView = useCallback((patch: Partial<ViewState>) => {
+    const { photos: all, view: current } = latest.current;
+    const next = { ...current, ...patch };
+    const nextSnap = snapshotLikes(all);
+    setStored(next);
+    saveStoredView(albumId, next);
+    setSnap(nextSnap);
+    setSearchParams((prev) => paramsWithView(prev, next), { replace: true });
+    // 筛掉的照片同时退出选择：免得看不见的也被一起删掉。
+    if (patch.type !== undefined || patch.q !== undefined) {
+      const keep = new Set(applyView(all, next, nextSnap).map((photo) => photo.id));
+      setSelected((cur) => {
+        if ([...cur].every((id) => keep.has(id))) return cur;
+        return new Set([...cur].filter((id) => keep.has(id)));
+      });
+    }
+  }, [albumId, setSearchParams]);
+
+  const clearFilters = () => {
+    updateView({ type: "all", q: "" });
+    setSearchKey((key) => key + 1);
+  };
 
   /* ------------------------------------------------------------ 灯箱 */
 
   const openId = searchParams.get("p");
-  const lightboxIndex = openId ? sorted.findIndex((photo) => photo.id === openId) : -1;
+  // lb.id 是灯箱此刻显示的那张；lb.url 是上次看到的 ?p=，用来分辨 URL 是不是被外面改了（返回键、深链）。
+  const [lb, setLb] = useState<{ id: string | null; url: string | null }>(() => ({ id: openId, url: openId }));
+  let lightboxId = lb.id;
+  if (openId !== lb.url) {
+    // URL 没了 p：返回键关掉了灯箱。URL 换了一张而灯箱开着：那是我们自己延后写回的，不跟。
+    lightboxId = openId === null ? null : lb.id ?? openId;
+    setLb({ id: lightboxId, url: openId });
+  }
 
   useEffect(() => {
     // 用户按了浏览器返回键：URL 里已经没有 p 了，下次关灯箱不能再 back 一次。
@@ -157,24 +231,48 @@ export function AlbumDetailView({
     }, { replace });
   }, [setSearchParams]);
 
+  // 翻页停下来再把 ?p= 改成当前这张。
+  useEffect(() => {
+    if (!lb.id || !openId || lb.id === openId) return;
+    const id = lb.id;
+    const timer = setTimeout(() => setPhotoParam(id, true), URL_SYNC_MS);
+    return () => clearTimeout(timer);
+  }, [lb.id, openId, setPhotoParam]);
+
   const openPhoto = useCallback((photo: AlbumPhoto) => {
     openedHere.current = true;
+    setLb((prev) => ({ id: photo.id, url: prev.url }));
     setPhotoParam(photo.id, false);
   }, [setPhotoParam]);
 
   const closeLightbox = useCallback(() => {
+    const lastId = lb.id;
+    setLb((prev) => ({ id: null, url: prev.url }));
     if (openedHere.current) {
       openedHere.current = false;
       navigate(-1);
     } else {
       setPhotoParam(null, true);
     }
-  }, [navigate, setPhotoParam]);
+    // 回到网格时，把刚才看到的那张滚进视野（翻了很多张之后，它可能早就不在原来的位置了）。
+    if (lastId) {
+      requestAnimationFrame(() => {
+        const tile = document.querySelector(`[data-photo-id="${CSS.escape(lastId)}"]`);
+        tile?.scrollIntoView({ block: "nearest" });
+      });
+    }
+  }, [lb.id, navigate, setPhotoParam]);
+
+  // 灯箱翻页范围 = 当前排序 + 筛选后的列表。深链打开的那张不在筛选结果里时，退回整本相册。
+  const sortedAll = useMemo(() => sortPhotos(photos, view.sort, snap), [photos, view.sort, snap]);
+  const inVisible = lightboxId ? visible.findIndex((photo) => photo.id === lightboxId) : -1;
+  const lightboxPhotos = inVisible >= 0 ? visible : sortedAll;
+  const lightboxIndex = inVisible >= 0 ? inVisible : lightboxId ? sortedAll.findIndex((photo) => photo.id === lightboxId) : -1;
 
   const changeIndex = useCallback((index: number) => {
-    const photo = sorted[index];
-    if (photo) setPhotoParam(photo.id, true);
-  }, [sorted, setPhotoParam]);
+    const photo = lightboxPhotos[index];
+    if (photo) setLb((prev) => ({ ...prev, id: photo.id }));
+  }, [lightboxPhotos]);
 
   const getUrl = useCallback((photo: AlbumPhoto, kind: ViewKind) => photoUrl(adminKey, photo, kind), [adminKey]);
   const cachedThumb = useCallback((photo: AlbumPhoto) => (photo.has_thumb ? peekUrl("thumb", photo.id) : null), []);
@@ -209,40 +307,105 @@ export function AlbumDetailView({
 
   /* ------------------------------------------------------------ 多选 */
 
-  const toggleSelect = useCallback((photo: AlbumPhoto) => {
-    setSelected((current) => {
-      const next = new Set(current);
+  /** 点一张：Shift 时把上一次点的那张到这张之间整段选上，否则切换这一张。 */
+  const pick = useCallback((photo: AlbumPhoto, shift: boolean) => {
+    const list = latest.current.visible;
+    const from = shift && anchor.current ? list.findIndex((p) => p.id === anchor.current) : -1;
+    const to = from >= 0 ? list.findIndex((p) => p.id === photo.id) : -1;
+    anchor.current = photo.id;
+    if (from >= 0 && to >= 0 && from !== to) {
+      const [lo, hi] = from < to ? [from, to] : [to, from];
+      setSelected((cur) => {
+        const next = new Set(cur);
+        for (let i = lo; i <= hi; i++) next.add(list[i].id);
+        return next;
+      });
+      return;
+    }
+    setSelected((cur) => {
+      const next = new Set(cur);
       if (next.has(photo.id)) next.delete(photo.id);
       else next.add(photo.id);
       return next;
     });
   }, []);
 
-  const startSelecting = useCallback((photo: AlbumPhoto) => {
-    setSelecting(true);
-    setSelected((current) => new Set(current).add(photo.id));
+  const onTile = useCallback((photo: AlbumPhoto, shift: boolean) => {
+    if (latest.current.selecting || shift) pick(photo, shift);
+    else openPhoto(photo);
+  }, [pick, openPhoto]);
+
+  const onLongPress = useCallback((photo: AlbumPhoto) => {
+    anchor.current = photo.id;
+    setSelected((cur) => (cur.has(photo.id) ? cur : new Set(cur).add(photo.id)));
   }, []);
 
-  const exitSelecting = () => {
-    setSelecting(false);
-    setSelected(new Set());
-  };
+  const onSelectDay = useCallback((group: DayGroup, select: boolean) => {
+    anchor.current = group.photos[group.photos.length - 1]?.id ?? null;
+    setSelected((cur) => {
+      const next = new Set(cur);
+      for (const photo of group.photos) {
+        if (select) next.add(photo.id);
+        else next.delete(photo.id);
+      }
+      return next;
+    });
+  }, []);
 
-  const selectedPhotos = useMemo(() => sorted.filter((photo) => selected.has(photo.id)), [sorted, selected]);
-  const allSelected = sorted.length > 0 && selectedPhotos.length === sorted.length;
+  const exitSelecting = useCallback(() => {
+    setSelectMode(false);
+    setSelected(new Set());
+    anchor.current = null;
+  }, []);
+
+  const selectedPhotos = useMemo(() => visible.filter((photo) => selected.has(photo.id)), [visible, selected]);
+  const allSelected = visible.length > 0 && selectedPhotos.length === visible.length;
+  const lightboxOpen = lightboxIndex >= 0;
+
+  // Esc 取消多选。灯箱开着时 Esc 归灯箱（它在捕获阶段先处理并 preventDefault）；对话框开着时不动。
+  useEffect(() => {
+    if (!selecting || lightboxOpen || dialog) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) return;
+      exitSelecting();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selecting, lightboxOpen, dialog, exitSelecting]);
 
   /* ------------------------------------------------------------ 上传 */
 
   const addFiles = async (files: File[]) => {
     const screened = screenFiles(files);
+    // 和相册里已经传好的、以及队列里还在传 / 已传完的比：同名同大小就跳过。
+    // 浏览器崩了之后重新拖整个文件夹，只会传剩下的。
+    const known = new Set(latest.current.photos.map((photo) => dedupeKey(photo.filename, photo.size_bytes)));
+    for (const item of queue.getSnapshot().items) {
+      if (item.status !== "failed") known.add(dedupeKey(item.name, item.size));
+    }
+    const fresh: typeof screened.accepted = [];
+    let duplicates = 0;
+    for (const entry of screened.accepted) {
+      const key = dedupeKey(entry.file.name, entry.file.size);
+      if (known.has(key)) { duplicates++; continue; }
+      known.add(key);
+      fresh.push(entry);
+    }
+
     const skipped: string[] = [];
+    if (duplicates) skipped.push(`${duplicates} 个已经在相册里的文件`);
     if (screened.unsupported) skipped.push(`${screened.unsupported} 个不是照片或视频`);
     if (screened.tooLarge) skipped.push(`${screened.tooLarge} 个超过 5GB`);
-    if (screened.accepted.length === 0) {
-      setNotice({ tone: "error", text: skipped.length ? `没有可以上传的文件：${skipped.join("，")}` : "没有可以上传的照片或视频" });
+    if (fresh.length === 0) {
+      if (duplicates && !screened.unsupported && !screened.tooLarge) {
+        setNotice({ tone: "ok", text: `跳过 ${duplicates} 个已经在相册里的文件，没有新的要传` });
+      } else {
+        setNotice({ tone: "error", text: skipped.length ? `没有可以上传的文件：跳过 ${skipped.join("，")}` : "没有可以上传的照片或视频" });
+      }
       return;
     }
-    const bytes = screened.accepted.reduce((sum, item) => sum + item.file.size, 0);
+    const bytes = fresh.reduce((sum, item) => sum + item.file.size, 0);
     try {
       const usage = await fetchAlbums(adminKey);
       const remaining = Math.max(0, usage.quota_bytes - usage.used_bytes - queue.unreservedBytes());
@@ -256,12 +419,8 @@ export function AlbumDetailView({
     } catch {
       // 查不到额度就先传，服务端登记时还会再把关一次。
     }
-    queue.add(screened.accepted);
-    setNotice(
-      skipped.length
-        ? { tone: "ok", text: `已加入 ${screened.accepted.length} 个文件，跳过 ${skipped.join("，")}` }
-        : null,
-    );
+    queue.add(fresh);
+    setNotice(skipped.length ? { tone: "ok", text: `已加入 ${fresh.length} 个文件，跳过 ${skipped.join("，")}` } : null);
   };
 
   const hasFiles = (event: DragEvent) => Array.from(event.dataTransfer.types).includes("Files");
@@ -390,18 +549,24 @@ export function AlbumDetailView({
   const album = data.album;
   const floating = uploads.items.length > 0 || download !== null;
   const downloading = Boolean(download?.running);
+  const hasPhotos = photos.length > 0;
+  const countText = videoCount > 0 ? `${photos.length - videoCount} 张照片 · ${videoCount} 个视频` : `${photos.length} 张`;
+  const query = view.q.trim();
+
+  const pickFiles = <Btn variant="primary" icon="plus" className={hasPhotos ? "!px-3 !py-2" : ""} onClick={() => fileInput.current?.click()}>选择文件</Btn>;
+  const pickDir = <Btn className={`max-sm:hidden ${hasPhotos ? "!px-3 !py-2" : ""}`} onClick={() => folderInput.current?.click()}>选择文件夹</Btn>;
 
   return (
     <div {...dropHandlers} className={floating ? "pb-48" : ""}>
       <PageTitle
         eyebrow="ALBUM"
         title={album.title}
-        description={[album.event_title, `${photos.length} 张`, formatBytes(totalBytes)].filter(Boolean).join(" · ")}
+        description={[album.event_title, countText, formatBytes(totalBytes)].filter(Boolean).join(" · ")}
         onBack={{ label: "全部相册", onClick: onBack }}
         actions={
           <>
-            {canFolder && photos.length > 0 && (
-              <Btn icon="download" disabled={downloading} onClick={() => void startFolderDownload(sorted)}>
+            {canFolder && hasPhotos && (
+              <Btn icon="download" disabled={downloading} onClick={() => void startFolderDownload(sortedAll)}>
                 全部下载到文件夹
               </Btn>
             )}
@@ -441,92 +606,124 @@ export function AlbumDetailView({
         }}
       />
 
-      <Panel className="p-3 sm:p-4">
-        <div
-          className="flex flex-col items-center gap-3 rounded-xl border-2 border-dashed px-4 py-5 text-center transition-colors sm:flex-row sm:text-left"
-          style={{
-            borderColor: dragging ? T.ink : "var(--color-admin-line-strong)",
-            background: dragging ? T.accentSoft : T.panelAlt,
-          }}
-        >
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl" style={{ background: T.panel, color: T.ink }}>
-            <AdminIcon name="upload" className="h-5 w-5" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-black">
-              <span className="hidden sm:inline">{dragging ? "松手就开始上传" : "把照片、视频或整个文件夹拖到这里"}</span>
-              <span className="sm:hidden">上传照片和视频</span>
-            </div>
-            <div className="mt-0.5 text-xs font-semibold" style={{ color: T.inkSoft }}>
-              原片原样保存，单个不超过 5GB；同时传 4 个，失败的可以单独重试。
-            </div>
+      {hasPhotos ? (
+        // 有照片之后上传区收成一行，把屏幕留给照片；拖到页面任何地方都能传。
+        <Panel className="px-3 py-2.5 sm:px-4">
+          <div className="flex items-center gap-3">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg" style={{ background: T.panelAlt, color: T.ink }}>
+              <AdminIcon name="upload" className="h-4 w-4" />
+            </span>
+            <p className="min-w-0 flex-1 text-xs font-semibold" style={{ color: T.inkSoft }}>
+              <span className="hidden sm:inline">把照片、视频或整个文件夹拖到页面上就能继续上传；已经在相册里的会自动跳过。</span>
+              <span className="sm:hidden">继续上传，重复的会自动跳过</span>
+            </p>
+            <div className="flex shrink-0 gap-2">{pickFiles}{pickDir}</div>
           </div>
-          <div className="flex shrink-0 flex-wrap justify-center gap-2">
-            <Btn variant="primary" icon="plus" onClick={() => fileInput.current?.click()}>选择文件</Btn>
-            <Btn className="max-sm:hidden" onClick={() => folderInput.current?.click()}>选择文件夹</Btn>
+        </Panel>
+      ) : (
+        <Panel className="p-3 sm:p-4">
+          <div
+            className="flex flex-col items-center gap-3 rounded-xl border-2 border-dashed px-4 py-5 text-center transition-colors sm:flex-row sm:text-left"
+            style={{
+              borderColor: dragging ? T.ink : "var(--color-admin-line-strong)",
+              background: dragging ? T.accentSoft : T.panelAlt,
+            }}
+          >
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl" style={{ background: T.panel, color: T.ink }}>
+              <AdminIcon name="upload" className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-black">
+                <span className="hidden sm:inline">{dragging ? "松手就开始上传" : "把照片、视频或整个文件夹拖到这里"}</span>
+                <span className="sm:hidden">上传照片和视频</span>
+              </div>
+              <div className="mt-0.5 text-xs font-semibold" style={{ color: T.inkSoft }}>
+                原片原样保存，单个不超过 5GB；同时传 4 个，失败的可以单独重试。
+              </div>
+            </div>
+            <div className="flex shrink-0 flex-wrap justify-center gap-2">{pickFiles}{pickDir}</div>
+          </div>
+        </Panel>
+      )}
+
+      {dragging && hasPhotos && (
+        // 盖满整个窗口：松手落在侧栏或顶栏上也算数（事件照样冒泡到这一页的根上）。
+        <div aria-hidden="true" className="fixed inset-0 z-40 p-3 sm:p-5">
+          <div
+            className="grid h-full w-full place-items-center rounded-[24px] border-2 border-dashed"
+            style={{ borderColor: T.ink, background: "rgb(from var(--color-admin-accent-soft) r g b / .78)" }}
+          >
+            <div className="flex items-center gap-2 rounded-2xl px-5 py-3 text-base font-black" style={{ background: T.panel, color: T.ink }}>
+              <AdminIcon name="upload" className="h-5 w-5" />
+              松手就开始上传
+            </div>
           </div>
         </div>
-      </Panel>
+      )}
 
-      {photos.length === 0 ? (
+      {!hasPhotos ? (
         <Panel className="mt-5">
           <EmptyState title="还没有照片" detail="传完的照片会出现在这里。点爱心挑片，剪辑同工按「最多爱心」一看就知道用哪些。" />
         </Panel>
       ) : (
         <>
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-            <Segmented<Sort>
-              value={sort}
-              options={[{ id: "taken", label: "拍摄时间" }, { id: "likes", label: "最多爱心" }]}
-              onChange={(next) => {
-                setRank(new Map(photos.map((photo) => [photo.id, photo.like_count])));
-                setSort(next);
-              }}
-            />
-            {!selecting && <Btn icon="check" onClick={() => setSelecting(true)}>多选</Btn>}
+          <div
+            className="sticky top-[62px] z-20 -mx-4 mt-3 px-4 py-2 backdrop-blur-md sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
+            style={{ background: "rgb(from var(--color-admin-bg) r g b / .94)" }}
+          >
+            <div className="relative">
+              <div className={selecting ? "invisible" : undefined} aria-hidden={selecting || undefined}>
+                <AlbumToolbar
+                  view={view}
+                  counts={counts}
+                  searchKey={searchKey}
+                  onChange={updateView}
+                  onStartSelect={() => setSelectMode(true)}
+                />
+              </div>
+              {selecting && (
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full">
+                    <SelectionBar
+                      count={selectedPhotos.length}
+                      total={visible.length}
+                      busy={downloading || sendingOneByOne}
+                      onToggleAll={() => setSelected(allSelected ? new Set() : new Set(visible.map((p) => p.id)))}
+                      onDownload={() => void downloadSelected()}
+                      onDelete={() => setDialog("delete-photos")}
+                      onCancel={exitSelecting}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
-          {selecting && (
-            <div
-              className="sticky top-[62px] z-20 -mx-4 mt-3 flex flex-wrap items-center gap-2 px-4 py-2.5 sm:mx-0 sm:rounded-xl sm:px-3"
-              style={{ background: "rgb(from var(--color-admin-bg) r g b / .96)", border: `1px solid ${T.line}` }}
-            >
-              <span className="tabular text-sm font-black">已选 {selectedPhotos.length} 个</span>
-              <div className="ml-auto flex flex-wrap justify-end gap-1.5">
-                <Btn variant="quiet" className="!px-3" onClick={() => setSelected(allSelected ? new Set() : new Set(sorted.map((p) => p.id)))}>
-                  {allSelected ? "全不选" : "全选"}
-                </Btn>
-                <Btn
-                  icon="download"
-                  className="!px-3"
-                  disabled={selectedPhotos.length === 0 || downloading || sendingOneByOne}
-                  onClick={() => void downloadSelected()}
-                >
-                  下载
-                </Btn>
-                <Btn variant="danger" className="!px-3" disabled={selectedPhotos.length === 0} onClick={() => setDialog("delete-photos")}>
-                  删除
-                </Btn>
-                <Btn variant="primary" className="!px-3" onClick={exitSelecting}>完成</Btn>
-              </div>
+          {visible.length === 0 ? (
+            <Panel className="mt-3">
+              <EmptyState
+                title="没有符合条件的文件"
+                detail={query ? `文件名里带「${query}」的${EMPTY_TEXT[view.type]}，这本相册里没有。` : `这本相册里还没有${EMPTY_TEXT[view.type]}。`}
+                action={<Btn variant="primary" onClick={clearFilters}>清除筛选</Btn>}
+              />
+            </Panel>
+          ) : (
+            <div className={grouped ? "" : "mt-2"}>
+              <PhotoGrid
+                adminKey={adminKey}
+                groups={groups}
+                grouped={grouped}
+                size={view.size}
+                selecting={selecting}
+                selected={selected}
+                onTile={onTile}
+                onCheck={pick}
+                onLongPress={onLongPress}
+                onLike={toggleLike}
+                onSelectDay={onSelectDay}
+              />
             </div>
           )}
-
-          <div className="mt-3 grid grid-cols-3 gap-1 sm:grid-cols-4 sm:gap-2 md:grid-cols-5 xl:grid-cols-6">
-            {sorted.map((photo) => (
-              <PhotoTile
-                key={photo.id}
-                adminKey={adminKey}
-                photo={photo}
-                selecting={selecting}
-                selected={selected.has(photo.id)}
-                onOpen={openPhoto}
-                onSelect={toggleSelect}
-                onLongPress={startSelecting}
-                onLike={toggleLike}
-              />
-            ))}
-          </div>
         </>
       )}
 
@@ -547,9 +744,9 @@ export function AlbumDetailView({
         </div>
       )}
 
-      {lightboxIndex >= 0 && (
+      {lightboxOpen && (
         <Lightbox
-          photos={sorted}
+          photos={lightboxPhotos}
           index={lightboxIndex}
           onIndexChange={changeIndex}
           onClose={closeLightbox}
@@ -600,206 +797,6 @@ export function AlbumDetailView({
   );
 }
 
-/* ------------------------------------------------------------------ 网格 */
-
-/*
- * 整个网格共用一个 IntersectionObserver：几千格各开一个太浪费。
- * 提前 600px 开始要 URL，滚到时图多半已经在路上了。
- */
-const watchers = new Map<Element, () => void>();
-let observer: IntersectionObserver | null = null;
-
-function watch(element: Element, onVisible: () => void): () => void {
-  if (typeof IntersectionObserver === "undefined") {
-    queueMicrotask(onVisible);
-    return () => undefined;
-  }
-  observer ??= new IntersectionObserver(
-    (entries) => {
-      for (const entry of entries) {
-        if (!entry.isIntersecting) continue;
-        const callback = watchers.get(entry.target);
-        if (!callback) continue;
-        watchers.delete(entry.target);
-        observer?.unobserve(entry.target);
-        callback();
-      }
-    },
-    { rootMargin: "600px 0px" },
-  );
-  watchers.set(element, onVisible);
-  observer.observe(element);
-  return () => {
-    watchers.delete(element);
-    observer?.unobserve(element);
-  };
-}
-
-function useSeen(ref: RefObject<Element | null>): boolean {
-  const [seen, setSeen] = useState(false);
-  useEffect(() => {
-    const element = ref.current;
-    if (!element || seen) return;
-    return watch(element, () => setSeen(true));
-  }, [ref, seen]);
-  return seen;
-}
-
-const LONG_PRESS_MS = 480;
-
-const PhotoTile = memo(function PhotoTile({
-  adminKey,
-  photo,
-  selecting,
-  selected,
-  onOpen,
-  onSelect,
-  onLongPress,
-  onLike,
-}: {
-  adminKey: string;
-  photo: AlbumPhoto;
-  selecting: boolean;
-  selected: boolean;
-  onOpen: (photo: AlbumPhoto) => void;
-  onSelect: (photo: AlbumPhoto) => void;
-  onLongPress: (photo: AlbumPhoto) => void;
-  onLike: (photo: AlbumPhoto) => void;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const seen = useSeen(ref);
-  const [fetched, setFetched] = useState<{ id: string; url: string | null } | null>(null);
-  const [loaded, setLoaded] = useState(false);
-  const [broken, setBroken] = useState(false);
-  const press = useRef<{ timer: ReturnType<typeof setTimeout>; x: number; y: number } | null>(null);
-  const longPressed = useRef(false);
-  const photoId = photo.id;
-  const hasThumb = photo.has_thumb;
-
-  useEffect(() => {
-    if (!seen || !hasThumb || peekUrl("thumb", photoId)) return;
-    let alive = true;
-    viewUrl(adminKey, photoId, "thumb").then((url) => { if (alive) setFetched({ id: photoId, url }); });
-    return () => { alive = false; };
-  }, [seen, hasThumb, photoId, adminKey]);
-
-  const url = hasThumb ? peekUrl("thumb", photoId) ?? (fetched?.id === photoId ? fetched.url : null) : null;
-  const video = isVideo(photo);
-  const showImage = Boolean(url) && !broken;
-  const waiting = hasThumb && !broken && (!url || !loaded) && !(fetched?.id === photoId && fetched.url === null);
-
-  const cancelPress = () => {
-    if (press.current) clearTimeout(press.current.timer);
-    press.current = null;
-  };
-
-  const onPointerDown = (event: ReactPointerEvent) => {
-    if (event.pointerType === "mouse" && event.button !== 0) return;
-    longPressed.current = false;
-    cancelPress();
-    press.current = {
-      x: event.clientX,
-      y: event.clientY,
-      timer: setTimeout(() => {
-        press.current = null;
-        longPressed.current = true;
-        onLongPress(photo);
-      }, LONG_PRESS_MS),
-    };
-  };
-
-  const onPointerMove = (event: ReactPointerEvent) => {
-    const start = press.current;
-    if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > 8) cancelPress();
-  };
-
-  return (
-    <div
-      ref={ref}
-      className="relative aspect-square min-w-0 overflow-hidden rounded-md sm:rounded-lg"
-      style={{ background: T.panelAlt }}
-    >
-      <button
-        type="button"
-        aria-label={photo.filename}
-        aria-pressed={selecting ? selected : undefined}
-        className="absolute inset-0 h-full w-full select-none"
-        style={{ WebkitTouchCallout: "none" }}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={cancelPress}
-        onPointerCancel={cancelPress}
-        onPointerLeave={cancelPress}
-        onContextMenu={(event) => { if (longPressed.current || press.current) event.preventDefault(); }}
-        onClick={() => {
-          if (longPressed.current) { longPressed.current = false; return; }
-          if (selecting) onSelect(photo);
-          else onOpen(photo);
-        }}
-      >
-        {showImage && url ? (
-          <img
-            src={url}
-            alt=""
-            decoding="async"
-            draggable={false}
-            onLoad={() => setLoaded(true)}
-            onError={() => setBroken(true)}
-            className="pointer-events-none h-full w-full object-cover transition-opacity duration-150 motion-reduce:transition-none"
-            style={{ opacity: loaded ? 1 : 0 }}
-          />
-        ) : waiting ? (
-          <span className="block h-full w-full animate-pulse bg-admin-skeleton" />
-        ) : (
-          <span className="flex h-full w-full flex-col items-center justify-center gap-1.5 p-2" style={{ color: T.inkFaint }}>
-            <AdminIcon name={video ? "video" : "image"} className="h-6 w-6 shrink-0" />
-            <span className="line-clamp-2 w-full break-all text-center text-[10px] font-bold leading-tight" style={{ color: T.inkSoft }}>
-              {photo.filename}
-            </span>
-          </span>
-        )}
-      </button>
-
-      {video && showImage && (
-        <span className="pointer-events-none absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full sm:right-1.5 sm:top-1.5" style={PILL}>
-          <AdminIcon name="video" className="h-3 w-3" />
-        </span>
-      )}
-
-      {selecting && (
-        <>
-          <span
-            className="pointer-events-none absolute inset-0 transition-shadow duration-150"
-            style={{ boxShadow: selected ? "inset 0 0 0 3px var(--color-ink)" : "none" }}
-          />
-          <span
-            className="pointer-events-none absolute left-1 top-1 grid h-6 w-6 place-items-center rounded-full sm:left-1.5 sm:top-1.5"
-            style={
-              selected
-                ? { background: T.ink, color: "var(--color-card)", border: "2px solid var(--color-card)" }
-                : { background: "rgb(from var(--color-admin-overlay) r g b / .25)", border: "2px solid var(--color-card)" }
-            }
-          >
-            {selected && <AdminIcon name="check" className="h-3.5 w-3.5" />}
-          </span>
-        </>
-      )}
-
-      <button
-        type="button"
-        aria-label={photo.liked_by_me ? `取消爱心，现在 ${photo.like_count} 个` : `点爱心，现在 ${photo.like_count} 个`}
-        aria-pressed={photo.liked_by_me}
-        className="pressable tabular absolute bottom-1 right-1 inline-flex h-7 min-w-7 items-center justify-center gap-1 rounded-full px-1.5 text-[11px] font-black sm:bottom-1.5 sm:right-1.5"
-        style={PILL}
-        onPointerDown={(event) => event.stopPropagation()}
-        onClick={(event) => { event.stopPropagation(); onLike(photo); }}
-      >
-        <span aria-hidden="true" className="text-[12px] leading-none">{photo.liked_by_me ? "❤️" : "🤍"}</span>
-        {photo.like_count > 0 && <span>{photo.like_count}</span>}
-      </button>
-    </div>
-  );
-});
 
 /* ------------------------------------------------------------ 浮动面板 */
 

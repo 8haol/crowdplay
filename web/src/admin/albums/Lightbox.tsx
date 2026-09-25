@@ -4,7 +4,11 @@
  * 顺滑的几个关键：
  * - 先把缓存的缩略图拉伸铺满，预览图 decode() 完再 150ms 交叉淡入，不闪白。
  * - 手势全部走 pointer events，拖动时直接写 transform（translate3d），不经过 React 渲染。
- * - 只挂当前 ±1 张的大图 DOM；预览图预加载前后各 2 张。
+ * - 只挂当前 ±1 张的大图 DOM；预览图预加载前后各 2 张（停下来 120ms 再预加载，连翻时不白要）。
+ * - 翻页动画还没走完又来一次翻页（按住方向键、连点）：不等动画，直接换到下一张。
+ *
+ * 界面照 Google Photos：照片铺满，顶栏（返回、文件名、爱心、下载、信息）和左右翻页键浮在上面，
+ * 鼠标 3 秒不动就淡出；手机上单击切换显示，翻页靠滑动。胶片条默认收起，从顶栏打开。
  */
 import {
   memo,
@@ -21,6 +25,7 @@ import {
 import { createPortal } from "react-dom";
 import { AdminIcon } from "../adminUi";
 import { isVideo, type AlbumPhoto, type LightboxProps, type ViewKind } from "./albumTypes";
+import { fullDateTime, shortDateTime } from "./albumView";
 
 const GAP = 24; // 相邻两张之间的缝，翻页时能看见一条黑边
 const PAGE_MS = 240;
@@ -37,15 +42,41 @@ const DOUBLE_TAP_PX = 30;
 const TAP_MS = 250;
 const VIDEO_CONTROLS_PX = 72; // 视频底部控件条区域不接手势，留给原生进度条
 const PRELOAD = 2;
+const PRELOAD_DELAY_MS = 120;
 const VELOCITY_WINDOW_MS = 100;
+const CHROME_IDLE_MS = 3000; // 鼠标不动这么久，控件淡出
+const REPEAT_MS = 70; // 按住方向键时最快这么翻一张
+const STRIP_H = 64;
+const STRIP_KEY = "album.filmstrip";
 
 const INK = "var(--color-card)";
 const INK_DIM = "color-mix(in oklab, var(--color-card) 68%, transparent)";
 const CHIP = "color-mix(in oklab, var(--color-card) 14%, transparent)";
 const BLOCK = "color-mix(in oklab, var(--color-card) 10%, transparent)";
 const BACKDROP = "var(--color-admin-rail-line)";
+const NAV_BG = "color-mix(in oklab, var(--color-admin-rail-line) 58%, transparent)";
+const SCRIM_TOP = "linear-gradient(to bottom, color-mix(in oklab, var(--color-admin-rail-line) 62%, transparent), transparent)";
+const PANEL_BG = "var(--color-admin-rail)";
 const LIKED = "var(--color-seal-deep)";
 const EASE = "var(--ease-out-expo)";
+
+function readStrip(): boolean {
+  try {
+    return window.localStorage.getItem(STRIP_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeStrip(open: boolean) {
+  try {
+    window.localStorage.setItem(STRIP_KEY, open ? "1" : "0");
+  } catch {
+    // 记不住就算了
+  }
+}
+
+const finePointer = () => typeof window !== "undefined" && !!window.matchMedia?.("(pointer: fine)").matches;
 
 type Zoom = { s: number; tx: number; ty: number };
 const IDENTITY: Zoom = { s: 1, tx: 0, ty: 0 };
@@ -237,6 +268,7 @@ function Slide({
   reduce,
   zoomRef,
   videoRef,
+  onVideoPlay,
 }: {
   photo: AlbumPhoto;
   offset: number;
@@ -247,6 +279,7 @@ function Slide({
   reduce: boolean;
   zoomRef: (el: HTMLDivElement | null) => void;
   videoRef: RefObject<HTMLVideoElement | null>;
+  onVideoPlay: () => void;
 }) {
   const video = isVideo(photo);
   const syncThumb = cachedThumb(photo);
@@ -330,6 +363,7 @@ function Slide({
           playsInline
           preload="metadata"
           aria-label={photo.filename}
+          onPlay={onVideoPlay}
         />
       );
     } else if (thumb) {
@@ -441,6 +475,15 @@ const FilmStrip = memo(function FilmStrip({
 
 /* -------------------------------------------------------------- lightbox */
 
+function InfoRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div>
+      <dt className="text-[11px] font-black tracking-[0.08em]" style={{ color: INK_DIM }}>{label}</dt>
+      <dd className="mt-1 break-all text-sm font-bold">{children}</dd>
+    </div>
+  );
+}
+
 export function Lightbox(props: LightboxProps) {
   const { photos, onIndexChange, onClose, getUrl, cachedThumb, onToggleLike, onDownload } = props;
   const count = photos.length;
@@ -449,10 +492,14 @@ export function Lightbox(props: LightboxProps) {
   const reduce = useReducedMotion();
 
   const [loader] = useState(createLoader);
+  // 顶栏、翻页键、胶片条是否显示。鼠标 3 秒不动就藏起来，手机上单击切换。
+  const [chrome, setChrome] = useState(true);
+  const [info, setInfo] = useState(false);
+  const [strip, setStrip] = useState(readStrip);
 
-  const latest = useRef({ index, count, photo, reduce, onIndexChange, onClose });
+  const latest = useRef({ index, count, photo, reduce, info, onIndexChange, onClose });
   useLayoutEffect(() => {
-    latest.current = { index, count, photo, reduce, onIndexChange, onClose };
+    latest.current = { index, count, photo, reduce, info, onIndexChange, onClose };
   });
 
   const rootRef = useRef<HTMLDivElement>(null);
@@ -469,11 +516,55 @@ export function Lightbox(props: LightboxProps) {
   const [zoomedId, setZoomedId] = useState<string | null>(null);
   const zoomed = !!photo && zoomedId === photo.id;
   const animatingRef = useRef(false);
+  // 已经要求调用方换到、但调用方还没换过来的那一张。连着翻页时从它往后数，而不是从旧的 index。
+  const wantRef = useRef<number | null>(null);
+  const lastRepeat = useRef(0);
   const timers = useRef<number[]>([]);
   const gesture = useRef<Gesture>({ k: "idle" });
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const samples = useRef<Sample[]>([]);
   const lastTap = useRef<Sample | null>(null);
+  const tapTimer = useRef<number | undefined>(undefined);
+  const hideTimer = useRef<number | undefined>(undefined);
+  const overControls = useRef(false);
+
+  /* -------------------------------------------------------------- chrome */
+
+  const scheduleHide = useCallback(() => {
+    window.clearTimeout(hideTimer.current);
+    hideTimer.current = window.setTimeout(() => {
+      // 鼠标停在按钮上、或信息栏开着的时候不藏。
+      if (overControls.current || latest.current.info) return;
+      setChrome(false);
+    }, CHROME_IDLE_MS);
+  }, []);
+
+  const showChrome = useCallback((autoHide: boolean) => {
+    setChrome(true);
+    if (autoHide) scheduleHide();
+    else window.clearTimeout(hideTimer.current);
+  }, [scheduleHide]);
+
+  const toggleChrome = useCallback(() => {
+    window.clearTimeout(hideTimer.current);
+    setChrome((value) => !value);
+  }, []);
+
+  useEffect(() => {
+    if (finePointer()) scheduleHide();
+    return () => {
+      window.clearTimeout(hideTimer.current);
+      window.clearTimeout(tapTimer.current);
+    };
+  }, [scheduleHide]);
+
+  const onMouseActivity = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== "mouse") return;
+    overControls.current = !!(e.target as Element).closest("[data-controls]");
+    showChrome(true);
+  };
+
+  /* -------------------------------------------------------------- paging */
 
   const clearTimers = useCallback(() => {
     for (const t of timers.current) window.clearTimeout(t);
@@ -548,19 +639,29 @@ export function Lightbox(props: LightboxProps) {
     return t >= 0 && t < latest.current.count;
   }, []);
 
+  /**
+   * 翻一张。instant：不播动画（按住方向键连翻）。
+   * 上一次的动画还没走完时再翻，不再把这次吞掉：直接让调用方换到再下一张，
+   * 轨道留在原处，等新的 index 提交时由下面的 layout effect 归零。
+   */
   const go = useCallback(
-    (dir: 1 | -1) => {
+    (dir: 1 | -1, instant = false) => {
       const L = latest.current;
-      if (animatingRef.current || zoomRef.current.s > 1.01 || !canGo(dir)) return false;
-      const target = L.index + dir;
+      if (zoomRef.current.s > 1.01) return false;
+      const target = (wantRef.current ?? L.index) + dir;
+      if (target < 0 || target >= L.count) return false;
       videoRef.current?.pause();
       const track = trackRef.current;
       const stage = stageRef.current;
-      if (!track || !stage || L.reduce) {
+      if (animatingRef.current || instant || !track || !stage || L.reduce) {
+        clearTimers();
+        animatingRef.current = false;
+        wantRef.current = target;
         L.onIndexChange(target);
         return true;
       }
       animatingRef.current = true;
+      wantRef.current = target;
       track.style.transition = `transform ${PAGE_MS}ms ${EASE}`;
       track.style.transform = `translate3d(${-dir * (stage.clientWidth + GAP)}px, 0, 0)`;
       timers.current.push(
@@ -569,20 +670,24 @@ export function Lightbox(props: LightboxProps) {
           // 调用方没接这次翻页，就把轨道放回来，免得卡在半路。
           timers.current.push(
             window.setTimeout(() => {
-              if (latest.current.index !== target) resetTrack();
+              if (latest.current.index !== target) {
+                wantRef.current = null;
+                resetTrack();
+              }
             }, 150),
           );
         }, PAGE_MS),
       );
       return true;
     },
-    [canGo, resetTrack],
+    [clearTimers, resetTrack],
   );
 
   const jump = useCallback(
     (i: number) => {
       if (i === latest.current.index) return;
       clearTimers();
+      wantRef.current = null;
       videoRef.current?.pause();
       resetTrack();
       latest.current.onIndexChange(i);
@@ -609,22 +714,27 @@ export function Lightbox(props: LightboxProps) {
   useLayoutEffect(() => {
     clearTimers();
     resetTrack();
+    if (wantRef.current === index) wantRef.current = null;
     zoomRef.current = IDENTITY;
     lastTap.current = null;
+    window.clearTimeout(tapTimer.current);
     gesture.current = pointers.current.size ? { k: "wait" } : { k: "idle" };
   }, [index, photo?.id, clearTimers, resetTrack]);
 
-  // 预加载当前张和前后各 2 张的预览图。
+  // 预加载当前张和前后各 2 张的预览图。停稳一小会儿再要：按住方向键飞快翻过去的那些就不要了。
   useEffect(() => {
-    const keep = new Set<string>();
-    for (const d of [0, 1, -1, 2, -2]) {
-      if (Math.abs(d) > PRELOAD) continue;
-      const p = photos[index + d];
-      if (!p) continue;
-      keep.add(p.id);
-      void loader.preview(p, getUrl);
-    }
-    loader.retain(keep);
+    const timer = window.setTimeout(() => {
+      const keep = new Set<string>();
+      for (const d of [0, 1, -1, 2, -2]) {
+        if (Math.abs(d) > PRELOAD) continue;
+        const p = photos[index + d];
+        if (!p) continue;
+        keep.add(p.id);
+        void loader.preview(p, getUrl);
+      }
+      loader.retain(keep);
+    }, PRELOAD_DELAY_MS);
+    return () => window.clearTimeout(timer);
   }, [index, photos, loader, getUrl]);
 
   // 锁住 body 滚动，焦点移进灯箱；关闭时都还原。
@@ -645,19 +755,24 @@ export function Lightbox(props: LightboxProps) {
     };
   }, [clearTimers]);
 
-  // 键盘：Esc 关闭，← → 翻页（焦点在视频上时把方向键留给视频）。
+  // 键盘：Esc 先关信息栏、再关灯箱；← → 翻页，按住连翻（焦点在视频上时把方向键留给视频）。
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.altKey || e.metaKey || e.ctrlKey) return;
       if (e.key === "Escape") {
         e.preventDefault();
-        latest.current.onClose();
+        if (latest.current.info) setInfo(false);
+        else latest.current.onClose();
         return;
       }
       if (e.target instanceof HTMLVideoElement || e.target instanceof HTMLInputElement) return;
       if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
         e.preventDefault();
-        go(e.key === "ArrowLeft" ? -1 : 1);
+        if (e.repeat) {
+          if (e.timeStamp - lastRepeat.current < REPEAT_MS) return;
+          lastRepeat.current = e.timeStamp;
+        }
+        go(e.key === "ArrowLeft" ? -1 : 1, e.repeat);
       }
     };
     // 捕获阶段：Chrome 的原生视频控件会对 Esc 调 preventDefault，冒泡阶段再看就被上面那行挡掉了，
@@ -674,6 +789,11 @@ export function Lightbox(props: LightboxProps) {
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, [applyZoom]);
+
+  // 信息栏 / 胶片条开合会改变舞台大小：同样复位缩放。
+  useEffect(() => {
+    if (zoomRef.current.s > 1.01) applyZoom(IDENTITY, false);
+  }, [info, strip, applyZoom]);
 
   /* ------------------------------------------------------------ gestures */
 
@@ -696,6 +816,7 @@ export function Lightbox(props: LightboxProps) {
     const g = gesture.current;
 
     if (pointers.current.size === 2) {
+      window.clearTimeout(tapTimer.current);
       if (!canZoom(latest.current.photo)) {
         gesture.current = { k: "wait" };
         return;
@@ -717,6 +838,12 @@ export function Lightbox(props: LightboxProps) {
   const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     const p = pointers.current.get(e.pointerId);
     if (!p) return;
+    // 鼠标键已经松了却没收到 pointerup（在窗口外松手、被别的元素截走）：当作结束，
+    // 不然之后单纯移动鼠标也会被当成拖动，照片跟着走、背景变淡。
+    if (e.pointerType === "mouse" && e.buttons === 0) {
+      onPointerEnd(e);
+      return;
+    }
     p.x = e.clientX;
     p.y = e.clientY;
     const g = gesture.current;
@@ -745,6 +872,7 @@ export function Lightbox(props: LightboxProps) {
       if (Math.hypot(dx, dy) < SLOP) return;
       capture(e.pointerId);
       lastTap.current = null;
+      window.clearTimeout(tapTimer.current);
       if (zoomRef.current.s > 1.01) {
         const z = zoomRef.current;
         gesture.current = { k: "pan", id: g.id, x0: g.x0, y0: g.y0, tx0: z.tx, ty0: z.ty };
@@ -819,9 +947,15 @@ export function Lightbox(props: LightboxProps) {
       const prev = lastTap.current;
       if (prev && e.timeStamp - prev.t < DOUBLE_TAP_MS && Math.hypot(e.clientX - prev.x, e.clientY - prev.y) < DOUBLE_TAP_PX) {
         lastTap.current = null;
+        window.clearTimeout(tapTimer.current);
         toggleZoom(e.clientX, e.clientY);
       } else {
         lastTap.current = { t: e.timeStamp, x: e.clientX, y: e.clientY };
+        // 手指单击：等双击的窗口过去，确定不是双击再切换控件显示。
+        if (e.pointerType !== "mouse") {
+          window.clearTimeout(tapTimer.current);
+          tapTimer.current = window.setTimeout(toggleChrome, DOUBLE_TAP_MS);
+        }
       }
       return;
     }
@@ -850,9 +984,23 @@ export function Lightbox(props: LightboxProps) {
 
   if (!photo) return null;
 
-  const chip: CSSProperties = { background: CHIP, color: INK };
   const liked = photo.liked_by_me;
   const pressable = "transition-transform duration-150 active:scale-[0.97] motion-reduce:transition-none";
+  const iconBtn = `grid h-11 w-11 shrink-0 place-items-center rounded-full hover:bg-[color-mix(in_oklab,var(--color-card)_14%,transparent)] ${pressable}`;
+  // 藏起来的控件不能挡住点击：点一下空白处要能把它们叫回来。
+  const hit = chrome ? "pointer-events-auto" : "pointer-events-none";
+  const fade = `transition-opacity duration-200 motion-reduce:duration-100 ${chrome ? "opacity-100" : "opacity-0"}`;
+  const when = shortDateTime(photo.taken_at);
+  const stripSpace = `calc(${STRIP_H}px + env(safe-area-inset-bottom))`;
+  const navShow = chrome ? "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100" : "opacity-0";
+  const chip: CSSProperties = { background: CHIP, color: INK };
+
+  const toggleStrip = () => {
+    setStrip((open) => {
+      writeStrip(!open);
+      return !open;
+    });
+  };
 
   return createPortal(
     <div
@@ -861,109 +1009,187 @@ export function Lightbox(props: LightboxProps) {
       aria-modal="true"
       aria-label={`照片预览：${photo.filename}`}
       tabIndex={-1}
-      className="fixed inset-0 z-[100] flex select-none flex-col overflow-hidden"
-      style={{ color: INK, outline: "none", overscrollBehavior: "contain" }}
+      className="fixed inset-0 z-[100] select-none overflow-hidden"
+      style={{ color: INK, outline: "none", overscrollBehavior: "contain", cursor: chrome ? undefined : "none" }}
+      onPointerMove={onMouseActivity}
+      onPointerDown={onMouseActivity}
+      onPointerLeave={() => { overControls.current = false; }}
+      onFocusCapture={(e) => { if (e.target !== rootRef.current) showChrome(finePointer()); }}
     >
       <div ref={backdropRef} aria-hidden="true" className="absolute inset-0" style={{ background: BACKDROP }} />
 
-      <div
-        ref={headerRef}
-        className="relative flex min-h-14 shrink-0 items-center gap-3 pl-4 pr-2"
-        style={{ paddingTop: "env(safe-area-inset-top)" }}
-      >
-        <p className="min-w-0 flex-1 truncate text-sm font-bold" style={{ color: INK_DIM }}>{photo.filename}</p>
-        <button type="button" onClick={onClose} aria-label="关闭" className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${pressable}`} style={chip}>
-          <AdminIcon name="close" className="h-5 w-5" />
-        </button>
-      </div>
+      {/* 照片这一栏。信息栏在桌面上占右边 360px，照片跟着让出来；手机上信息栏从底部盖上来。 */}
+      <div className={`absolute inset-y-0 left-0 right-0 ${info ? "sm:right-[360px]" : ""}`}>
+        <div
+          ref={stageRef}
+          className="absolute inset-x-0 top-0 overflow-hidden"
+          style={{ bottom: strip ? stripSpace : 0, touchAction: "none", cursor: zoomed ? "grab" : undefined }}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerEnd}
+          onPointerCancel={onPointerEnd}
+        >
+          <div ref={trackRef} className="absolute inset-0" style={{ willChange: "transform" }}>
+            {[-1, 0, 1].map((off) => {
+              const p = photos[index + off];
+              if (!p) return null;
+              return (
+                <Slide
+                  key={p.id}
+                  photo={p}
+                  offset={off}
+                  active={off === 0}
+                  loader={loader}
+                  getUrl={getUrl}
+                  cachedThumb={cachedThumb}
+                  reduce={reduce}
+                  zoomRef={setZoomEl}
+                  videoRef={videoRef}
+                  onVideoPlay={scheduleHide}
+                />
+              );
+            })}
+          </div>
 
-      <div
-        ref={stageRef}
-        className="relative min-h-0 flex-1 overflow-hidden"
-        style={{ touchAction: "none", cursor: zoomed ? "grab" : undefined }}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerEnd}
-        onPointerCancel={onPointerEnd}
-      >
-        <div ref={trackRef} className="absolute inset-0" style={{ willChange: "transform" }}>
-          {[-1, 0, 1].map((off) => {
-            const p = photos[index + off];
-            if (!p) return null;
-            return (
-              <Slide
-                key={p.id}
-                photo={p}
-                offset={off}
-                active={off === 0}
-                loader={loader}
-                getUrl={getUrl}
-                cachedThumb={cachedThumb}
-                reduce={reduce}
-                zoomRef={setZoomEl}
-                videoRef={videoRef}
-              />
-            );
-          })}
+          {/* 左右各 20% 的翻页区：鼠标移进去才出现 56px 的圆键，点整个区域都能翻。手机上没有，靠滑动。 */}
+          {!zoomed && index > 0 && (
+            <button
+              type="button"
+              onClick={() => go(-1)}
+              aria-label="上一张"
+              className="group absolute bottom-0 left-0 top-16 z-10 hidden w-[20%] items-center justify-start pl-3 focus-visible:outline-none pointer-fine:flex sm:pl-5"
+              style={{ cursor: chrome ? "pointer" : "none" }}
+            >
+              <span
+                className={`grid h-14 w-14 place-items-center rounded-full transition-opacity duration-200 group-focus-visible:outline-2 group-focus-visible:outline-card motion-reduce:duration-100 ${navShow}`}
+                style={{ background: NAV_BG, color: INK }}
+              >
+                <AdminIcon name="back" className="h-7 w-7" />
+              </span>
+            </button>
+          )}
+          {!zoomed && index < count - 1 && (
+            <button
+              type="button"
+              onClick={() => go(1)}
+              aria-label="下一张"
+              className="group absolute bottom-0 right-0 top-16 z-10 hidden w-[20%] items-center justify-end pr-3 focus-visible:outline-none pointer-fine:flex sm:pr-5"
+              style={{ cursor: chrome ? "pointer" : "none" }}
+            >
+              <span
+                className={`grid h-14 w-14 place-items-center rounded-full transition-opacity duration-200 group-focus-visible:outline-2 group-focus-visible:outline-card motion-reduce:duration-100 ${navShow}`}
+                style={{ background: NAV_BG, color: INK }}
+              >
+                <AdminIcon name="chevron" className="h-7 w-7" />
+              </span>
+            </button>
+          )}
         </div>
 
-        {!zoomed && index > 0 && (
-          <button
-            type="button"
-            onClick={() => go(-1)}
-            aria-label="上一张"
-            className="group absolute bottom-20 left-0 top-0 z-10 hidden w-[22%] max-w-40 items-center justify-start pl-4 pointer-fine:flex"
+        {/* 顶栏：浮在照片上，只有按钮本身接点击，照片上的滑动从顶部开始也照样生效。 */}
+        <div className={`pointer-events-none absolute inset-x-0 top-0 z-20 ${fade}`}>
+          <div
+            ref={headerRef}
+            className="flex items-start gap-1 px-1.5 pb-8 sm:gap-2 sm:px-3"
+            style={{ paddingTop: "max(env(safe-area-inset-top), 8px)", background: SCRIM_TOP }}
           >
-            <span className="grid h-11 w-11 place-items-center rounded-full opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 motion-reduce:transition-none" style={chip}>
-              <AdminIcon name="back" className="h-5 w-5" />
-            </span>
-          </button>
-        )}
-        {!zoomed && index < count - 1 && (
-          <button
-            type="button"
-            onClick={() => go(1)}
-            aria-label="下一张"
-            className="group absolute bottom-20 right-0 top-0 z-10 hidden w-[22%] max-w-40 items-center justify-end pr-4 pointer-fine:flex"
-          >
-            <span className="grid h-11 w-11 place-items-center rounded-full opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 motion-reduce:transition-none" style={chip}>
-              <AdminIcon name="chevron" className="h-5 w-5" />
-            </span>
-          </button>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="返回相册"
+              data-controls
+              className={`inline-flex h-11 shrink-0 items-center gap-1 rounded-full px-2.5 text-sm font-black hover:bg-[color-mix(in_oklab,var(--color-card)_14%,transparent)] ${pressable} ${hit}`}
+            >
+              <AdminIcon name="back" className="h-6 w-6" />
+              <span className="hidden sm:inline">返回</span>
+            </button>
+            <div className="min-w-0 flex-1 px-1 pt-1.5">
+              <p className="truncate text-sm font-black">{photo.filename}</p>
+              <p className="tabular truncate text-xs font-bold" style={{ color: INK_DIM }}>
+                {when && <span>{when} · </span>}
+                <span aria-live="polite" aria-label={`第 ${index + 1} 张，共 ${count} 张`}>{index + 1} / {count}</span>
+              </p>
+            </div>
+            <div data-controls className={`flex shrink-0 items-center gap-0.5 sm:gap-1 ${hit}`}>
+              <button
+                type="button"
+                onClick={() => onToggleLike(photo)}
+                aria-pressed={liked}
+                aria-label={`${liked ? "取消爱心" : "点爱心"}，现在 ${photo.like_count} 个`}
+                className={`inline-flex h-11 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm font-black hover:bg-[color-mix(in_oklab,var(--color-card)_14%,transparent)] ${pressable}`}
+              >
+                <span style={{ color: liked ? LIKED : INK }}>
+                  <HeartIcon filled={liked} />
+                </span>
+                <span className="tabular">{photo.like_count}</span>
+              </button>
+              <button type="button" onClick={() => onDownload(photo)} aria-label="下载原片" title="下载原片" className={iconBtn}>
+                <AdminIcon name="download" className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setInfo((open) => !open)}
+                aria-label="照片信息"
+                aria-pressed={info}
+                title="信息"
+                className={iconBtn}
+                style={info ? chip : undefined}
+              >
+                <AdminIcon name="info" className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                onClick={toggleStrip}
+                aria-label={strip ? "收起胶片条" : "展开胶片条"}
+                aria-pressed={strip}
+                title="胶片条"
+                className={iconBtn}
+                style={strip ? chip : undefined}
+              >
+                <AdminIcon name="film" className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {strip && (
+          <div data-controls className={`absolute inset-x-0 bottom-0 z-20 ${fade} ${hit}`} style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+            <div ref={footerRef} className="pt-1" style={{ height: STRIP_H }}>
+              <FilmStrip photos={photos} index={index} cachedThumb={cachedThumb} reduce={reduce} onSelect={jump} />
+            </div>
+          </div>
         )}
       </div>
 
-      <div ref={footerRef} className="relative shrink-0" style={{ paddingBottom: "max(env(safe-area-inset-bottom), 12px)" }}>
-        <div className="flex items-center gap-2 px-4 py-2">
-          <button
-            type="button"
-            onClick={() => onToggleLike(photo)}
-            aria-pressed={liked}
-            aria-label={`${liked ? "取消喜欢" : "喜欢"}，${photo.like_count} 人喜欢`}
-            className={`inline-flex h-10 items-center gap-1.5 rounded-full px-3.5 text-sm font-black ${pressable}`}
-            style={chip}
-          >
-            <span style={{ color: liked ? LIKED : INK }}>
-              <HeartIcon filled={liked} />
-            </span>
-            <span className="tabular">{photo.like_count}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => onDownload(photo)}
-            aria-label="下载原片"
-            className={`inline-flex h-10 items-center gap-1.5 rounded-full px-3.5 text-sm font-black ${pressable}`}
-            style={chip}
-          >
-            <AdminIcon name="download" className="h-5 w-5" />
-            <span className="hidden sm:inline">下载原片</span>
-          </button>
-          <span className="tabular ml-auto text-sm font-black" aria-live="polite" aria-label={`第 ${index + 1} 张，共 ${count} 张`}>
-            {index + 1} / {count}
-          </span>
-        </div>
-        <FilmStrip photos={photos} index={index} cachedThumb={cachedThumb} reduce={reduce} onSelect={jump} />
-      </div>
+      {info && (
+        <aside
+          data-controls
+          aria-label="照片信息"
+          className="tool-scroll absolute z-30 overflow-y-auto max-sm:inset-x-0 max-sm:bottom-0 max-sm:max-h-[70dvh] max-sm:rounded-t-[20px] sm:inset-y-0 sm:right-0 sm:w-[360px]"
+          style={{ background: PANEL_BG, color: INK, paddingBottom: "max(env(safe-area-inset-bottom), 16px)" }}
+        >
+          <div className="flex items-center justify-between gap-3 py-3 pl-5 pr-2">
+            <h2 className="text-base font-black">信息</h2>
+            <button type="button" onClick={() => setInfo(false)} aria-label="关闭信息" className={iconBtn}>
+              <AdminIcon name="close" className="h-5 w-5" />
+            </button>
+          </div>
+          <dl className="space-y-4 px-5 pb-4">
+            <InfoRow label="文件名">{photo.filename}</InfoRow>
+            <InfoRow label="拍摄时间">{fullDateTime(photo.taken_at) || "没有记录"}</InfoRow>
+            <InfoRow label="上传时间">{fullDateTime(photo.created_at) || "没有记录"}</InfoRow>
+            <InfoRow label="大小"><span className="tabular">{formatBytes(photo.size_bytes)}</span></InfoRow>
+            <InfoRow label="类型">
+              {isVideo(photo) ? "视频" : "照片"} · <span className="uppercase">{fileKind(photo)}</span>
+              <span className="font-semibold" style={{ color: INK_DIM }}> · {photo.content_type}</span>
+            </InfoRow>
+            <InfoRow label="爱心">
+              <span className="tabular">{photo.like_count} 个</span>
+              {liked && <span style={{ color: INK_DIM }}>，有一个是你点的</span>}
+            </InfoRow>
+          </dl>
+        </aside>
+      )}
     </div>,
     document.body,
   );

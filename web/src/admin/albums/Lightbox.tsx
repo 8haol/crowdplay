@@ -47,7 +47,6 @@ const VELOCITY_WINDOW_MS = 100;
 const CHROME_IDLE_MS = 3000; // 鼠标不动这么久，控件淡出
 const REPEAT_MS = 70; // 按住方向键时最快这么翻一张
 const STRIP_H = 64;
-const STRIP_KEY = "album.filmstrip";
 
 const INK = "var(--color-card)";
 const INK_DIM = "color-mix(in oklab, var(--color-card) 68%, transparent)";
@@ -59,22 +58,6 @@ const SCRIM_TOP = "linear-gradient(to bottom, color-mix(in oklab, var(--color-ad
 const PANEL_BG = "var(--color-admin-rail)";
 const LIKED = "var(--color-seal-deep)";
 const EASE = "var(--ease-out-expo)";
-
-function readStrip(): boolean {
-  try {
-    return window.localStorage.getItem(STRIP_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function writeStrip(open: boolean) {
-  try {
-    window.localStorage.setItem(STRIP_KEY, open ? "1" : "0");
-  } catch {
-    // 记不住就算了
-  }
-}
 
 const finePointer = () => typeof window !== "undefined" && !!window.matchMedia?.("(pointer: fine)").matches;
 
@@ -495,7 +478,8 @@ export function Lightbox(props: LightboxProps) {
   // 顶栏、翻页键、胶片条是否显示。鼠标 3 秒不动就藏起来，手机上单击切换。
   const [chrome, setChrome] = useState(true);
   const [info, setInfo] = useState(false);
-  const [strip, setStrip] = useState(readStrip);
+  // 胶片条每次打开都展开（手机也是）；收起只管这一次，不记住。
+  const [strip, setStrip] = useState(true);
 
   const latest = useRef({ index, count, photo, reduce, info, onIndexChange, onClose });
   useLayoutEffect(() => {
@@ -995,12 +979,7 @@ export function Lightbox(props: LightboxProps) {
   const navShow = chrome ? "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100" : "opacity-0";
   const chip: CSSProperties = { background: CHIP, color: INK };
 
-  const toggleStrip = () => {
-    setStrip((open) => {
-      writeStrip(!open);
-      return !open;
-    });
-  };
+  const toggleStrip = () => setStrip((open) => !open);
 
   return createPortal(
     <div

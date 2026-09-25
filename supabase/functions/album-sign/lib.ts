@@ -129,7 +129,7 @@ export function rpcErrorFromResponse(status: number, message: unknown): string {
 // 请求体校验
 // ---------------------------------------------------------------------------
 
-export type ViewKind = "thumb" | "preview" | "original";
+export type ViewKind = "thumb" | "preview" | "original" | "proxy";
 
 export type SignRequest =
   | {
@@ -142,6 +142,8 @@ export type SignRequest =
     taken_at: string | null;
   }
   | { action: "complete" | "abort"; admin_key: string; photo_id: string }
+  // 视频的低画质版：proxy_upload 签 PUT，传完 proxy_done 核对并标记。
+  | { action: "proxy_upload" | "proxy_done"; admin_key: string; photo_id: string }
   | { action: "view"; admin_key: string; kind: ViewKind; photo_ids: string[] }
   | { action: "download"; admin_key: string; photo_ids: string[] }
   | { action: "delete"; admin_key: string; photo_ids: string[] }
@@ -192,9 +194,11 @@ export function parseRequest(body: unknown): SignRequest {
     }
     case "complete":
     case "abort":
+    case "proxy_upload":
+    case "proxy_done":
       return { action: b.action, admin_key, photo_id: uuid(b.photo_id) };
     case "view": {
-      if (b.kind !== "thumb" && b.kind !== "preview" && b.kind !== "original") throw bad();
+      if (b.kind !== "thumb" && b.kind !== "preview" && b.kind !== "original" && b.kind !== "proxy") throw bad();
       return { action: "view", admin_key, kind: b.kind, photo_ids: uuids(b.photo_ids) };
     }
     case "download":
@@ -235,6 +239,8 @@ export function assertOriginalKey(prefix: string, key: string): string {
 
 export const thumbKey = (prefix: string) => prefix + "thumb.jpg";
 export const previewKey = (prefix: string) => prefix + "preview.jpg";
+/** 视频的 720p 低码率版，灯箱默认播它。 */
+export const proxyKey = (prefix: string) => prefix + "proxy.mp4";
 
 /** encodeURIComponent 不编码 `!'()*`，SigV4 要求编码；统一编掉，URL 和签名里的规范路径就是同一个样子。 */
 function rfc3986(s: string): string {

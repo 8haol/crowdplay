@@ -27,11 +27,13 @@ import {
   parseRequest,
   presign,
   previewKey,
+  proxyKey,
   readConfig,
   PUT_EXPIRES_SEC,
   rpcErrorFromResponse,
   type SignRequest,
   thumbKey,
+  type ViewKind,
 } from "./lib.ts";
 
 export interface Deps {
@@ -50,6 +52,8 @@ interface PhotoObject {
   content_type: string;
   has_thumb: boolean;
   has_preview: boolean;
+  /** 迁移 20260925000300 之前的库里没有这个字段。 */
+  has_proxy?: boolean;
 }
 
 const RPC_TIMEOUT_MS = 15_000;
@@ -107,6 +111,10 @@ class Ctx {
         return this.complete(r.admin_key, r.photo_id);
       case "abort":
         return this.abort(r.admin_key, r.photo_id);
+      case "proxy_upload":
+        return this.proxyUpload(r.admin_key, r.photo_id);
+      case "proxy_done":
+        return this.proxyDone(r.admin_key, r.photo_id);
       case "view":
         return this.view(r.admin_key, r.kind, r.photo_ids);
       case "download":
@@ -213,7 +221,7 @@ class Ctx {
     return { ok: true };
   }
 
-  private async view(adminKey: string, kind: "thumb" | "preview" | "original", ids: string[]) {
+  private async view(adminKey: string, kind: ViewKind, ids: string[]) {
     const objs = await this.objectsFor(adminKey, ids);
     const urls: Record<string, string> = {};
     await Promise.all(
@@ -223,11 +231,35 @@ class Ctx {
         if (kind === "original") key = assertOriginalKey(prefix, o.original_key);
         else if (kind === "thumb" && o.has_thumb) key = thumbKey(prefix);
         else if (kind === "preview" && o.has_preview) key = previewKey(prefix);
+        else if (kind === "proxy" && o.has_proxy) key = proxyKey(prefix);
         // original 不带 attachment：灯箱里的 <video> 要能直接播。
         if (key) urls[o.photo_id] = await this.sign("GET", key, GET_EXPIRES_SEC);
       }),
     );
     return { urls };
+  }
+
+  /** 只给已经 ready 的视频签：低画质版是在原片之后补上的，不跟着 pending 走。 */
+  private async readyVideo(adminKey: string, photoId: string): Promise<PhotoObject> {
+    const obj = (await this.objectsFor(adminKey, [photoId]))[0];
+    if (!obj || obj.status !== "ready") throw new FnError("PHOTO_NOT_FOUND");
+    if (!obj.content_type.startsWith("video/")) throw new FnError("BAD_FILE");
+    return obj;
+  }
+
+  private async proxyUpload(adminKey: string, photoId: string) {
+    const obj = await this.readyVideo(adminKey, photoId);
+    const key = proxyKey(assertPhotoPrefix(obj.prefix));
+    return { photo_id: obj.photo_id, put_proxy: await this.sign("PUT", key, PUT_EXPIRES_SEC, { contentType: "video/mp4" }) };
+  }
+
+  private async proxyDone(adminKey: string, photoId: string) {
+    const obj = await this.readyVideo(adminKey, photoId);
+    if (obj.has_proxy) return { photo_id: obj.photo_id, has_proxy: true };
+    const size = await this.head(proxyKey(assertPhotoPrefix(obj.prefix)));
+    if (!size) throw new FnError("BAD_FILE");
+    await this.rpc("album_set_proxy", { p_admin_key: adminKey, p_photo_id: obj.photo_id });
+    return { photo_id: obj.photo_id, has_proxy: true };
   }
 
   private async download(adminKey: string, ids: string[]) {
@@ -417,8 +449,8 @@ class Ctx {
   }
 }
 
-/** 一张照片的全部对象。thumb / preview 不看 has_*：pending 时它们可能已经传上去了，删不存在的 key 也不报错。 */
+/** 一张照片的全部对象。thumb / preview / proxy 不看 has_*：可能已经传上去了还没标记，删不存在的 key 也不报错。 */
 function keysOf(o: PhotoObject): string[] {
   const prefix = assertPhotoPrefix(o.prefix);
-  return [assertOriginalKey(prefix, o.original_key), thumbKey(prefix), previewKey(prefix)];
+  return [assertOriginalKey(prefix, o.original_key), thumbKey(prefix), previewKey(prefix), proxyKey(prefix)];
 }

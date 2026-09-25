@@ -345,3 +345,80 @@ Deno.test("delete photo_ids：只删 objects_for 认下的（别家的 id 被 RP
   assert.deepEqual(json, { deleted: 1 });
   assert.deepEqual(rpcCalls.find((c) => c.fn === "album_delete_photos")!.args.p_photo_ids, [PHOTO]);
 });
+
+// ---------------------------------------------------------------------------
+// 视频低画质版
+// ---------------------------------------------------------------------------
+
+const readyVideo = (over: Record<string, unknown> = {}) =>
+  obj({ status: "ready", content_type: "video/mp4", original_key: `${PREFIX}original/a.mp4`, filename: "a.mp4", ...over });
+
+Deno.test("proxy_upload：只给 ready 的视频签 PUT，路径固定为 <前缀>proxy.mp4、Content-Type video/mp4", async () => {
+  const { call } = setup(() => ({ objects: [readyVideo()] }));
+  const { res, json } = await call({ action: "proxy_upload", admin_key: "k", photo_id: PHOTO });
+  assert.equal(res.status, 200);
+  const put = new URL(json.put_proxy);
+  assert.equal(put.pathname, `/albums/${PREFIX}proxy.mp4`);
+  assert.equal(put.searchParams.get("X-Amz-SignedHeaders"), "content-type;host");
+
+  for (const [o, code] of [
+    [obj({ status: "ready" }), "BAD_FILE"],
+    [readyVideo({ status: "pending" }), "PHOTO_NOT_FOUND"],
+  ] as const) {
+    const { call } = setup(() => ({ objects: [o] }));
+    const { res, json } = await call({ action: "proxy_upload", admin_key: "k", photo_id: PHOTO });
+    assert.equal(res.status, 400);
+    assert.deepEqual(json, { error: code });
+  }
+  {
+    const { call } = setup(() => ({ objects: [] }));
+    assert.deepEqual((await call({ action: "proxy_upload", admin_key: "k", photo_id: PHOTO })).json, { error: "PHOTO_NOT_FOUND" });
+  }
+});
+
+Deno.test("proxy_done：HEAD 到 proxy.mp4 才标记；没有对象 → BAD_FILE 且不调 RPC；已标记的直接回", async () => {
+  {
+    const { call, rpcCalls, seen } = setup(
+      (fn) => (fn === "album_objects_for" ? { objects: [readyVideo()] } : { photo_id: PHOTO, has_proxy: true }),
+      (s) => (s.method === "HEAD" && s.url.pathname.endsWith("/proxy.mp4")
+        ? new Response(null, { status: 200, headers: { "content-length": "9000000" } })
+        : undefined),
+    );
+    const { res, json } = await call({ action: "proxy_done", admin_key: "k", photo_id: PHOTO });
+    assert.equal(res.status, 200);
+    assert.deepEqual(json, { photo_id: PHOTO, has_proxy: true });
+    assert.equal(seen[0].url.pathname, `/albums/${PREFIX}proxy.mp4`);
+    assert.deepEqual(rpcCalls.map((c) => c.fn), ["album_objects_for", "album_set_proxy"]);
+    assert.deepEqual(rpcCalls[1].args, { p_admin_key: "k", p_photo_id: PHOTO });
+  }
+  {
+    const { call, rpcCalls } = setup(() => ({ objects: [readyVideo()] }));
+    const { res, json } = await call({ action: "proxy_done", admin_key: "k", photo_id: PHOTO });
+    assert.equal(res.status, 400);
+    assert.deepEqual(json, { error: "BAD_FILE" });
+    assert.deepEqual(rpcCalls.map((c) => c.fn), ["album_objects_for"]);
+  }
+  {
+    const { call, rpcCalls, seen } = setup(() => ({ objects: [readyVideo({ has_proxy: true })] }));
+    assert.deepEqual((await call({ action: "proxy_done", admin_key: "k", photo_id: PHOTO })).json, { photo_id: PHOTO, has_proxy: true });
+    assert.equal(seen.length, 0);
+    assert.deepEqual(rpcCalls.map((c) => c.fn), ["album_objects_for"]);
+  }
+});
+
+Deno.test("view proxy：has_proxy 的才签；老库没有 has_proxy 字段当作没有", async () => {
+  const other = "55555555-5555-4555-8555-555555555555";
+  const { call } = setup(() => ({
+    objects: [readyVideo({ has_proxy: true }), readyVideo({ photo_id: other, prefix: PREFIX.replace(PHOTO, other), original_key: `${PREFIX.replace(PHOTO, other)}original/b.mp4` })],
+  }));
+  const { json } = await call({ action: "view", admin_key: "k", kind: "proxy", photo_ids: [PHOTO, other] });
+  assert.deepEqual(Object.keys(json.urls), [PHOTO]);
+  assert.equal(new URL(json.urls[PHOTO]).pathname, `/albums/${PREFIX}proxy.mp4`);
+});
+
+Deno.test("delete：连 proxy.mp4 一起删", async () => {
+  const { call, seen } = setup((fn) => (fn === "album_objects_for" ? { objects: [readyVideo()] } : { deleted: 1 }));
+  await call({ action: "delete", admin_key: "k", photo_ids: [PHOTO] });
+  const del = seen.find((s) => s.method === "POST")!;
+  assert.ok(del.body.includes(`<Key>${PREFIX}proxy.mp4</Key>`));
+});

@@ -629,7 +629,7 @@ export function AlbumDetailView({
                 <span className="sm:hidden">上传照片和视频</span>
               </div>
               <div className="mt-0.5 text-xs font-semibold" style={{ color: T.inkSoft }}>
-                原片原样保存，单个不超过 5GB；同时传 4 个，失败的可以单独重试。
+                原片原样保存，单个不超过 5GB；网络断了会自动接着传。
               </div>
             </div>
             <div className="flex shrink-0 flex-wrap justify-center gap-2">{pickFiles}{pickDir}</div>
@@ -814,6 +814,7 @@ function uploadStatusText(item: UploadItemView): string {
       return `${pct}% · ${formatBytes(item.size)}`;
     }
     case "finishing": return "收尾中";
+    case "waiting": return "网络断了，稍后自动接着传";
     case "done": return `已完成 · ${formatBytes(item.size)}`;
     case "failed": return item.error ?? "没传上";
   }
@@ -854,6 +855,11 @@ function UploadPanel({ snapshot, queue }: { snapshot: UploadSnapshot; queue: Upl
         <AdminIcon name="chevron" className="h-4 w-4 shrink-0 rotate-90" />
       </button>
       <ProgressBar pct={pct} tone={failed > 0 && active === 0 ? T.danger : T.ink} />
+      {active > 0 && (
+        <p className="px-4 pt-2 text-[11px] font-semibold leading-4" style={{ color: T.inkSoft }}>
+          传的时候停在这一页，屏幕会一直亮着；切走或锁屏会暂停，回来后自动接着传。
+        </p>
+      )}
       <ul className="tool-scroll max-h-[38dvh] overflow-y-auto px-2 py-1.5">
         {items.map((item) => (
           <li key={item.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5">
@@ -861,14 +867,14 @@ function UploadPanel({ snapshot, queue }: { snapshot: UploadSnapshot; queue: Upl
               <div className="truncate text-xs font-black">{item.name}</div>
               <div
                 className="tabular truncate text-[11px] font-semibold"
-                style={{ color: item.status === "failed" ? T.danger : item.status === "done" ? T.good : T.inkFaint }}
+                style={{ color: item.status === "failed" ? T.danger : item.status === "waiting" ? T.warn : item.status === "done" ? T.good : T.inkFaint }}
               >
                 {uploadStatusText(item)}
               </div>
             </div>
-            {item.status === "failed" && (
+            {(item.status === "failed" || item.status === "waiting") && (
               <button type="button" className={rowButton} style={{ color: T.ink, background: T.panelAlt }} onClick={() => queue.retry(item.id)}>
-                重试
+                {item.status === "waiting" ? "现在重试" : "重试"}
               </button>
             )}
             {item.status === "done" ? (

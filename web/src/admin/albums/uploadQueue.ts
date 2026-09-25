@@ -11,13 +11,28 @@ import { makeThumbs, type Thumbs } from "./thumbs";
  *           → PUT 两张小图 → complete。
  * 任一步失败：先 abort（删掉这张的对象和 pending 行），再标失败。
  * 重试从 upload 重新登记；小图和拍摄时间已经算过的就不再算。
+ *
+ * 手机上网页没法真正后台上传：切走或锁屏几秒，页面就被挂起，请求跟着断。
+ * 所以退而求其次——有东西在传时让屏幕常亮（keepAwake），网络类的失败不直接
+ * 判死，先进 waiting，按退避时间自动重传；页面回到前台、网络恢复时立刻接着传。
  */
 
 export const MAX_FILE_BYTES = 5_000_000_000;
 // R2 只走 HTTP/1.1，浏览器对一个域名最多 6 条连接；留两条给网格里的缩略图。
 const CONCURRENCY = 4;
 
-export type UploadStatus = "queued" | "preparing" | "uploading" | "finishing" | "done" | "failed";
+// waiting = 网络类失败，等一会儿自动重传；failed = 自动重传也放弃了，或者重试也没用的错。
+export type UploadStatus = "queued" | "preparing" | "uploading" | "finishing" | "waiting" | "done" | "failed";
+
+// 自动重传的间隔，第 n 次用第 n 个；用完就判 failed，等人点重试或页面重新回到前台。
+const RETRY_DELAYS_MS = [3_000, 10_000, 30_000, 60_000, 60_000];
+// 页面在前台时，一个 PUT 这么久没有任何进度就当它断了。iOS 从后台回来时，
+// 被挂起时断掉的请求有时既不报错也不动，只能靠这个把它揪出来。
+const STALL_MS = 30_000;
+// 这些错是网络 / 服务端一时不通，过一会儿再试大概率能好；其余（口令错、文件不合法、
+// 相册被删）重试也没用，直接 failed。
+const TRANSIENT = new Set(["NETWORK", "STORAGE_ERROR", "RPC_UNAVAILABLE", "RATE_LIMITED"]);
+const isTransient = (code: string) => TRANSIENT.has(code) || /^HTTP_5\d\d$/.test(code);
 
 export interface UploadItemView {
   id: string;
@@ -48,6 +63,13 @@ interface Item extends UploadItemView {
   photoId: string | null;
   xhr: XMLHttpRequest | null;
   cancelled: boolean;
+  /** 看门狗判定卡死、主动 abort 的：onabort 要报 NETWORK 而不是 CANCELLED。 */
+  stalled: boolean;
+  lastProgressAt: number;
+  /** 连着自动重传了几次，传成功或页面重新回到前台时清零。 */
+  autoRetries: number;
+  /** 上次失败是不是网络类的（值得自动重传）。 */
+  transient: boolean;
 }
 
 /* ----------------------------------------------------------- 筛文件 */
@@ -132,13 +154,61 @@ function onBeforeUnload(event: BeforeUnloadEvent) {
   event.returnValue = "";
 }
 
-/** 有东西在传（上传或下载到文件夹）时拦一下关标签页。 */
+/** 有东西在传（上传或下载到文件夹）时拦一下关标签页，并让屏幕常亮。 */
 export function holdUnload(holder: object, on: boolean) {
   const before = unloadHolders.size;
   if (on) unloadHolders.add(holder);
   else unloadHolders.delete(holder);
   if (before === 0 && unloadHolders.size > 0) window.addEventListener("beforeunload", onBeforeUnload);
   if (before > 0 && unloadHolders.size === 0) window.removeEventListener("beforeunload", onBeforeUnload);
+  if ((before === 0) !== (unloadHolders.size === 0)) void keepAwake();
+}
+
+/* ------------------------------------------------------- 屏幕常亮 */
+
+/*
+ * Screen Wake Lock：iOS 16.4+、安卓 Chrome 都支持。页面一隐藏系统就自动释放，
+ * 所以回到前台要重新申请（见下面的 visibilitychange）。低电量模式下可能被拒，拒了就算了，
+ * 只是回到「会自动锁屏」的老样子。
+ */
+let wakeLock: WakeLockSentinel | null = null;
+let wakeRequesting = false;
+
+async function keepAwake() {
+  const wanted = unloadHolders.size > 0;
+  if (!wanted) {
+    const lock = wakeLock;
+    wakeLock = null;
+    if (lock) void lock.release().catch(() => undefined);
+    return;
+  }
+  if (wakeLock || wakeRequesting || !("wakeLock" in navigator) || document.visibilityState !== "visible") return;
+  wakeRequesting = true;
+  try {
+    const lock = await navigator.wakeLock.request("screen");
+    lock.addEventListener("release", () => { if (wakeLock === lock) wakeLock = null; });
+    wakeLock = lock;
+    // 申请的这一会儿里传完了：马上还回去。
+    if (unloadHolders.size === 0) await keepAwake();
+  } catch {
+    // 被拒（低电量、没有用户手势、不是 https）：保持原样。
+  } finally {
+    wakeRequesting = false;
+  }
+}
+
+/* 页面回到前台、网络恢复：重新申请常亮，所有队列立刻接着传。只挂一次。 */
+let lifecycleBound = false;
+function bindLifecycle() {
+  if (lifecycleBound || typeof document === "undefined") return;
+  lifecycleBound = true;
+  const wake = () => {
+    if (document.visibilityState !== "visible") return;
+    void keepAwake();
+    for (const queue of queues.values()) queue.resume(true);
+  };
+  document.addEventListener("visibilitychange", wake);
+  window.addEventListener("online", wake);
 }
 
 /* ------------------------------------------------------------ 队列 */
@@ -153,6 +223,8 @@ export class UploadQueue {
   private listeners = new Set<() => void>();
   private snapshot: UploadSnapshot;
   private emitTimer: ReturnType<typeof setTimeout> | null = null;
+  private resumeTimer: ReturnType<typeof setTimeout> | null = null;
+  private watchdog: ReturnType<typeof setInterval> | null = null;
   private readonly adminKey: string;
   private readonly albumId: string;
 
@@ -186,36 +258,83 @@ export class UploadQueue {
         photoId: null,
         xhr: null,
         cancelled: false,
+        stalled: false,
+        lastProgressAt: 0,
+        autoRetries: 0,
+        transient: false,
       });
     }
     this.pump();
     this.emit(true);
   }
 
-  /** 还没登记到服务端的字节数：服务端的 used_bytes 里还没算它们。 */
   retry(id: string) {
     const item = this.items.find((entry) => entry.id === id);
-    if (!item || item.status !== "failed") return;
-    item.status = "queued";
-    item.error = null;
-    item.loaded = 0;
+    if (!item || (item.status !== "failed" && item.status !== "waiting")) return;
+    requeue(item, true);
     this.pump();
     this.emit(true);
   }
 
   retryFailed() {
     for (const item of this.items) {
-      if (item.status === "failed") { item.status = "queued"; item.error = null; item.loaded = 0; }
+      if (item.status === "failed" || item.status === "waiting") requeue(item, true);
     }
     this.pump();
     this.emit(true);
+  }
+
+  /**
+   * 把 waiting 的重新排队。fresh = 页面刚回到前台 / 网络刚恢复：情况变了，
+   * 连已经放弃自动重传的网络类失败也再给一轮机会，并把正在传的看门狗计时重置——
+   * 后台那段时间没有进度不算卡死。
+   */
+  resume(fresh = false) {
+    if (this.resumeTimer) { clearTimeout(this.resumeTimer); this.resumeTimer = null; }
+    let changed = false;
+    const now = Date.now();
+    for (const item of this.items) {
+      if (item.status === "waiting" || (fresh && item.status === "failed" && item.transient)) {
+        requeue(item, fresh);
+        changed = true;
+      } else if (fresh && item.status === "uploading") {
+        item.lastProgressAt = now;
+      }
+    }
+    if (!changed) return;
+    this.pump();
+    this.emit(true);
+  }
+
+  /** 有 waiting 的就排一个定时器；页面在后台或断网时不排，等 bindLifecycle 的事件叫醒。 */
+  private scheduleResume() {
+    if (this.resumeTimer) return;
+    const waiting = this.items.filter((item) => item.status === "waiting");
+    if (waiting.length === 0) return;
+    if (document.visibilityState !== "visible" || !navigator.onLine) return;
+    // autoRetries 在进 waiting 时已经加过 1，第一次重传用 RETRY_DELAYS_MS[0]。
+    const attempt = Math.min(...waiting.map((item) => item.autoRetries)) - 1;
+    const delay = RETRY_DELAYS_MS[Math.min(Math.max(attempt, 0), RETRY_DELAYS_MS.length - 1)];
+    this.resumeTimer = setTimeout(() => { this.resumeTimer = null; this.resume(); }, delay);
+  }
+
+  /** 前台时每 10 秒查一次：有进度才算活着。 */
+  private checkStalls() {
+    if (document.visibilityState !== "visible") return;
+    const now = Date.now();
+    for (const item of this.items) {
+      if (item.status === "uploading" && item.xhr && now - item.lastProgressAt > STALL_MS) {
+        item.stalled = true;
+        item.xhr.abort();
+      }
+    }
   }
 
   /** 取消（进行中的）或移出列表（已结束的）。进行中的会在 process 的 catch 里 abort 并移除。 */
   remove(id: string) {
     const item = this.items.find((entry) => entry.id === id);
     if (!item) return;
-    if (item.status === "queued" || item.status === "done" || item.status === "failed") {
+    if (item.status === "queued" || item.status === "waiting" || item.status === "done" || item.status === "failed") {
       this.items = this.items.filter((entry) => entry !== item);
     } else {
       item.cancelled = true;
@@ -228,6 +347,7 @@ export class UploadQueue {
     for (const item of [...this.items]) {
       if (item.status !== "done" && item.status !== "failed") this.remove(item.id);
     }
+    if (this.resumeTimer) { clearTimeout(this.resumeTimer); this.resumeTimer = null; }
   }
 
   clearFinished() {
@@ -244,9 +364,12 @@ export class UploadQueue {
       void this.process(next).finally(() => {
         this.running--;
         this.pump();
+        this.scheduleResume();
         this.emit(true);
       });
     }
+    if (this.running > 0 && !this.watchdog) this.watchdog = setInterval(() => this.checkStalls(), 10_000);
+    if (this.running === 0 && this.watchdog) { clearInterval(this.watchdog); this.watchdog = null; }
     holdUnload(this, this.items.some((item) => isActive(item.status)));
   }
 
@@ -287,11 +410,13 @@ export class UploadQueue {
       item.photoId = null;
       // 传完就放掉小图和文件引用占的内存；done 的项不会再重试。
       item.thumbs = { thumb: null, preview: null };
+      item.autoRetries = 0;
       this.completed++;
     } catch (err) {
       const photoId = item.photoId;
       item.photoId = null;
       item.xhr = null;
+      item.stalled = false;
       if (photoId) {
         await albumSign("abort", { admin_key: this.adminKey, photo_id: photoId }).catch(() => undefined);
       }
@@ -299,9 +424,16 @@ export class UploadQueue {
         this.items = this.items.filter((entry) => entry !== item);
         return;
       }
-      item.status = "failed";
+      const rpcErr = err instanceof RpcError ? err : new RpcError("NETWORK");
       item.loaded = 0;
-      item.error = errorText(err instanceof RpcError ? err : new RpcError("NETWORK"));
+      item.error = errorText(rpcErr);
+      item.transient = isTransient(rpcErr.code);
+      if (item.transient && item.autoRetries < RETRY_DELAYS_MS.length) {
+        item.autoRetries++;
+        item.status = "waiting";
+      } else {
+        item.status = "failed";
+      }
     }
   }
 
@@ -310,14 +442,15 @@ export class UploadQueue {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       item.xhr = xhr;
+      item.lastProgressAt = Date.now();
       xhr.open("PUT", url);
       xhr.setRequestHeader("Content-Type", contentType);
-      if (track) {
-        xhr.upload.onprogress = (event) => {
-          item.loaded = event.loaded;
-          this.emit(false);
-        };
-      }
+      xhr.upload.onprogress = (event) => {
+        item.lastProgressAt = Date.now();
+        if (!track) return;
+        item.loaded = event.loaded;
+        this.emit(false);
+      };
       xhr.onload = () => {
         item.xhr = null;
         if (xhr.status >= 200 && xhr.status < 300) resolve();
@@ -325,7 +458,7 @@ export class UploadQueue {
       };
       xhr.onerror = () => { item.xhr = null; reject(new RpcError("NETWORK")); };
       xhr.ontimeout = () => { item.xhr = null; reject(new RpcError("NETWORK")); };
-      xhr.onabort = () => { item.xhr = null; reject(CANCELLED); };
+      xhr.onabort = () => { item.xhr = null; reject(item.stalled ? new RpcError("NETWORK") : CANCELLED); };
       xhr.send(body);
     });
   }
@@ -360,13 +493,22 @@ export class UploadQueue {
   }
 }
 
+/** waiting 也算「还没结束」：它还会自己再传，屏幕要继续亮着、关页面要继续提醒。 */
 function isActive(status: UploadStatus): boolean {
-  return status === "queued" || status === "preparing" || status === "uploading" || status === "finishing";
+  return status === "queued" || status === "preparing" || status === "uploading" || status === "finishing" || status === "waiting";
+}
+
+function requeue(item: Item, resetCount: boolean) {
+  item.status = "queued";
+  item.error = null;
+  item.loaded = 0;
+  if (resetCount) item.autoRetries = 0;
 }
 
 const queues = new Map<string, UploadQueue>();
 
 export function uploadQueueFor(adminKey: string, albumId: string): UploadQueue {
+  bindLifecycle();
   const key = `${adminKey}\u0000${albumId}`;
   let queue = queues.get(key);
   if (!queue) {

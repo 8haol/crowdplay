@@ -211,6 +211,7 @@ export function SelectionBar({
   count,
   total,
   busy,
+  downloadLabel = "下载",
   onToggleAll,
   onDownload,
   onDelete,
@@ -220,6 +221,8 @@ export function SelectionBar({
   /** 当前筛选下能看到的张数：「全选」选的是这些。 */
   total: number;
   busy: boolean;
+  /** iPhone / iPad 上是「存到相册」。 */
+  downloadLabel?: string;
   onToggleAll: () => void;
   onDownload: () => void;
   onDelete: () => void;
@@ -241,7 +244,7 @@ export function SelectionBar({
       <span className="tabular whitespace-nowrap text-sm font-black" aria-live="polite">已选 {count} 张</span>
       <div className="ml-auto flex shrink-0 items-center gap-1.5">
         <Btn variant="quiet" className={small} onClick={onToggleAll}>{all ? "全不选" : "全选"}</Btn>
-        <Btn icon="download" className={small} disabled={count === 0 || busy} onClick={onDownload}>下载</Btn>
+        <Btn icon="download" className={small} disabled={count === 0 || busy} onClick={onDownload}>{downloadLabel}</Btn>
         <Btn variant="danger" className={small} disabled={count === 0} onClick={onDelete}>删除</Btn>
         <Btn variant="primary" className={`${small} max-sm:hidden`} onClick={onCancel}>取消</Btn>
       </div>

@@ -45,6 +45,7 @@ import {
   type FolderProgress,
 } from "./downloadAll";
 import { Lightbox } from "./Lightbox";
+import { SaveToPhotosJob, canSaveToPhotos, photosCanTake, type SaveState } from "./saveToPhotos";
 import { PhotoGrid, type PhotoGridHandle } from "./PhotoGrid";
 import {
   filesFromEntries,
@@ -107,6 +108,8 @@ export function AlbumDetailView({
   const [download, setDownload] = useState<FolderProgress | null>(null);
   const [sendingOneByOne, setSendingOneByOne] = useState(false);
   const downloadCtrl = useRef<AbortController | null>(null);
+  const [saving, setSaving] = useState<SaveState | null>(null);
+  const saveJob = useRef<SaveToPhotosJob | null>(null);
   const lastDir = useRef<DirHandleLike | null>(null);
   const dragDepth = useRef(0);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -118,6 +121,7 @@ export function AlbumDetailView({
   const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const anchor = useRef<string | null>(null);
   const canFolder = useMemo(() => canSaveToFolder(), []);
+  const canPhotos = useMemo(() => canSaveToPhotos(), []);
 
   const queue = useMemo(() => uploadQueueFor(adminKey, albumId), [adminKey, albumId]);
   const uploads = useSyncExternalStore(queue.subscribe, queue.getSnapshot);
@@ -127,6 +131,7 @@ export function AlbumDetailView({
     return () => {
       alive.current = false;
       downloadCtrl.current?.abort();
+      saveJob.current?.cancel();
       if (reloadTimer.current) clearTimeout(reloadTimer.current);
       reloadTimer.current = null;
     };
@@ -487,7 +492,36 @@ export function AlbumDetailView({
     }
   };
 
+  /** iPhone / iPad：交给系统面板存进「照片」。必须在点击事件里直接调用。 */
+  const startSaveToPhotos = useCallback((list: AlbumPhoto[]) => {
+    if (list.length === 0) return;
+    if (saveJob.current && saveJob.current.snapshot.phase !== "done") return;
+    const job = new SaveToPhotosJob(adminKey, list, (state) => {
+      if (alive.current && saveJob.current === job) setSaving(state);
+    });
+    saveJob.current = job;
+    job.start();
+  }, [adminKey]);
+
+  const downloadRest = async (list: AlbumPhoto[]) => {
+    try {
+      await downloadOneByOne(adminKey, list);
+    } catch (error) {
+      if (alive.current) setNotice({ tone: "error", text: errorText(error) });
+    }
+  };
+
+  const closeSaving = useCallback(() => {
+    saveJob.current?.cancel();
+    saveJob.current = null;
+    setSaving(null);
+  }, []);
+
   const downloadSelected = async () => {
+    if (canPhotos) {
+      startSaveToPhotos(selectedPhotos);
+      return;
+    }
     if (canFolder) {
       await startFolderDownload(selectedPhotos);
       return;
@@ -503,10 +537,14 @@ export function AlbumDetailView({
   };
 
   const downloadSingle = useCallback((photo: AlbumPhoto) => {
+    if (canPhotos && photosCanTake(photo)) {
+      startSaveToPhotos([photo]);
+      return;
+    }
     downloadPhoto(adminKey, photo).catch((error) => {
       if (alive.current) setNotice({ tone: "error", text: errorText(error) });
     });
-  }, [adminKey]);
+  }, [adminKey, canPhotos, startSaveToPhotos]);
 
   /* ------------------------------------------------------------ 渲染 */
 
@@ -538,7 +576,7 @@ export function AlbumDetailView({
   }
 
   const album = data.album;
-  const floating = uploads.items.length > 0 || download !== null;
+  const floating = uploads.items.length > 0 || download !== null || saving !== null;
   const downloading = Boolean(download?.running);
   const hasPhotos = photos.length > 0;
   const countText = videoCount > 0 ? `${photos.length - videoCount} 张照片 · ${videoCount} 个视频` : `${photos.length} 张`;
@@ -556,7 +594,12 @@ export function AlbumDetailView({
         onBack={{ label: "全部相册", onClick: onBack }}
         actions={
           <>
-            {canFolder && hasPhotos && (
+            {canPhotos && hasPhotos && (
+              <Btn icon="download" disabled={saving !== null && saving.phase !== "done"} onClick={() => startSaveToPhotos(sortedAll)}>
+                全部存到相册
+              </Btn>
+            )}
+            {!canPhotos && canFolder && hasPhotos && (
               <Btn icon="download" disabled={downloading} onClick={() => void startFolderDownload(sortedAll)}>
                 全部下载到文件夹
               </Btn>
@@ -678,7 +721,8 @@ export function AlbumDetailView({
                     <SelectionBar
                       count={selectedPhotos.length}
                       total={visible.length}
-                      busy={downloading || sendingOneByOne}
+                      busy={downloading || sendingOneByOne || (saving !== null && saving.phase !== "done")}
+                      downloadLabel={canPhotos ? "存到相册" : "下载"}
                       onToggleAll={() => setSelected(allSelected ? new Set() : new Set(visible.map((p) => p.id)))}
                       onDownload={() => void downloadSelected()}
                       onDelete={() => setDialog("delete-photos")}
@@ -721,9 +765,23 @@ export function AlbumDetailView({
 
       {floating && (
         <div
-          className="pointer-events-none fixed inset-x-3 z-30 flex flex-col items-end gap-2 sm:inset-x-auto sm:right-5 sm:w-[23rem] [&>*]:pointer-events-auto"
+          // 灯箱里点「存到相册」时面板要浮在灯箱上面，不然看不到「存 N 张」那个按钮。
+          className={`pointer-events-none fixed inset-x-3 ${saving && lightboxOpen ? "z-[110]" : "z-30"} flex flex-col items-end gap-2 sm:inset-x-auto sm:right-5 sm:w-[23rem] [&>*]:pointer-events-auto`}
           style={{ bottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
         >
+          {saving && (
+            <SavePhotosPanel
+              state={saving}
+              onShare={() => saveJob.current?.share()}
+              onCancel={() => saveJob.current?.cancel()}
+              onClose={closeSaving}
+              onRetry={() => {
+                const failedIds = new Set(saving.failed.map((item) => item.id));
+                startSaveToPhotos(photos.filter((photo) => failedIds.has(photo.id)));
+              }}
+              onDownloadRest={() => void downloadRest(saving.unsupported)}
+            />
+          )}
           {download && (
             <DownloadPanel
               progress={download}
@@ -1017,6 +1075,117 @@ function DownloadPanel({
           {showFailed && (
             <ul className="tool-scroll mt-2 max-h-40 space-y-1 overflow-y-auto">
               {progress.failed.map((item) => (
+                <li key={item.id} className="text-[11px] font-semibold">
+                  <span className="font-black">{item.filename}</span>
+                  <span style={{ color: T.danger }}> · {item.error}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function SavePhotosPanel({
+  state,
+  onShare,
+  onCancel,
+  onClose,
+  onRetry,
+  onDownloadRest,
+}: {
+  state: SaveState;
+  onShare: () => void;
+  onCancel: () => void;
+  onClose: () => void;
+  onRetry: () => void;
+  onDownloadRest: () => void;
+}) {
+  const [showFailed, setShowFailed] = useState(false);
+  const failed = state.failed.length;
+  const done = state.phase === "done";
+  const clean = done && !state.cancelled && failed === 0 && state.unsupported.length === 0;
+  const multi = state.batchCount > 1;
+  const batchText = multi ? `第 ${state.batchIndex + 1} / ${state.batchCount} 批 · ` : "";
+  const pct = state.batchBytes > 0 ? Math.min(100, Math.round((state.loadedBytes / state.batchBytes) * 100)) : 0;
+
+  // 全部顺利存完：停一会儿自己收起来。
+  useEffect(() => {
+    if (!clean) return;
+    const timer = setTimeout(onClose, 2500);
+    return () => clearTimeout(timer);
+  }, [clean, onClose]);
+
+  const heading = (() => {
+    switch (state.phase) {
+      case "fetching": return `${batchText}正在准备 ${state.batchSize} 个`;
+      case "ready": return `${batchText}${state.readyCount} 个准备好了`;
+      case "sharing": return "在弹出的面板里点「存储」";
+      case "done":
+        if (state.cancelled) return state.saved > 0 ? `已停止，存了 ${state.saved} 个` : "已取消";
+        if (state.total === 0) return "这些文件的格式存不进相册";
+        if (failed > 0) return `存了 ${state.saved} 个，${failed} 个没存成`;
+        return `已存 ${state.saved} 个到相册`;
+    }
+  })();
+
+  const detail = state.phase === "fetching"
+    ? `${formatBytes(state.loadedBytes)} / ${formatBytes(state.batchBytes)} · ${pct}%`
+    : state.phase === "ready"
+      ? "点下面的按钮，再在系统面板里点「存储」"
+      : state.phase === "sharing"
+        ? "存进「照片」App，不会进「文件」"
+        : clean
+          ? "去「照片」App 里看"
+          : null;
+
+  return (
+    <section className={`w-full overflow-hidden rounded-[18px] ${SHADOW}`} style={{ background: T.panel, border: `1px solid ${T.line}` }}>
+      <div className="flex items-center gap-3 px-4 py-3">
+        <AdminIcon name={clean ? "check" : "download"} className="h-4 w-4 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-black" style={{ color: done && failed > 0 ? T.danger : T.ink }}>
+            {heading}
+          </div>
+          {detail && (
+            <div className="tabular truncate text-[11px] font-semibold" style={{ color: T.inkFaint }}>{detail}</div>
+          )}
+        </div>
+        {done ? (
+          <Btn variant="quiet" className="!px-3 !py-2 !text-xs" onClick={onClose}>关闭</Btn>
+        ) : (
+          <Btn variant="quiet" className="!px-3 !py-2 !text-xs" onClick={onCancel}>取消</Btn>
+        )}
+      </div>
+      {state.phase === "fetching" && <ProgressBar pct={pct} tone={T.ink} />}
+      {state.phase === "ready" && (
+        <div className="px-4 pb-3">
+          <Btn variant="primary" icon="download" className="w-full justify-center" onClick={onShare}>
+            存 {state.readyCount} 个到相册
+          </Btn>
+        </div>
+      )}
+      {state.unsupported.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5" style={{ borderTop: `1px solid ${T.line}` }}>
+          <span className="text-[11px] font-semibold" style={{ color: T.inkSoft }}>
+            {state.unsupported.length} 个文件的格式相册不认
+          </span>
+          <Btn className="!px-3 !py-2 !text-xs" onClick={onDownloadRest}>下载到「文件」</Btn>
+        </div>
+      )}
+      {failed > 0 && done && (
+        <div className="px-4 py-2.5" style={{ borderTop: `1px solid ${T.line}` }}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <button type="button" className="text-xs font-black underline underline-offset-2" style={{ color: T.inkSoft }} onClick={() => setShowFailed((v) => !v)}>
+              {showFailed ? "收起" : "看看哪些没存成"}
+            </button>
+            <Btn className="!px-3 !py-2 !text-xs" onClick={onRetry}>重试这 {failed} 个</Btn>
+          </div>
+          {showFailed && (
+            <ul className="tool-scroll mt-2 max-h-40 space-y-1 overflow-y-auto">
+              {state.failed.map((item) => (
                 <li key={item.id} className="text-[11px] font-semibold">
                   <span className="font-black">{item.filename}</span>
                   <span style={{ color: T.danger }}> · {item.error}</span>

@@ -1,4 +1,4 @@
-# PRODUCT.md — Life Passport 人生护照
+# PRODUCT.md — Crowdplay（原 Life Passport 人生护照）
 
 ## What it is
 

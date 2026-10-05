@@ -53,7 +53,7 @@ export function TopBar({
           <ChromeDivider />
           <div className="min-w-0">
             <div className="text-[10px] font-black tracking-[0.3em]" style={{ color: T.inkFaint }}>
-              LIFE PASSPORT
+              CROWDPLAY
             </div>
             <div className="flex min-w-0 items-center gap-2">
               {context && (

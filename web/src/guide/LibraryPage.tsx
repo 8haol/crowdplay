@@ -138,7 +138,7 @@ export default function LibraryPage() {
 
         <header className={`${COLUMN} pt-9`}>
           <p className="text-[11px] font-black tracking-[0.38em] text-foil-dim">
-            LIFE PASSPORT · 内容审核
+            CROWDPLAY · 内容审核
           </p>
           <h1 className="mt-2.5 text-[clamp(2rem,7.5vw,3.2rem)] font-black leading-[1.08] tracking-[-0.045em]">
             全部人生事件

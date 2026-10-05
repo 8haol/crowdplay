@@ -87,7 +87,7 @@ export function EventsListView({
               icon="download"
               onClick={() =>
                 downloadCsv(
-                  "Life Passport-全部活动.csv",
+                  "Crowdplay-全部活动.csv",
                   rows.map((row) => ({
                     活动: row.title,
                     状态: row.is_current ? "进行中 / 等待中" : "已结束",

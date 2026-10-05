@@ -1,7 +1,7 @@
 {
-  "name": "人生护照 Life Passport",
-  "short_name": "人生护照",
-  "description": "现场人生模拟游戏电子护照",
+  "name": "Crowdplay",
+  "short_name": "Crowdplay",
+  "description": "线下活动平台：站点打卡、计分、共享相册",
   "lang": "zh-CN",
   "start_url": "/play",
   "scope": "/",

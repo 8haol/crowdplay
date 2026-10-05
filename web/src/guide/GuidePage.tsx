@@ -139,7 +139,7 @@ function Hero() {
     <header className={`${COLUMN} pt-9 pb-2`}>
       <BrandMark className="!w-[80px] !gap-1 !rounded-[14px] !p-2" />
       <p className="mt-5 text-[11px] font-black tracking-[0.38em] text-foil-dim">
-        LIFE PASSPORT · 同工说明
+        CROWDPLAY · 同工说明
       </p>
       <h1 className="mt-2.5 text-[clamp(2rem,7.5vw,3.2rem)] font-black leading-[1.08] tracking-[-0.045em]">
         人生护照
@@ -739,7 +739,7 @@ function Footer() {
   return (
     <footer className="mt-14 mb-16 rounded-[22px] px-6 py-8 text-center" style={{ background: "var(--color-ink)", color: "var(--color-card)" }}>
       <p className="text-[11px] font-black tracking-[0.32em]" style={{ color: "var(--color-accent)" }}>
-        LIFE PASSPORT
+        CROWDPLAY
       </p>
       <p className="mt-4 text-[clamp(1.25rem,5vw,1.7rem)] font-black leading-tight tracking-[-0.03em]">
         「我的恩典够你用的」

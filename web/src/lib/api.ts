@@ -99,7 +99,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-/** Machine error codes -> user-facing Chinese (mirrors LOGIC.md). */
+/** Machine error codes -> user-facing Chinese (mirrors docs/logic.md). */
 const ERROR_ZH: Record<string, string> = {
   BAD_PASSPHRASE: "口令不对，请确认主持人公布的入场口令",
   BAD_GAME_LINK: "这个入场链接无效，请扫描现场最新二维码",

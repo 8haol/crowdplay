@@ -94,7 +94,7 @@ Supabase 里只存元数据；签名由 Edge Function `album-sign` 完成，R2 �
    ```
 
 5. bucket → Settings → Object lifecycle rules → 加一条「Abort incomplete multipart uploads after 7 days」。
-6. 在主 checkout 的终端里自己运行（密钥不要贴给任何人，包括 Claude）：
+6. 在主 checkout 的终端里自己运行（密钥不要贴给任何人）：
 
    ```bash
    npx supabase secrets set R2_ENDPOINT=https://<account_id>.r2.cloudflarestorage.com R2_BUCKET=denghuo-albums R2_ACCESS_KEY_ID=<...> R2_SECRET_ACCESS_KEY=<...> ALLOWED_ORIGINS=https://lifepassport.netlify.app

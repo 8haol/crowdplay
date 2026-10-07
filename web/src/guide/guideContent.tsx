@@ -1,7 +1,7 @@
 /*
  * Content for /guide — the page volunteers get sent before the event. Kept
  * separate from layout so wording can be edited without touching components,
- * and so the rules here stay one edit away from the rules in GAMEPLAY_V2.md.
+ * and so the rules here stay one edit away from the rules in docs/gameplay-v2.md.
  */
 
 export interface DemoLink {
